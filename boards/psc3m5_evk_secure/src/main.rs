@@ -7,9 +7,15 @@
 #![no_std]
 #![no_main]
 #![feature(abi_cmse_nonsecure_call, cmse_nonsecure_entry)]
-#![deny(missing_docs)]
 
 mod io;
+
+#[cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    link_section = ".stack_buffer"
+)]
+#[no_mangle]
+static mut STACK_MEMORY: [u8; 0x3000] = [0; 0x3000];
 
 // These constants are defined in the linker script.
 extern "C" {
@@ -19,7 +25,6 @@ extern "C" {
     static _srelocate: *const u32;
     static _erelocate: *const u32;
 }
-
 /// Initializes RAM and jumps to main. This is the entry point of the secure firmware.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
@@ -75,6 +80,74 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
         edata = sym _erelocate,
         etext = sym _etext,
     );
+}
+
+extern "C" {
+    // _estack is not really a function, but it makes the types work
+    // You should never actually invoke it!!
+    fn _estack();
+}
+
+#[cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    link_section = ".vectors"
+)]
+// used Ensures that the symbol is kept until the final binary
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
+pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
+    _estack,
+    initialize_ram_jump_to_main,
+    unhandled_interrupt, // NMI
+    hard_fault_handler,  // Hard Fault
+    unhandled_interrupt, // MemManage
+    unhandled_interrupt, // BusFault
+    unhandled_interrupt, // UsageFault
+    unhandled_interrupt,
+    unhandled_interrupt,
+    unhandled_interrupt,
+    unhandled_interrupt,
+    unhandled_interrupt, // SVC
+    unhandled_interrupt, // DebugMon
+    unhandled_interrupt,
+    unhandled_interrupt, // PendSV
+    unhandled_interrupt, // SysTick
+];
+
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[unsafe(naked)]
+pub unsafe extern "C" fn hard_fault_handler() {
+    use core::arch::naked_asm;
+    naked_asm!(
+        "
+    // In the case of a hard fault, we want to panic with the active interrupt number.
+    // The active interrupt number is stored in the IPSR register, which we can read
+    // using the MRS instruction. We then branch to the unhandled_interrupt handler,
+    // which will panic with the interrupt number.
+
+    mrs r0, ipsr
+    b {unhandled_interrupt}
+        ",
+        unhandled_interrupt = sym unhandled_interrupt,
+    );
+}
+
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn unhandled_interrupt() {
+    use core::arch::asm;
+    let mut interrupt_number: u32;
+
+    // IPSR[8:0] holds the currently active interrupt
+    asm!(
+        "
+    mrs r0, ipsr
+        ",
+        out("r0") interrupt_number,
+        options(nomem, nostack, preserves_flags),
+    );
+
+    interrupt_number &= 0x1ff;
+
+    panic!("Unhandled Interrupt. ISR {} is active.", interrupt_number);
 }
 
 /// Main function called after RAM initialized.

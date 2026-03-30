@@ -22,14 +22,13 @@ OPENOCD_ROOT = /opt/ModusToolboxProgtools-1.7/openocd
 install: flash
 .PHONY: install
 
-build-with-app: $(BUILD_TYPE) # let cargo rebuild
-ifeq ($(APP),)
-	$(info Built kernel without application (old application will still be present))
+build-with-app:
+ifeq ($(DEBUG), 1)
+	cargo b
 else
-	$(info Building kernel with application $(APP))
-	arm-none-eabi-objcopy --set-section-flags .apps=LOAD,ALLOC $(KERNEL) $(KERNEL_WITH_APP)
-	arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL_WITH_APP)
+	cargo b --release
 endif
+	echo "Building kernel with application $(APP)"
 
 .PHONY: flash
 flash: build-with-app
