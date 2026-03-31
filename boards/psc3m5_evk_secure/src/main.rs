@@ -158,8 +158,8 @@ unsafe fn configure_sau() -> Result<(), sau::SauError> {
     sau.set_region(
         0,
         sau::SauRegion {
-            base_address: 0x3201_0100,
-            limit_address: 0x3203_FFFF,
+            base_address: 0x2201_0100,
+            limit_address: 0x2203_FFFF,
             attribute: sau::SauRegionAttribute::NonSecure,
         },
     )?;
@@ -176,8 +176,8 @@ unsafe fn configure_sau() -> Result<(), sau::SauError> {
     sau.set_region(
         2,
         sau::SauRegion {
-            base_address: 0x3400_4000,
-            limit_address: 0x3400_EFFF,
+            base_address: 0x2400_4000,
+            limit_address: 0x2400_EFFF,
             attribute: sau::SauRegionAttribute::NonSecure,
         },
     )?;
@@ -185,8 +185,8 @@ unsafe fn configure_sau() -> Result<(), sau::SauError> {
     sau.set_region(
         3,
         sau::SauRegion {
-            base_address: 0x3400_F000,
-            limit_address: 0x3400_FFFF,
+            base_address: 0x2400_F000,
+            limit_address: 0x2400_FFFF,
             attribute: sau::SauRegionAttribute::NonSecure,
         },
     )?;
@@ -195,6 +195,9 @@ unsafe fn configure_sau() -> Result<(), sau::SauError> {
 
     Ok(())
 }
+
+const NONSECURE_START_FLASH: *const [u32; 2] = 0x2201_0100 as *const [u32; 2];
+const NONSECURE_END_FLASH: *const u32 = 0x2204_0000 as *const u32;
 
 /// Main function called after RAM initialized.
 #[no_mangle]
@@ -205,5 +208,21 @@ pub unsafe fn main() {
                 core::arch::asm!("nop");
             }
         }
+    }
+
+    unsafe {
+        let [nonsecure_sp, nonsecure_reset] = NONSECURE_START_FLASH.read_volatile();
+
+        core::arch::asm!(
+            "msr msp, {nonsecure_sp}",
+            nonsecure_sp = in(reg) nonsecure_sp,
+            options(nomem, nostack, preserves_flags),
+        );
+
+        let nonsecure_reset = core::mem::transmute::<*const u32, extern "cmse-nonsecure-call" fn()>(
+            nonsecure_reset as *const u32,
+        );
+
+        nonsecure_reset();
     }
 }

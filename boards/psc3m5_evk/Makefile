@@ -22,8 +22,11 @@ OPENOCD_ROOT = /opt/ModusToolboxProgtools-1.7/openocd
 install: flash
 .PHONY: install
 
+all: $(BUILD_TYPE)
+
 build-with-app: $(BUILD_TYPE) # let cargo rebuild
 ifeq ($(APP),)
+	cp $(KERNEL) $(KERNEL_WITH_APP)
 	$(info Built kernel without application (old application will still be present))
 else
 	$(info Building kernel with application $(APP))
