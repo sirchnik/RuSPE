@@ -9,6 +9,7 @@
 #![feature(abi_cmse_nonsecure_call, cmse_nonsecure_entry)]
 
 use cortexm33::sau;
+use psc3::{icache, ppc};
 
 mod io;
 
@@ -196,12 +197,160 @@ unsafe fn configure_sau() -> Result<(), sau::SauError> {
     Ok(())
 }
 
+fn configure_ppc() {
+    ppc::set_viloation_response(ppc::PPC_CTL::RESP_CFG::BUS_ERROR);
+
+    use ppc::PpcRegion::*;
+    let nsec_priv = [
+        Peri0Main,
+        Peri0Gr0Group,
+        Peri0Gr1Group,
+        Peri0Gr2Group,
+        Peri0Gr3Group,
+        Peri0Gr4Group,
+        Peri0Gr5Group,
+        Peri0Gr0Boot,
+        Peri0Gr1Boot,
+        Peri0Gr2Boot,
+        Peri0Gr3Boot,
+        Peri0Gr4Boot,
+        Peri0Gr5Boot,
+        Peri0Tr,
+        PeriPclk0Main,
+        Cpuss,
+        Ramc0Cm33,
+        Ramc0Boot,
+        Ramc0RamPwr,
+        PromcCm33,
+        FlashcBoot,
+        FlashcBoot1,
+        FlashcMain,
+        FlashcDft,
+        FlashcEcc,
+        Mxcm33Cm33,
+        Mxcm33Cm33S,
+        Mxcm33Cm33Ns,
+        Mxcm33BootPc0,
+        Mxcm33BootPc1,
+        Mxcm33BootPc2,
+        Mxcm33BootPc3,
+        Mxcm33Boot,
+        Mxcm33Cm33Int,
+        Dw0Dw,
+        Dw1Dw,
+        Dw0DwCrc,
+        Dw1DwCrc,
+        CpussAllPc,
+        CpussDdft,
+        CpussCm33S,
+        CpussCm33Ns,
+        CpussMscInt,
+        CpussAp,
+        CpussBoot,
+        Ms0Main,
+        Ms4Main,
+        Ms5Main,
+        Ms7Main,
+        Ms31Main,
+        MsPc0Priv,
+        MsPc31Priv,
+        MsPc0PrivMir,
+        MsPc31PrivMir,
+        MscAcg,
+        IpcStruct0Ipc,
+        IpcStruct1Ipc,
+        IpcStruct2Ipc,
+        IpcStruct3Ipc,
+        SrssGeneral,
+        SrssGeneral2,
+        SrssHibData,
+        SrssMain,
+        SrssSecure,
+        SrssDpll,
+        SrssWdt,
+        Main,
+        BackupBackup,
+        BackupBBreg0,
+        BackupBBreg1,
+        BackupBBreg2,
+        BackupBBreg3,
+        CryptoliteMain,
+        CryptoliteTrng,
+        Mxcordic10,
+        HsiomPrt0Prt,
+        HsiomPrt1Prt,
+        HsiomPrt2Prt,
+        HsiomPrt3Prt,
+        HsiomPrt4Prt,
+        HsiomPrt5Prt,
+        HsiomPrt6Prt,
+        HsiomPrt7Prt,
+        HsiomPrt8Prt,
+        HsiomPrt9Prt,
+        HsiomAmux,
+        HsiomMon,
+        GpioPrt0Prt,
+        GpioPrt1Prt,
+        GpioPrt2Prt,
+        GpioPrt3Prt,
+        GpioPrt4Prt,
+        GpioPrt5Prt,
+        GpioPrt6Prt,
+        GpioPrt7Prt,
+        GpioPrt8Prt,
+        GpioPrt9Prt,
+        GpioPrt0Cfg,
+        GpioPrt1Cfg,
+        GpioPrt2Cfg,
+        GpioPrt3Cfg,
+        GpioPrt4Cfg,
+        GpioPrt5Cfg,
+        GpioPrt6Cfg,
+        GpioPrt7Cfg,
+        GpioPrt8Cfg,
+        GpioPrt9Cfg,
+        GpioSecGpio,
+        GpioGpio,
+        GpioTest,
+        SmartioPrt0Prt,
+        SmartioPrt1Prt,
+        SmartioPrt2Prt,
+        SmartioPrt3Prt,
+        SmartioPrt5Prt,
+        SmartioPrt6Prt,
+        SmartioPrt9Prt,
+        Lpcomp,
+        Dft,
+        EfuseCtl1,
+        EfuseCtl2,
+        EfuseCtl3,
+        EfuseDataBoot1,
+        Canfd0Ch0Ch,
+        Canfd0Ch1Ch,
+        Canfd0Main,
+        Canfd0Buf,
+        Scb0,
+        Scb1,
+        Scb2,
+        Scb3,
+        Scb4,
+        Scb5,
+        Tcpwm0Boot,
+        Mcpass,
+    ];
+
+    for region in nsec_priv {
+        ppc::set_trustzone_access(region, true, true);
+    }
+}
+
 const NONSECURE_START_FLASH: *const [u32; 2] = 0x2201_0100 as *const [u32; 2];
 const NONSECURE_END_FLASH: *const u32 = 0x2204_0000 as *const u32;
 
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
+    icache::sys_init_enable_cache();
     if configure_sau().is_err() {
         loop {
             unsafe {
@@ -209,6 +358,8 @@ pub unsafe fn main() {
             }
         }
     }
+
+    configure_ppc();
 
     unsafe {
         let [nonsecure_sp, nonsecure_reset] = NONSECURE_START_FLASH.read_volatile();

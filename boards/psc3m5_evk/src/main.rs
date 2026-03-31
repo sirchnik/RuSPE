@@ -135,7 +135,6 @@ extern "C" {
 #[no_mangle]
 pub unsafe fn main() {
     /* Only after peripherals.sys_init() was called peripheral view for debugging works */
-    icache::sys_init_enable_cache();
     cortexm33::support::dmb();
     cortexm33::nvic::enable_all();
 
