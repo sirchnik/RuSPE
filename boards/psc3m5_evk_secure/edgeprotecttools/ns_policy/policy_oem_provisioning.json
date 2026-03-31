@@ -192,56 +192,70 @@
             "value": "0xFFFFFFFF"
         },
         "mpc": {
+            "comment_1": "WRN allow write, read, and NS only access",
+            "comment_2": "-RN allow read, NS-only access",
+            "comment_3": "--- and --N, no access",
+            "comment_4": "WR- read and write access, but NS=0 only",
+            "comment_5": "Offset and size in KB. The values must be multiple of 2 (e.g. 0 KB, 2 KB, 4 KB, 8 KB, ...)",
             "mpc_struct_ram": {
-                "description": "RAM MPC structures. The total number of RAM and Flash MPC structures must be less than 32",
+                "description": "RAM MPC structures.",
+                "comment_1": "The total number of RAM and Flash MPC structures must be less than 32",
                 "value": [
                     {
-                        "description": "Offset and size in KB. The values must be multiple of 2 (e.g. 0 KB, 2 KB, 4 KB, 8 KB, ...)",
+                        "comment_1": "First Section left with defaults for secure memory.",
+                        "description": "Non-Secure Memory",
                         "offset": "16 KB",
-                        "size": "48 KB",
+                        "size": "44 KB",
                         "attr": {
-                            "description": "The MPC attributes for this memory region",
-                            "comment_1": "WRN allow write, read, and NS only access",
-                            "comment_2": "-RN allow read, NS-only access",
-                            "comment_3": "--- and --N, no access",
-                            "comment_4": "WR- read and write access, but NS=0 only",
+                            "value": {
+                                "pc0": "WR-",
+                                "pc1": "WR-",
+                                "pc2": "WRN",
+                                "pc3": "WRN",
+                                "pc4": "--N",
+                                "pc5": "--N",
+                                "pc6": "--N",
+                                "pc7": "--N"
+                            }
+                        }
+                    },
+                    {
+                        "description": "Secure Memory",
+                        "offset": "60 KB",
+                        "size": "4 KB",
+                        "attr": {
                             "value": {
                                 "pc0": "WR-",
                                 "pc1": "WR-",
                                 "pc2": "WR-",
-                                "pc3": "WR-",
-                                "pc4": "WR-",
-                                "pc5": "WR-",
-                                "pc6": "WR-",
-                                "pc7": "WR-"
+                                "pc3": "WRN",
+                                "pc4": "--N",
+                                "pc5": "--N",
+                                "pc6": "--N",
+                                "pc7": "--N"
                             }
                         }
                     }
                 ]
             },
             "mpc_struct_flash": {
-                "description": "Flash MPC structures. The total number of RAM and Flash MPC structures must be less than 32",
+                "comment_1": "Flash MPC structures. The total number of RAM and Flash MPC structures must be less than 32",
                 "value": [
                     {
-                        "description": "Offset and size in KB. The values must be multiple of 2 (e.g. 0 KB, 2 KB, 4 KB, 8 KB, ...)",
+                        "comment_1": "First Section left with defaults for secure flash.",
+                        "description": "Non-Secure Flash + NSC Flash",
                         "offset": "64 KB",
                         "size": "192 KB",
                         "attr": {
-                            "description": "The MPC attributes for this memory region",
-                            "comment_1": "WRN allow read, write, and NS only access",
-                            "comment_2": "-RN allow read, NS-only access",
-                            "comment_3": "--- and --N, no access",
-                            "comment_4": "WR- read and write access, but NS=0 only",
-                            "comment_5": "W--, W-N illegal values",
                             "value": {
                                 "pc0": "WR-",
                                 "pc1": "WR-",
-                                "pc2": "WR-",
-                                "pc3": "WR-",
-                                "pc4": "WR-",
-                                "pc5": "WR-",
-                                "pc6": "WR-",
-                                "pc7": "WR-"
+                                "pc2": "WRN",
+                                "pc3": "WRN",
+                                "pc4": "--N",
+                                "pc5": "--N",
+                                "pc6": "--N",
+                                "pc7": "--N"
                             }
                         }
                     }

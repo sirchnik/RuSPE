@@ -1,7 +1,7 @@
 /* Licensed under the Apache License, Version 2.0 or the MIT License. */
 /* SPDX-License-Identifier: Apache-2.0 OR MIT                         */
 
-ENTRY(initialize_ram_jump_to_main)
+ENTRY(sec_initialize_ram_jump_to_main)
 
 SECTIONS
 {

@@ -8,6 +8,8 @@
 #![no_main]
 #![feature(abi_cmse_nonsecure_call, cmse_nonsecure_entry)]
 
+use cortexm33::sau;
+
 mod io;
 
 #[cfg_attr(
@@ -29,7 +31,7 @@ extern "C" {
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn initialize_ram_jump_to_main() {
+pub unsafe extern "C" fn sec_initialize_ram_jump_to_main() {
     use core::arch::naked_asm;
     naked_asm!(
         "
@@ -96,7 +98,7 @@ extern "C" {
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     _estack,
-    initialize_ram_jump_to_main,
+    sec_initialize_ram_jump_to_main,
     unhandled_interrupt, // NMI
     hard_fault_handler,  // Hard Fault
     unhandled_interrupt, // MemManage
@@ -150,12 +152,58 @@ pub unsafe extern "C" fn unhandled_interrupt() {
     panic!("Unhandled Interrupt. ISR {} is active.", interrupt_number);
 }
 
+unsafe fn configure_sau() -> Result<(), sau::SauError> {
+    let mut sau = sau::new();
+
+    sau.set_region(
+        0,
+        sau::SauRegion {
+            base_address: 0x3201_0100,
+            limit_address: 0x3203_FFFF,
+            attribute: sau::SauRegionAttribute::NonSecure,
+        },
+    )?;
+
+    sau.set_region(
+        1,
+        sau::SauRegion {
+            base_address: 0x3201_0000,
+            limit_address: 0x3201_00FF,
+            attribute: sau::SauRegionAttribute::NonSecureCallable,
+        },
+    )?;
+
+    sau.set_region(
+        2,
+        sau::SauRegion {
+            base_address: 0x3400_4000,
+            limit_address: 0x3400_EFFF,
+            attribute: sau::SauRegionAttribute::NonSecure,
+        },
+    )?;
+
+    sau.set_region(
+        3,
+        sau::SauRegion {
+            base_address: 0x3400_F000,
+            limit_address: 0x3400_FFFF,
+            attribute: sau::SauRegionAttribute::NonSecure,
+        },
+    )?;
+
+    sau.enable();
+
+    Ok(())
+}
+
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
-    loop {
-        unsafe {
-            core::arch::asm!("nop");
+    if configure_sau().is_err() {
+        loop {
+            unsafe {
+                core::arch::asm!("nop");
+            }
         }
     }
 }
