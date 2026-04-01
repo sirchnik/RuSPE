@@ -13,6 +13,11 @@ use psc3::{icache, ppc};
 
 mod io;
 
+extern "Rust" {
+    static __veneer_base: ();
+    static __veneer_limit: ();
+}
+
 #[cfg_attr(
     all(target_arch = "arm", target_os = "none"),
     link_section = ".stack_buffer"
@@ -168,8 +173,8 @@ unsafe fn configure_sau() -> Result<(), sau::SauError> {
     sau.set_region(
         1,
         sau::SauRegion {
-            base_address: 0x3201_0000,
-            limit_address: 0x3201_00FF,
+            base_address: 0x3200_FF00,
+            limit_address: 0x3200_FFFF,
             attribute: sau::SauRegionAttribute::NonSecureCallable,
         },
     )?;
@@ -208,7 +213,7 @@ unsafe fn configure_sau() -> Result<(), sau::SauError> {
 }
 
 fn configure_ppc() {
-    ppc::set_viloation_response(ppc::PPC_CTL::RESP_CFG::BUS_ERROR);
+    ppc::set_viloation_response(ppc::PPC_CTL::RESP_CFG::RZWI);
 
     // TODO limit
     use ppc::PpcRegion::*;
@@ -390,5 +395,15 @@ pub unsafe fn main() {
         );
 
         nonsecure_reset();
+    }
+}
+
+static mut COUNTER: u32 = 0;
+
+#[no_mangle]
+extern "cmse-nonsecure-entry" fn do_stuff_secure(num: u32) -> u32 {
+    unsafe {
+        COUNTER += num;
+        COUNTER
     }
 }

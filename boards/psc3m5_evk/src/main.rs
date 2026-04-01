@@ -28,6 +28,11 @@ use psc3::{BASE_VECTORS, IRQS};
 
 mod io;
 
+unsafe extern "C" {
+    /// A function defined in veneers.o that performs some secure operations.
+    pub safe fn do_stuff_secure(num: u32) -> u32;
+}
+
 // Allocate memory for the stack
 kernel::stack_size! {0x3000}
 

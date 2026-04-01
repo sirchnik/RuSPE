@@ -9,6 +9,11 @@ include = [
 
 [build]
 target = "thumbv8m.main-none-eabi"
+rustflags = [
+  # Output secure veneer library
+  "-C", "link-arg=--cmse-implib",
+  "-C", "link-arg=--out-implib=target/thumbv8m.main-none-eabi/psc3m5_secure-veneers.o",
+]
 
 [unstable]
 config-include = true

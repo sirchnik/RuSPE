@@ -9,6 +9,10 @@ include = [
 
 [build]
 target = "thumbv8m.main-none-eabi"
+rustflags = [
+    "-C", "link-arg=target/thumbv8m.main-none-eabi/psc3m5_secure-veneers.o",
+]
+    
 
 [unstable]
 config-include = true

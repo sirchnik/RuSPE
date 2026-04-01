@@ -110,6 +110,24 @@ SECTIONS
     _etext = .;
     _textend = .;   /* alias for _etext expected by some MS toolchains */
 
+    /* ### .gnu.sgstubs
+    This section contains the TrustZone-M veneers put there by the Arm GNU linker. */
+    /* Security Attribution Unit blocks must be 32 bytes aligned. */
+    /* Note that this pads the FLASH usage to 32 byte alignment. */
+    .gnu.sgstubs ORIGIN(nsc) : ALIGN(32)
+    {
+        . = ALIGN(32);
+        __veneer_base = .;
+        *(.gnu.sgstubs*)
+        . = ALIGN(32);
+    } > nsc 
+    /* Place `__veneer_limit` outside the `.gnu.sgstubs` section because veneers are
+    * always inserted last in the section, which would otherwise be _after_ the `__veneer_limit` symbol.
+    */
+    . = ALIGN(32);
+    __veneer_limit = .;
+    ASSERT(__veneer_limit <= ORIGIN(nsc) + LENGTH(nsc), "CMSE veneers exceed NSC region")
+
     /* Kernel data that must be relocated. This is program data that is
      * expected to live in SRAM, but is initialized with a value. This data is
      * physically placed into flash and is copied into SRAM by Tock. The
