@@ -22,7 +22,6 @@ use kernel::{capabilities, create_capability, static_init, Kernel};
 
 use psc3::chip::{Psc3, Psc3DefaultPeripherals};
 use psc3::gpio;
-use psc3::icache;
 use psc3::tcpwm::Tcpwm0;
 #[allow(unused)]
 use psc3::{BASE_VECTORS, IRQS};

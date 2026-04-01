@@ -192,6 +192,16 @@ unsafe fn configure_sau() -> Result<(), sau::SauError> {
         },
     )?;
 
+    // TODO limit
+    sau.set_region(
+        4,
+        sau::SauRegion {
+            base_address: 0x4200_0000,
+            limit_address: 0x4FFF_FFFF,
+            attribute: sau::SauRegionAttribute::NonSecure,
+        },
+    )?;
+
     sau.enable();
 
     Ok(())
@@ -200,6 +210,7 @@ unsafe fn configure_sau() -> Result<(), sau::SauError> {
 fn configure_ppc() {
     ppc::set_viloation_response(ppc::PPC_CTL::RESP_CFG::BUS_ERROR);
 
+    // TODO limit
     use ppc::PpcRegion::*;
     let nsec_priv = [
         Peri0Main,
@@ -341,7 +352,9 @@ fn configure_ppc() {
 
     for region in nsec_priv {
         ppc::set_trustzone_access(region, true, true);
+        ppc::set_protection_context(region, 0xFF);
     }
+    ppc::lock_protection_contexts();
 }
 
 const NONSECURE_START_FLASH: *const [u32; 2] = 0x2201_0100 as *const [u32; 2];
@@ -360,6 +373,8 @@ pub unsafe fn main() {
     }
 
     configure_ppc();
+
+    psc3::chip::init_gpio_pins();
 
     unsafe {
         let [nonsecure_sp, nonsecure_reset] = NONSECURE_START_FLASH.read_volatile();
