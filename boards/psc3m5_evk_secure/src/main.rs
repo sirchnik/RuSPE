@@ -9,7 +9,7 @@
 #![feature(abi_cmse_nonsecure_call, cmse_nonsecure_entry)]
 
 use cortexm33::sau;
-use psc3::{icache, ppc};
+use psc3::{icache, mxcm33, ppc};
 
 mod io;
 
@@ -120,6 +120,11 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     unhandled_interrupt, // PendSV
     unhandled_interrupt, // SysTick
 ];
+
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
+// used Ensures that the symbol is kept until the final binary
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
+pub static IRQS: [unsafe extern "C" fn(); 140] = [unhandled_interrupt; 140];
 
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
@@ -456,6 +461,12 @@ const NONSECURE_START_FLASH: *const [u32; 2] = 0x2201_0100 as *const [u32; 2];
 #[no_mangle]
 pub unsafe fn main() {
     icache::sys_init_enable_cache();
+
+    // TODO does this include hardfault, systick, etc?
+    cortexm33::nvic::set_interrupt_non_secure(0, 140);
+    cortexm33::nvic::enable_all();
+
+    mxcm33::set_ns_vector_table_base(NONSECURE_START_FLASH as u32);
 
     psc3::chip::init_gpio_pins();
 
