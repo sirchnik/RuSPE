@@ -8,8 +8,12 @@
 #![no_main]
 #![feature(abi_cmse_nonsecure_call, cmse_nonsecure_entry)]
 
+//! TODO:
+//! - GPIO interrupts
+//! - hardfault in non-secure
+
 use cortexm33::sau;
-use psc3::{icache, mxcm33, ppc};
+use psc3::{gpio, icache, ppc};
 
 mod io;
 
@@ -466,7 +470,42 @@ pub unsafe fn main() {
     cortexm33::nvic::set_interrupt_non_secure(0, 140);
     cortexm33::nvic::enable_all();
 
-    mxcm33::set_ns_vector_table_base(NONSECURE_START_FLASH as u32);
+    // useless strangely only setting vector table in scb from ns works
+    // mxcm33::set_ns_vector_table_base(NONSECURE_START_FLASH as u32);
+
+    // In main(), after configure_sau() and configure_ppc()
+    unsafe {
+        // AIRCR register: 0xE000_ED0C
+        // Bit 4: SYSRESETREQS - SysReset request security
+        // Bit 3: BFHFNMINS - BusFault, HardFault, NMI Non-Secure
+        // Setting bit 3 = 1 makes HardFault, BusFault, NMI non-secure
+        let aircr = 0xe000ed0c as *mut u32;
+        let mut value = aircr.read_volatile();
+        value |= (0x5fa << 16) | (1 << 3); // VECTKEY + BFHFNMINS
+        aircr.write_volatile(value);
+    }
+    let gpio = gpio::PsocPins::new(true);
+
+    const GPIO_CONFIG: gpio::PreConfig = gpio::PreConfig {
+        out_val: 1,
+        drive_mode: gpio::DriveMode::PullUp,
+        hsiom: gpio::HsiomFunction::GPIOControlsOut,
+        int_edge: false,
+        int_mask: 0,
+        vtrip: 0,
+        fast_slew_rate: true,
+        drive_sel: gpio::DriveSelect::Half,
+        vreg_en: false,
+        ibuf_mode: 0,
+        vtrip_sel: 0,
+        vref_sel: 0,
+        voh_sel: 0,
+        non_sec: true,
+    };
+
+    gpio.get_pin(gpio::PsocPin::P8_5).preconfigure(&GPIO_CONFIG);
+    let led_pin = gpio.get_pin(gpio::PsocPin::P8_4);
+    led_pin.preconfigure(&GPIO_CONFIG);
 
     psc3::chip::init_gpio_pins();
 

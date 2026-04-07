@@ -140,7 +140,7 @@ extern "C" {
 pub unsafe fn main() {
     /* Only after peripherals.sys_init() was called peripheral view for debugging works */
     cortexm33::support::dmb();
-    cortexm33::nvic::enable_all();
+    cortexm33::scb::set_vector_table_offset(BASE_VECTORS.as_ptr() as *const ());
 
     cortexm33::support::set_msplim(core::ptr::addr_of!(_sstack) as u32);
 
@@ -171,7 +171,7 @@ pub unsafe fn main() {
         vtrip_sel: 0,
         vref_sel: 0,
         voh_sel: 0,
-        non_sec: false,
+        non_sec: true,
     };
 
     peripherals
