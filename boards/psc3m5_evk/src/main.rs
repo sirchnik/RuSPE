@@ -34,7 +34,7 @@ unsafe extern "C" {
 }
 
 // Allocate memory for the stack
-kernel::stack_size! {0x3000}
+kernel::stack_size! {0x2000}
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.

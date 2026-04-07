@@ -17,7 +17,7 @@ PLATFORM = psc3m5_evk_secure
 # Define the path to the TBF file to flash an application
 APP?=
 SECURE_PROJ=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/$(BUILD_TYPE)/$(PLATFORM)
-KERNEL=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/$(BUILD_TYPE)/psc3m5_evk
+KERNEL=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/$(BUILD_TYPE)/psc3m5_evk-app.elf
 SEC_KERNEL_MERGED=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/$(BUILD_TYPE)/psc3m5_evk_sec_merged.hex
 
 OPENOCD_ROOT = /opt/ModusToolboxProgtools-1.7/openocd
@@ -34,7 +34,7 @@ ifeq ($(DEBUG), 1)
 else
 	cargo b --release
 endif
-	$(MAKE) -C ../psc3m5_evk APP=$(APP) DEBUG=$(DEBUG)
+	$(MAKE) -C ../psc3m5_evk build-with-app APP=$(APP) DEBUG=$(DEBUG)
 	arm-none-eabi-objcopy -O ihex $(KERNEL) $(KERNEL).hex
 	arm-none-eabi-objcopy -O ihex $(SECURE_PROJ) $(SECURE_PROJ).hex
 	uv run hexmerge.py --output=$(SEC_KERNEL_MERGED) $(SECURE_PROJ).hex $(KERNEL).hex --no-start-addr --overlap=ignore # different start addresses, so ignore overlaps

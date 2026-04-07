@@ -9,7 +9,6 @@
 #![feature(abi_cmse_nonsecure_call, cmse_nonsecure_entry)]
 
 //! TODO:
-//! - GPIO interrupts
 //! - hardfault in non-secure
 
 use cortexm33::sau;
