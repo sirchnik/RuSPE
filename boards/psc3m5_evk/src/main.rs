@@ -21,8 +21,8 @@ use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, static_init, Kernel};
 
 use psc3::chip::{Psc3, Psc3DefaultPeripherals};
-use psc3::gpio;
 use psc3::tcpwm::Tcpwm0;
+use psc3::{chip_init, gpio};
 #[allow(unused)]
 use psc3::{BASE_VECTORS, IRQS};
 
@@ -138,11 +138,13 @@ extern "C" {
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
-    /* Only after peripherals.sys_init() was called peripheral view for debugging works */
     cortexm33::support::dmb();
     cortexm33::scb::set_vector_table_offset(BASE_VECTORS.as_ptr() as *const ());
 
     cortexm33::support::set_msplim(core::ptr::addr_of!(_sstack) as u32);
+
+    /* !Only after chip_init::preinit_peripherals() was called peripheral view for debugging works! */
+    chip_init::preinit_peripherals();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<
@@ -154,7 +156,6 @@ pub unsafe fn main() {
 
     let peripherals = static_init!(Psc3DefaultPeripherals, Psc3DefaultPeripherals::new());
 
-    peripherals.preinit_peripherals();
     peripherals.init();
 
     const GPIO_CONFIG: gpio::PreConfig = gpio::PreConfig {

@@ -12,7 +12,7 @@
 //! - hardfault in non-secure
 
 use cortexm33::sau;
-use psc3::{gpio, icache, ppc};
+use psc3::{chip_init, gpio, icache, peri_clk, ppc};
 
 mod io;
 
@@ -205,13 +205,21 @@ unsafe fn configure_sau() -> Result<(), sau::SauError> {
         },
     )?;
 
-    // TODO limit
     sau.set_region(
         4,
         sau::SauRegion {
             base_address: 0x4200_0000,
             limit_address: 0x4FFF_FFFF,
             attribute: sau::SauRegionAttribute::NonSecure,
+        },
+    )?;
+
+    sau.set_region(
+        5,
+        sau::SauRegion {
+            base_address: 0x5202_0000,
+            limit_address: 0x5202_637F,
+            attribute: sau::SauRegionAttribute::Secure,
         },
     )?;
 
@@ -464,15 +472,16 @@ const NONSECURE_START_FLASH: *const [u32; 2] = 0x2201_0100 as *const [u32; 2];
 #[no_mangle]
 pub unsafe fn main() {
     icache::sys_init_enable_cache();
+    chip_init::preinit_peripherals();
+    chip_init::init_system();
+    peri_clk::enable_scb0();
 
-    // TODO does this include hardfault, systick, etc?
     cortexm33::nvic::set_interrupt_non_secure(0, 140);
     cortexm33::nvic::enable_all();
 
     // useless strangely only setting vector table in scb from ns works
     // mxcm33::set_ns_vector_table_base(NONSECURE_START_FLASH as u32);
 
-    // In main(), after configure_sau() and configure_ppc()
     unsafe {
         // AIRCR register: 0xE000_ED0C
         // Bit 4: SYSRESETREQS - SysReset request security
@@ -511,13 +520,7 @@ pub unsafe fn main() {
     // first configure ppc because sau restrict peripheral access to non-secure
     configure_ppc();
 
-    if configure_sau().is_err() {
-        loop {
-            unsafe {
-                core::arch::asm!("nop");
-            }
-        }
-    }
+    configure_sau().unwrap();
 
     unsafe {
         let [nonsecure_sp, nonsecure_reset] = NONSECURE_START_FLASH.read_volatile();
