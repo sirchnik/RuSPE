@@ -8,11 +8,11 @@
 #![no_main]
 #![feature(abi_cmse_nonsecure_call, cmse_nonsecure_entry)]
 
-//! TODO:
-//! - hardfault in non-secure
+use core::ptr::addr_of_mut;
 
 use cortexm33::sau;
 use psc3::{chip_init, gpio, icache, peri_clk, ppc};
+use spe::static_init;
 
 mod io;
 
@@ -223,6 +223,15 @@ unsafe fn configure_sau() -> Result<(), sau::SauError> {
         },
     )?;
 
+    sau.set_region(
+        6,
+        sau::SauRegion {
+            base_address: 0x5282_0000,
+            limit_address: 0x5282_0FDF,
+            attribute: sau::SauRegionAttribute::Secure,
+        },
+    )?;
+
     sau.enable();
 
     Ok(())
@@ -426,7 +435,7 @@ fn configure_ppc() {
         ProtCanfd0Ch1Ch,
         ProtCanfd0Main,
         ProtCanfd0Buf,
-        ProtScb0,
+        // ProtScb0,
         ProtScb1,
         ProtScb2,
         ProtScb3,
@@ -476,6 +485,15 @@ pub unsafe fn main() {
     chip_init::init_system();
     peri_clk::enable_scb0();
 
+    psc3::chip::init_gpio_pins();
+
+    let scb0 = static_init!(psc3::scb::Scb, psc3::scb::Scb::new_scb0());
+
+    scb0.set_standard_uart_mode();
+    scb0.enable_scb();
+
+    (*addr_of_mut!(io::WRITER)).set_serial(scb0);
+
     cortexm33::nvic::set_interrupt_non_secure(0, 140);
     cortexm33::nvic::enable_all();
 
@@ -515,12 +533,12 @@ pub unsafe fn main() {
     let led_pin = gpio.get_pin(gpio::PsocPin::P8_4);
     led_pin.preconfigure(&GPIO_CONFIG);
 
-    psc3::chip::init_gpio_pins();
-
     // first configure ppc because sau restrict peripheral access to non-secure
     configure_ppc();
 
     configure_sau().unwrap();
+
+    io::debugln(format_args!("Init SPE done, jumping to non-secure"));
 
     unsafe {
         let [nonsecure_sp, nonsecure_reset] = NONSECURE_START_FLASH.read_volatile();

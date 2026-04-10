@@ -2,10 +2,47 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Infineon Technologies AG 2026.
 
-use core::panic::PanicInfo;
-/// Writer is used by kernel::debug to panic message to the serial port.
+use core::{fmt::Write, panic::PanicInfo};
 
+use tock_cells::optional_cell::OptionalCell;
+
+pub struct Writer {
+    serial: OptionalCell<&'static psc3::scb::Scb<'static>>,
+}
+
+impl Writer {
+    pub fn set_serial(&self, scb: &'static psc3::scb::Scb) {
+        self.serial.set(scb);
+    }
+}
+
+impl core::fmt::Write for Writer {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.serial
+            .map(|serial| serial.transmit_uart_sync(s.as_bytes()));
+        Ok(())
+    }
+}
+
+pub static mut WRITER: Writer = Writer {
+    serial: OptionalCell::empty(),
+};
+
+/// This function is called on panic, and it will attempt to print the panic message to the serial port.
+/// It also blinks the LED to indicate a panic has occurred.
 #[panic_handler]
-pub unsafe fn panic_fmt(_pi: &PanicInfo) -> ! {
+pub fn panic_fmt(pi: &PanicInfo) -> ! {
+    use core::ptr::addr_of_mut;
+    let writer = unsafe { &mut *addr_of_mut!(WRITER) };
+
+    writer.write_fmt(format_args!("\r\n{}\r\n", pi)).unwrap();
+
     loop {}
+}
+
+pub fn debugln(args: core::fmt::Arguments) {
+    use core::ptr::addr_of_mut;
+    let writer = unsafe { &mut *addr_of_mut!(WRITER) };
+
+    writer.write_fmt(args).unwrap();
 }
