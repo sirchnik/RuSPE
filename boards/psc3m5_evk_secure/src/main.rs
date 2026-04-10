@@ -542,9 +542,15 @@ pub unsafe fn main() {
 static mut COUNTER: u32 = 0;
 
 #[no_mangle]
-extern "cmse-nonsecure-entry" fn do_stuff_secure(num: u32) -> u32 {
-    unsafe {
-        COUNTER += num;
-        COUNTER
+extern "cmse-nonsecure-entry" fn do_stuff_secure(shared_memory: *mut u32) -> u32 {
+    if shared_memory.is_null() {
+        return 1;
     }
+
+    unsafe {
+        COUNTER = COUNTER.wrapping_add(1);
+        core::ptr::write_volatile(shared_memory, COUNTER);
+    }
+
+    0
 }

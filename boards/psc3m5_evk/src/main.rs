@@ -28,11 +28,6 @@ use psc3::{BASE_VECTORS, IRQS};
 
 mod io;
 
-unsafe extern "C" {
-    /// A function defined in veneers.o that performs some secure operations.
-    pub safe fn do_stuff_secure(num: u32) -> u32;
-}
-
 // Allocate memory for the stack
 kernel::stack_size! {0x2000}
 
@@ -70,6 +65,7 @@ pub struct Psc3Plattform {
     >,
     button: &'static capsules_core::button::Button<'static, gpio::GpioPin<'static>>,
     gpio: &'static capsules_core::gpio::GPIO<'static, gpio::GpioPin<'static>>,
+    spe_client: &'static capsules_extra::spe_adapter::SpeAdapter,
 }
 
 impl SyscallDriverLookup for Psc3Plattform {
@@ -84,6 +80,7 @@ impl SyscallDriverLookup for Psc3Plattform {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules_extra::spe_adapter::DRIVER_NUM => f(Some(self.spe_client)),
             _ => f(None),
         }
     }
@@ -342,6 +339,7 @@ pub unsafe fn main() {
         systick: cortexm33::systick::SysTick::new_with_calibration(1_000_000),
         led,
         button,
+        spe_client: &capsules_extra::spe_adapter::SpeAdapter,
         gpio,
     };
 
