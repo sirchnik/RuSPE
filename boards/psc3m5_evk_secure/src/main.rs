@@ -483,13 +483,13 @@ pub unsafe fn main() {
     // mxcm33::set_ns_vector_table_base(NONSECURE_START_FLASH as u32);
 
     unsafe {
-        // AIRCR register: 0xE000_ED0C
-        // Bit 4: SYSRESETREQS - SysReset request security
-        // Bit 3: BFHFNMINS - BusFault, HardFault, NMI Non-Secure
-        // Setting bit 3 = 1 makes HardFault, BusFault, NMI non-secure
         let aircr = 0xe000ed0c as *mut u32;
         let mut value = aircr.read_volatile();
-        value |= (0x5fa << 16) | (1 << 3); // VECTKEY + BFHFNMINS
+        value &= 0x0 << 16; // Clear VECTKEY
+        aircr.write_volatile(value);
+        value |= 0x5fa << 16; // VECTKEY
+        value |= 1 << 4; // SYSRESETREQS: allow reset request only from secure
+        value |= 1 << 13; // BFHFNMINS: allow hardfault, busfault, nmi handled in non-secure
         aircr.write_volatile(value);
     }
     let gpio = gpio::PsocPins::new(true);
