@@ -22,11 +22,8 @@ SEC_KERNEL_MERGED=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/$(BUILD_TYPE)/psc3m5_e
 
 OPENOCD_ROOT = /opt/ModusToolboxProgtools-1.7/openocd
 
-# install: flash
-# .PHONY: install
-
-debug: $(BUILD_TYPE)
-release: $(BUILD_TYPE)
+.PHONY: install
+install: flash
 
 $(BUILD_TYPE):
 ifeq ($(DEBUG), 1)
@@ -34,7 +31,7 @@ ifeq ($(DEBUG), 1)
 else
 	cargo b --release
 endif
-	$(MAKE) -C ../psc3m5_evk build-with-app APP=$(APP) DEBUG=$(DEBUG)
+	FEATURES=non_secure_tz $(MAKE) -C ../psc3m5_evk build-with-app APP=$(APP) DEBUG=$(DEBUG)
 	arm-none-eabi-objcopy -O ihex $(KERNEL) $(KERNEL).hex
 	arm-none-eabi-objcopy -O ihex $(SECURE_PROJ) $(SECURE_PROJ).hex
 	uv run hexmerge.py --output=$(SEC_KERNEL_MERGED) $(SECURE_PROJ).hex $(KERNEL).hex --no-start-addr --overlap=ignore # different start addresses, so ignore overlaps
@@ -42,13 +39,14 @@ endif
 
 all: $(BUILD_TYPE)
 
-# .PHONY: flash
-# flash: build-with-app
-# 	probe-rs run --chip PSC3M5FDS2AFQ1 $(KERNEL_WITH_APP)
+# run does not work with --binary-format hex, so only download for now
+.PHONY: flash
+flash: release
+	probe-rs download --chip PSC3M5FDS2AFQ1 --binary-format hex $(SEC_KERNEL_MERGED)
 
-# .PHONY: program
-# program: build-with-app
-# 	${OPENOCD_ROOT}/bin/openocd -f openocd.tcl $(OPENOCD_OPTIONS) -c "init; reset init; program $(KERNEL_WITH_APP); reset; shutdown"
+.PHONY: program
+program: build-with-app
+	${OPENOCD_ROOT}/bin/openocd -f openocd.tcl $(OPENOCD_OPTIONS) -c "init; reset init; program $(SEC_KERNEL_MERGED); reset; shutdown"
 
    
    

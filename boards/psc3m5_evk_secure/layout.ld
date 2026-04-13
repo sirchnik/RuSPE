@@ -2,6 +2,10 @@
 /* SPDX-License-Identifier: Apache-2.0 OR MIT                         */
 /* Copyright Infineon Technologies AG 2026.                           */
 
+/**
+ * Configuration for memory is for secure app with non-secure app
+ * Documentation in ./mem-conf.md 
+**/
 MEMORY
 {
 	rom (rx)  : ORIGIN = 0x32000000, LENGTH = 0x10000

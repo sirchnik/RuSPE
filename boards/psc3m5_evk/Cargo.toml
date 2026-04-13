@@ -7,7 +7,7 @@ name = "psc3m5_evk"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-build = "../build.rs"
+build = "./build.rs"
 
 [dependencies]
 cortexm33 = { path = "../../arch/cortex-m33" }
@@ -18,6 +18,10 @@ components = { path = "../components" }
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
+
+[features]
+# Build the kernel with non-secure trustzone world linker layout and linking to veneers.
+non_secure_tz = []
 
 [build-dependencies]
 tock_build_scripts = { path = "../build_scripts" }

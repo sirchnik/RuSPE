@@ -1,55 +1,28 @@
-# PSOC™ Control C3M5 Evaluation Kit
+# Secure world application for PSOC Control C3M5 Evaluation Kit
 
-<img src="https://assets.infineon.com/is/image/infineon/kit-psc3m5-evk-main-picture-kit-psc3m5-evk.png" width="40%">
+See the [PSC3M5_EVK README](../psc3m5_evk/README.md) for more information about
+the board and how to build and flash it.
 
-The
-[PSOC™ Control C3M5 Evaluation Kit](https://www.infineon.com/evaluation-board/kit-psc3m5-evk)
-is a evaluation board for the PSOC Control C3M5 microcontroller, which is based
-on the Arm Cortex-M33 architecture.
+This board crate is a binary for TrustZone-M secure-world that switches to
+non-secure world after initialization.
 
-## Getting started
+## Setup
 
-Install `probe-rs`.\
-OR\
-OpenOCD from
-[ModusToolbox™ Programming Tools](https://softwaretools.infineon.com/tools/com.ifx.tb.tool.modustoolboxprogtools)
+1. Provision the board with `edgeprotecttools`-configuration from this crate:
+   (Refer to [PSC3M5_EVK README](../psc3m5_evk/README.md) for more details on
+   provisioning)
 
-## Flashing the kernel
+   ```bash
+   cd edgeprotecttools
+   edgeprotecttools -t psoc_c3 init
+   edgeprotecttools -t psoc_c3 provision-device -p ns_policy/policy_oem_provisioning.json
+   ```
 
-The kernel can be programmed by going inside the board's directory and running:
+2. Build and flash the secure world application:
 
-```bash
-$ make flash # program for OpenOCD
-```
+   ```bash
+   make flash
+   ```
 
-## Flashing an app
-
-Apps are built out-of-tree. Once an app is built, you must add the path to the
-generated TBF in the Makefile (APP variable), then run:
-
-```bash
-$ make flash APP=path/to/app.tbf # program for OpenOCD
-```
-
-This will generate a new ELF file that can be deployed on the board via gdb and
-probe-rs.
-
-## Protection Contexts
-
-Infineon added a security feature called Protection Contexts (PC) to the PSOC
-Control C3. This allows the user to create up to 8 different contexts, each with
-its own set of permissions for accessing memory.
-
-These contexts have to be configured with the `edgeprotecttools` CLI tool. From
-delivery, the board is configured with all contexts only available in secure
-mode. To reset this configuration, follow these steps:
-
-```bash
-$ cd edgeprotecttools
-# install edgeprotecttools
-$ pip install edgeprotecttools
-# init configurations
-$ edgeprotecttools -t psoc_c3 init
-# provision the device with the configuration
-$ edgeprotecttools -t psoc_c3 provision-device -p ns_policy/policy_oem_provisioning.json
-```
+   This will build the secure world application, merge it with the non-secure
+   kernel, and flash the combined binary to the board.

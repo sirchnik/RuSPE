@@ -65,6 +65,7 @@ pub struct Psc3Plattform {
     >,
     button: &'static capsules_core::button::Button<'static, gpio::GpioPin<'static>>,
     gpio: &'static capsules_core::gpio::GPIO<'static, gpio::GpioPin<'static>>,
+    #[cfg(feature = "non_secure_tz")]
     spe_client: &'static capsules_extra::spe_adapter::SpeAdapter,
 }
 
@@ -80,6 +81,7 @@ impl SyscallDriverLookup for Psc3Plattform {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            #[cfg(feature = "non_secure_tz")]
             capsules_extra::spe_adapter::DRIVER_NUM => f(Some(self.spe_client)),
             _ => f(None),
         }
@@ -136,6 +138,7 @@ extern "C" {
 #[no_mangle]
 pub unsafe fn main() {
     cortexm33::support::dmb();
+    // set vector-table when coming from secure world
     cortexm33::scb::set_vector_table_offset(BASE_VECTORS.as_ptr() as *const ());
 
     cortexm33::support::set_msplim(core::ptr::addr_of!(_sstack) as u32);

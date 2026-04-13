@@ -1,10 +1,12 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2024.
+// Copyright Infineon Technologies AG 2026.
+
+use tock_build_scripts::default as tock_build;
 
 const LINKER_SCRIPT: &str = "layout.ld";
 
 fn main() {
-    println!("cargo:rustc-link-arg=-L{}", std::env!("CARGO_MANIFEST_DIR"));
-    tock_build_scripts::default::set_and_track_linker_script(LINKER_SCRIPT);
+    tock_build::add_board_dir_to_linker_search_path();
+    tock_build::set_and_track_linker_script(LINKER_SCRIPT);
 }

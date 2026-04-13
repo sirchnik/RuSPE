@@ -2,11 +2,11 @@
 /* SPDX-License-Identifier: Apache-2.0 OR MIT                         */
 /* Copyright Infineon Technologies AG 2026.                           */
 
+/* Note: The device has to be provisioned using the edgeprotecttools first */
+
 /**
- * This layout currently still triggers CYBOOT_APP_LAUNCH_ADDR_INVALID in openocd/gdb. This error
- * should be cause because msp, pc aren't on valid addresses but could also been caused by this
- * layout as the error does not occur when using ModusToolbox's HelloWorld
- * Maybe the file size of tock is too big.
+ * Configuration for memory is for secure app with non-secure app
+ * Documentation in ./mem-conf.md 
 **/
 
 MEMORY
@@ -14,12 +14,6 @@ MEMORY
   	rom (rx)  : ORIGIN = 0x22010100, LENGTH = 0x1FF00
 	prog (rx) : ORIGIN = 0x22030000, LENGTH = 0x10000 /* dynamically/after-compilation inserted apps */
   	ram (rwx) : ORIGIN = 0x24004000, LENGTH = 0xB000
-
-  	/*
-	secure layout
-	rom (rx)  : ORIGIN = 0x32000000, LENGTH = 0x20000
-	prog (rx) : ORIGIN = 0x32020000, LENGTH = 0x20000
-  	ram (rwx) : ORIGIN = 0x34000000, LENGTH = 0x10000 */
 }
 
 PAGE_SIZE = 4K;
