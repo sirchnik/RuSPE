@@ -87,8 +87,9 @@ pub unsafe fn main() {
     {
         let [nonsecure_sp, nonsecure_reset] = security::NONSECURE_START_FLASH.read_volatile();
 
+        // Set non-secure main stack pointer
         core::arch::asm!(
-            "msr msp, {nonsecure_sp}",
+            "msr msp_ns, {nonsecure_sp}",
             nonsecure_sp = in(reg) nonsecure_sp,
             options(nomem, nostack, preserves_flags),
         );
