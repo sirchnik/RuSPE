@@ -83,17 +83,20 @@ pub unsafe fn main() {
 
     io::debugln(format_args!("Init SPE done, jumping to non-secure"));
 
-    let [nonsecure_sp, nonsecure_reset] = security::NONSECURE_START_FLASH.read_volatile();
+    #[cfg(all(target_arch = "arm", target_os = "none"))]
+    {
+        let [nonsecure_sp, nonsecure_reset] = security::NONSECURE_START_FLASH.read_volatile();
 
-    core::arch::asm!(
-        "msr msp, {nonsecure_sp}",
-        nonsecure_sp = in(reg) nonsecure_sp,
-        options(nomem, nostack, preserves_flags),
-    );
+        core::arch::asm!(
+            "msr msp, {nonsecure_sp}",
+            nonsecure_sp = in(reg) nonsecure_sp,
+            options(nomem, nostack, preserves_flags),
+        );
 
-    let nonsecure_reset = core::mem::transmute::<*const u32, extern "cmse-nonsecure-call" fn()>(
-        nonsecure_reset as *const u32,
-    );
+        let nonsecure_reset = core::mem::transmute::<*const u32, extern "cmse-nonsecure-call" fn()>(
+            nonsecure_reset as *const u32,
+        );
 
-    nonsecure_reset();
+        nonsecure_reset();
+    }
 }

@@ -15,7 +15,10 @@ extern "C" {
     static _erelocate: *const u32;
 }
 
-#[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".stack_buffer")]
+#[cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    link_section = ".stack_buffer"
+)]
 #[no_mangle]
 static mut STACK_MEMORY: [u8; 0x3000] = [0; 0x3000];
 
@@ -76,7 +79,10 @@ pub unsafe extern "C" fn sec_initialize_ram_jump_to_main() {
     );
 }
 
-#[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".vectors")]
+#[cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    link_section = ".vectors"
+)]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     _estack,
@@ -137,4 +143,19 @@ pub unsafe extern "C" fn unhandled_interrupt() {
     interrupt_number &= 0x1ff;
 
     panic!("Unhandled Interrupt. ISR {} is active.", interrupt_number);
+}
+
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+pub unsafe extern "C" fn unhandled_interrupt() {
+    unimplemented!()
+}
+
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+pub unsafe extern "C" fn hard_fault_handler() {
+    unimplemented!()
+}
+
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+pub unsafe extern "C" fn sec_initialize_ram_jump_to_main() {
+    unimplemented!()
 }

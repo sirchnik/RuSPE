@@ -139,7 +139,7 @@ extern "C" {
 pub unsafe fn main() {
     cortexm33::support::dmb();
     // set vector-table when coming from secure world
-    cortexm33::scb::set_vector_table_offset(BASE_VECTORS.as_ptr() as *const ());
+    cortexm33::scb::set_vector_table_offset(BASE_VECTORS.as_ptr().cast::<()>());
 
     cortexm33::support::set_msplim(core::ptr::addr_of!(_sstack) as u32);
 
@@ -342,6 +342,7 @@ pub unsafe fn main() {
         systick: cortexm33::systick::SysTick::new_with_calibration(1_000_000),
         led,
         button,
+        #[cfg(feature = "non_secure_tz")]
         spe_client: &capsules_extra::spe_adapter::SpeAdapter,
         gpio,
     };
