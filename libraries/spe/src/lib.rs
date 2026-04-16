@@ -6,12 +6,15 @@
 #![feature(abi_cmse_nonsecure_call, cmse_nonsecure_entry)]
 
 pub mod attest;
+pub mod cose;
 mod errorcode;
 pub mod hil;
 pub mod internal_trusted_storage;
+mod psa_interface;
 pub mod serial;
 mod service;
 pub mod static_init;
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 pub mod veneers;
 
 pub use crate::errorcode::ErrorCode;

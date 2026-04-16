@@ -1,4 +1,4 @@
-use crate::veneers::{PsaInVec, PsaOutVec};
+use crate::psa_interface::{PsaInVec, PsaOutVec};
 
 pub struct Info {
     pub version: u32,

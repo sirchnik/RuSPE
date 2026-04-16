@@ -1,29 +1,10 @@
 //! Veneer function stubs translated from TFM veneer C header.
 // These are placeholders for secure function entry points.
 
-#[repr(C)]
-pub enum PsaHandle {
-    Crypto,
-    SecureStorage,
-    Attestation,
-}
-// TODO enums
-pub type PsaStatus = i32;
-
-#[repr(C)]
-pub struct PsaInVec {
-    pub base: *const u8,
-    pub len: usize,
-}
-
-#[repr(C)]
-pub struct PsaOutVec {
-    pub base: *mut u8,
-    pub len: usize,
-}
-
 // unsafe(no_mangle) is required to ensure these functions are linkable from
 // non-secure code. It is unsafe because there could be name collisions.
+
+use crate::psa_interface::{PsaHandle, PsaInVec, PsaOutVec, PsaStatus};
 
 /// Retrieve the version of the PSA Framework API that is implemented.
 #[unsafe(no_mangle)]

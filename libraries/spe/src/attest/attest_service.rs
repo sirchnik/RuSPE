@@ -1,6 +1,6 @@
 use crate::{
+    psa_interface::{PsaInVec, PsaOutVec, PsaStatus},
     service::{Info, Service},
-    veneers::{PsaInVec, PsaOutVec, PsaStatus},
 };
 
 /// TF-M attestation message type for token retrieval.
