@@ -1,4 +1,7 @@
 use crate::{
+    attest::cose_token::{
+        compute_initial_attestation_token_size, encode_initial_attestation_token,
+    },
     psa_interface::{PsaInVec, PsaOutVec, PsaStatus},
     service::{Info, Service},
 };
@@ -50,21 +53,13 @@ impl AttestService {
             return PSA_ERROR_BUFFER_TOO_SMALL;
         }
 
-        // The TF-M implementation creates the token with a stack of helpers from
-        // attest_boot_data, attest_token, tfm_attest_hal, tfm_crypto, and t_cose.
-        // Those libraries are not available in this Rust crate yet, so the actual
-        // token construction is intentionally left out instead of being replaced by
-        // a fake backend abstraction.
-        //
-        // Pseudocode of the missing work:
-        //   - initialize the attestation boot data
-        //   - encode the nonce claim from `challenge`
-        //   - add implementation / instance / lifecycle claims
-        //   - sign the token and write it into `token`
-        //
-        // return PSA_SUCCESS once the above is ported.
-        let _ = (challenge, token);
-        PSA_ERROR_NOT_SUPPORTED
+        match encode_initial_attestation_token(challenge, token) {
+            Ok(encoded_len) => {
+                token[encoded_len..].fill(0);
+                PSA_SUCCESS
+            }
+            Err(status) => status,
+        }
     }
 
     pub fn initial_attest_get_token_size(&self, challenge_size: usize) -> Result<usize, PsaStatus> {
@@ -72,10 +67,7 @@ impl AttestService {
             return Err(PSA_ERROR_INVALID_ARGUMENT);
         }
 
-        // The C implementation derives the exact size from the full token build.
-        // That depends on the missing attestation/token libraries, so we do not
-        // guess at a synthetic size here.
-        Err(PSA_ERROR_NOT_SUPPORTED)
+        compute_initial_attestation_token_size(challenge_size)
     }
 
     /// Safe dispatch path that can be used by Rust callers with validated iovecs.
