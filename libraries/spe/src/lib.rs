@@ -10,12 +10,26 @@ pub mod cose;
 mod errorcode;
 pub mod hil;
 pub mod internal_trusted_storage;
+mod psa;
 mod psa_interface;
 pub mod serial;
 mod service;
-mod spm;
+pub mod spm;
 pub mod static_init;
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 pub mod veneers;
 
+use tock_cells::optional_cell::OptionalCell;
+
 pub use crate::errorcode::ErrorCode;
+
+struct SingleThreadValue<T> {
+    value: T,
+}
+
+// expect only single core (maybe todo)
+unsafe impl<T> Sync for SingleThreadValue<T> {}
+
+static SPM: SingleThreadValue<OptionalCell<spm::spm::Spm>> = SingleThreadValue {
+    value: OptionalCell::empty(),
+};

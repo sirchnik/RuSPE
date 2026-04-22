@@ -23,11 +23,35 @@ pub const PSA_INITIAL_ATTEST_CHALLENGE_SIZE_64: usize = 64;
 /// Maximum token buffer size used by default TF-M builds.
 pub const PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE: usize = 0x250;
 
-pub struct AttestService;
+/// Maximum size of hardware version in bytes
+///
+/// Recommended to use the European Article Number format: EAN-13 + '-' + 5
+/// https://www.ietf.org/archive/id/draft-tschofenig-rats-psa-token-09.html#name-certification-reference
+///
+const CERTIFICATION_REF_MAX_SIZE: usize = 19;
 
-impl AttestService {
-    pub const fn new() -> Self {
-        Self
+pub trait AttestPlatform {
+    /// Get the security lifecycle of the device.
+    fn security_lifecycle(&self, buf: &mut [u8]) -> Result<(), PsaStatus>;
+    /// Get the verification service indicator for initial attestation.
+    fn verfication_service(&self, buf: &mut [u8]) -> Result<(), PsaStatus>;
+    /// Get the name of the profile definition document for initial attestation.
+    fn profile_definition(&self, buf: &mut [u8]) -> Result<(), PsaStatus>;
+    /// Generate or retrieve the 32-byte boot seed value used for initial attestation.
+    fn boot_seed(&self, seed: &mut [u8; 32]) -> Result<(), PsaStatus>;
+    /// Get the implementation ID of the device.
+    fn implementation_id(&self, buf: &mut [u8; 32]) -> Result<(), PsaStatus>;
+    /// Get the hardware version of the device.
+    fn cert_ref(&self, buf: &mut [u8; CERTIFICATION_REF_MAX_SIZE]) -> Result<(), PsaStatus>;
+}
+
+pub struct AttestService<P: AttestPlatform> {
+    platform: P,
+}
+
+impl<P: AttestPlatform> AttestService<P> {
+    pub const fn new(platform: P) -> Self {
+        Self { platform }
     }
 
     fn challenge_size_is_supported(challenge_size: usize) -> bool {
@@ -107,13 +131,7 @@ impl AttestService {
     }
 }
 
-impl Default for AttestService {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Service for AttestService {
+impl<P: AttestPlatform> Service for AttestService<P> {
     fn info(&self) -> Info {
         Info { version: 1 }
     }
