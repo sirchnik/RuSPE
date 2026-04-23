@@ -11,7 +11,13 @@
 use core::ptr::addr_of_mut;
 
 use psc3::{chip_init, gpio, icache, peri_clk};
-use spe::static_init;
+use spe::{
+    attest::attest_service::{self, CERTIFICATION_REF_MAX_SIZE},
+    psa::psa_api,
+    psa_interface::PsaStatus,
+    spm::spm::{self, SpmPlatform},
+    static_init,
+};
 
 extern "Rust" {
     static __veneer_base: ();
@@ -20,8 +26,41 @@ extern "Rust" {
 
 mod io;
 mod security;
-mod services;
 mod startup;
+
+struct Psc3AttestPlatform;
+
+impl attest_service::AttestPlatform for Psc3AttestPlatform {
+    fn security_lifecycle(&self, buf: &mut [u8]) -> Result<(), PsaStatus> {
+        todo!()
+    }
+
+    fn verfication_service(&self, buf: &mut [u8]) -> Result<(), PsaStatus> {
+        todo!()
+    }
+
+    fn profile_definition(&self, buf: &mut [u8]) -> Result<(), PsaStatus> {
+        todo!()
+    }
+
+    fn boot_seed(&self, seed: &mut [u8; 32]) -> Result<(), PsaStatus> {
+        todo!()
+    }
+
+    fn implementation_id(&self, buf: &mut [u8; 32]) -> Result<(), PsaStatus> {
+        todo!()
+    }
+
+    fn cert_ref(&self, buf: &mut [u8; CERTIFICATION_REF_MAX_SIZE]) -> Result<(), PsaStatus> {
+        todo!()
+    }
+}
+
+struct Psc3SecPlatform {
+    initial_attestation: attest_service::AttestService<Psc3AttestPlatform>,
+}
+
+impl SpmPlatform for Psc3SecPlatform {}
 
 #[no_mangle]
 pub unsafe fn main() {
@@ -80,6 +119,17 @@ pub unsafe fn main() {
     led_pin.preconfigure(&GPIO_CONFIG);
 
     security::configure_security();
+
+    let sec_platform = static_init!(
+        Psc3SecPlatform,
+        Psc3SecPlatform {
+            initial_attestation: attest_service::AttestService::new(Psc3AttestPlatform),
+        }
+    );
+
+    let spm = static_init!(spm::Spm, spm::Spm::new(sec_platform));
+
+    psa_api::set_spm(spm);
 
     io::debugln(format_args!("Init SPE done, jumping to non-secure"));
 

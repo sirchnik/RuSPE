@@ -28,7 +28,7 @@ pub const PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE: usize = 0x250;
 /// Recommended to use the European Article Number format: EAN-13 + '-' + 5
 /// https://www.ietf.org/archive/id/draft-tschofenig-rats-psa-token-09.html#name-certification-reference
 ///
-const CERTIFICATION_REF_MAX_SIZE: usize = 19;
+pub const CERTIFICATION_REF_MAX_SIZE: usize = 19;
 
 pub trait AttestPlatform {
     /// Get the security lifecycle of the device.

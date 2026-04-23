@@ -1,11 +1,15 @@
-use crate::psa_interface::{PsaHandle, PsaInVec, PsaOutVec, PsaStatus, VectorDescriptor};
-use core::slice;
+use crate::{
+    psa_interface::{PsaHandle, PsaInVec, PsaOutVec, PsaStatus, VectorDescriptor},
+    spm::spm,
+    spm::spm::Connection,
+};
+use core::{ptr, slice};
 
 const PSA_SUCCESS: PsaStatus = 0;
 const PSA_ERROR_PROGRAMMER_ERROR: PsaStatus = -129;
 const PSA_MAX_IOVEC: usize = 4;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct PsaMsg {
     handle: PsaHandle,
     msg_type: i32,
@@ -107,6 +111,7 @@ pub fn psa_call_from_slices(
     ctrl_param: VectorDescriptor,
     in_vecs: &[PsaInVec],
     out_vecs: &mut [PsaOutVec],
+    spm: &spm::Spm,
 ) -> PsaStatus {
     let (msg_type, ivec_num, ovec_num) = match validate_call_params(ctrl_param) {
         Ok(values) => values,
@@ -126,10 +131,36 @@ pub fn psa_call_from_slices(
         return overlap_status;
     }
 
-    // Equivalent to p_connection->msg.type assignment and iovec association in C.
     let mut msg = PsaMsg::new(handle, msg_type);
-
     let _ = (msg.handle, msg.msg_type);
+    let mut invec_base: [*const u8; PSA_MAX_IOVEC] = [ptr::null(); PSA_MAX_IOVEC];
+    let mut invec_accessed = [0; PSA_MAX_IOVEC];
+    let mut outvec_base: [*mut u8; PSA_MAX_IOVEC] = [ptr::null_mut(); PSA_MAX_IOVEC];
+    let mut outvec_written = [0; PSA_MAX_IOVEC];
+
+    for (idx, in_vec) in in_vecs.iter().enumerate() {
+        invec_base[idx] = in_vec.base;
+        invec_accessed[idx] = 0;
+        msg.in_size[idx] = Some(in_vec.len);
+    }
+
+    for (idx, out_vec) in out_vecs.iter_mut().enumerate() {
+        outvec_base[idx] = out_vec.base;
+        outvec_written[idx] = 0;
+        msg.out_size[idx] = Some(out_vec.len);
+    }
+
+    let connection = Connection {
+        msg,
+        invec_base,
+        invec_accessed,
+        outvec_base,
+        outvec_written,
+    };
+
+    if spm.add_connection(connection).is_err() {
+        return PSA_ERROR_PROGRAMMER_ERROR;
+    }
 
     PSA_SUCCESS
 }
@@ -139,6 +170,7 @@ pub fn psa_call(
     ctrl_param: VectorDescriptor,
     in_vec: *const PsaInVec,
     out_vec: *mut PsaOutVec,
+    spm: &spm::Spm,
 ) -> PsaStatus {
     let (_msg_type, ivec_num, ovec_num) = match validate_call_params(ctrl_param) {
         Ok(values) => values,
@@ -172,5 +204,5 @@ pub fn psa_call(
         unsafe { slice::from_raw_parts_mut(out_vec, ovec_num) }
     };
 
-    psa_call_from_slices(handle, ctrl_param, in_vecs, out_vecs)
+    psa_call_from_slices(handle, ctrl_param, in_vecs, out_vecs, spm)
 }

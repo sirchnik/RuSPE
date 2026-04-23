@@ -1,10 +1,17 @@
-#[derive(Clone, Copy)]
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Infineon Technologies AG 2026.
+
+#![no_std]
+
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub enum PsaHandle {
     Crypto,
     SecureStorage,
     Attestation,
 }
+
 // TODO enums
 pub type PsaStatus = i32;
 
