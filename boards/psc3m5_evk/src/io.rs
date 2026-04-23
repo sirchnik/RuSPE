@@ -4,6 +4,7 @@
 
 //! Board‑level I/O and panic infrastructure for the PSC3M5-EVK.
 
+use core::fmt::Write;
 use core::panic::PanicInfo;
 use kernel::utilities::cells::OptionalCell;
 
@@ -46,18 +47,11 @@ pub static mut WRITER: Writer = Writer {
 /// This function is called on panic, and it will attempt to print the panic message to the serial port.
 /// It also blinks the LED to indicate a panic has occurred.
 #[panic_handler]
-pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
+pub fn panic_fmt(pi: &PanicInfo) -> ! {
     use core::ptr::addr_of_mut;
-    let writer = &mut *addr_of_mut!(WRITER);
+    let writer = unsafe { &mut *addr_of_mut!(WRITER) };
 
-    let led_kernel_pin = &GpioPin::new(gpio::PsocPin::P8_5);
-    let led = &mut LedHigh::new(led_kernel_pin);
+    writer.write_fmt(format_args!("\r\n{}\r\n", pi)).unwrap();
 
-    debug::panic(
-        &mut [led],
-        writer,
-        pi,
-        &cortexm33::support::nop,
-        crate::PANIC_RESOURCES.get(),
-    );
+    loop {}
 }

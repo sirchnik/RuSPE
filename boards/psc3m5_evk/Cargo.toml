@@ -19,6 +19,9 @@ capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
 
+spe_client = { path = "../../libraries/spe_client" }
+psa_interface = { path = "../../libraries/psa_interface" }
+
 [features]
 # Build the kernel with non-secure trustzone world linker layout and linking to veneers.
 non_secure_tz = []
