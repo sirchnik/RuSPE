@@ -70,10 +70,10 @@ pub unsafe fn main() {
         len: 0,
     };
 
-    spe_client::psa_call(
-        psa_interface::PsaHandle::Attestation,
-        psa_interface::VectorDescriptor::new(3, 1, true, 1, true),
-        core::slice::from_ref(&in_vec),
-        core::slice::from_mut(&mut out_vec),
-    );
+    let challenge = [0u8; 32];
+    let mut token_buf = [0u8; 512];
+
+    spe_client::initial_attest_get_token(&challenge, &mut token_buf);
+
+    loop {}
 }

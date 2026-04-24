@@ -4,27 +4,106 @@
 
 #![no_std]
 
+use core::ptr;
+
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub enum PsaHandle {
-    Crypto,
-    SecureStorage,
-    Attestation,
+    InternalTrustedStorageService = 0x40000102,
+    Crypto = 0x40000100,
+    AttestationService = 0x40000103,
+}
+
+#[repr(C)]
+pub enum AttestationServiceType {
+    GetToken = 1001,
+    GetTokenSize = 1002,
 }
 
 // TODO enums
 pub type PsaStatus = i32;
 
+const PSA_SUCCESS: PsaStatus = 0;
+const PSA_ERROR_INVALID_ARGUMENT: PsaStatus = -135;
+const PSA_ERROR_BUFFER_TOO_SMALL: PsaStatus = -138;
+
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct PsaInVec {
     pub base: *const u8,
     pub len: usize,
 }
 
+impl PsaInVec {
+    /// Copy this input vector payload into `dst`.
+    ///
+    /// Returns the number of bytes copied.
+    pub fn read_into(&self, dst: &mut [u8]) -> Result<usize, PsaStatus> {
+        if self.len == 0 {
+            return Ok(0);
+        }
+
+        if self.base.is_null() {
+            return Err(PSA_ERROR_INVALID_ARGUMENT);
+        }
+
+        if dst.len() < self.len {
+            return Err(PSA_ERROR_BUFFER_TOO_SMALL);
+        }
+
+        // ### Safety
+        // `self.base` is validated as non-null above, and `dst` is guaranteed to
+        // be at least `self.len` bytes long. The caller upholds that `self.base`
+        // points to a readable memory region of `self.len` bytes.
+        unsafe {
+            ptr::copy_nonoverlapping(self.base, dst.as_mut_ptr(), self.len);
+        }
+
+        Ok(self.len)
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct PsaOutVec {
     pub base: *mut u8,
     pub len: usize,
+}
+
+impl PsaOutVec {
+    /// Copy `src` into this output vector and set `len` to bytes written.
+    pub fn write_from(&mut self, src: &[u8]) -> Result<(), PsaStatus> {
+        let capacity = self.len;
+
+        if src.is_empty() {
+            self.len = 0;
+            return Ok(());
+        }
+
+        if self.base.is_null() {
+            return Err(PSA_ERROR_INVALID_ARGUMENT);
+        }
+
+        if src.len() > capacity {
+            return Err(PSA_ERROR_BUFFER_TOO_SMALL);
+        }
+
+        // ### Safety
+        // `self.base` is validated as non-null above, and `capacity` is the
+        // caller-provided writable extent for this outvec. We checked
+        // `src.len() <= capacity`, so the destination region is large enough.
+        unsafe {
+            ptr::copy_nonoverlapping(src.as_ptr(), self.base, src.len());
+        }
+
+        self.len = src.len();
+        Ok(())
+    }
+
+    pub fn clear(&mut self) -> PsaStatus {
+        self.len = 0;
+        PSA_SUCCESS
+    }
 }
 
 ///

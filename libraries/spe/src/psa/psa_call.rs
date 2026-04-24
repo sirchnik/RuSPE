@@ -11,11 +11,11 @@ const PSA_MAX_IOVEC: usize = 4;
 
 #[derive(Clone, Copy, Debug)]
 pub struct PsaMsg {
-    handle: PsaHandle,
-    msg_type: i32,
+    pub handle: PsaHandle,
+    pub msg_type: i32,
     // client_id: u32, // TODO: Do I need this?
-    in_size: [Option<usize>; PSA_MAX_IOVEC],
-    out_size: [Option<usize>; PSA_MAX_IOVEC],
+    pub in_size: [Option<usize>; PSA_MAX_IOVEC],
+    pub out_size: [Option<usize>; PSA_MAX_IOVEC],
 }
 
 impl PsaMsg {
@@ -111,24 +111,20 @@ pub fn psa_call_from_slices(
     ctrl_param: VectorDescriptor,
     in_vecs: &[PsaInVec],
     out_vecs: &mut [PsaOutVec],
-    spm: &spm::Spm,
-) -> PsaStatus {
+    _spm: &spm::Spm,
+) -> Result<Connection, PsaStatus> {
     let (msg_type, ivec_num, ovec_num) = match validate_call_params(ctrl_param) {
         Ok(values) => values,
-        Err(status) => return status,
+        Err(status) => return Err(status),
     };
 
-    if !ctrl_param.has_iovec() {
-        return PSA_SUCCESS;
-    }
-
     if in_vecs.len() != ivec_num || out_vecs.len() != ovec_num {
-        return PSA_ERROR_PROGRAMMER_ERROR;
+        return Err(PSA_ERROR_PROGRAMMER_ERROR);
     }
 
     let overlap_status = validate_invec_payload_nonoverlap(in_vecs);
     if overlap_status != PSA_SUCCESS {
-        return overlap_status;
+        return Err(PSA_ERROR_PROGRAMMER_ERROR);
     }
 
     let mut msg = PsaMsg::new(handle, msg_type);
@@ -150,19 +146,13 @@ pub fn psa_call_from_slices(
         msg.out_size[idx] = Some(out_vec.len);
     }
 
-    let connection = Connection {
+    Ok(Connection {
         msg,
         invec_base,
         invec_accessed,
         outvec_base,
         outvec_written,
-    };
-
-    if spm.add_connection(connection).is_err() {
-        return PSA_ERROR_PROGRAMMER_ERROR;
-    }
-
-    PSA_SUCCESS
+    })
 }
 
 pub fn psa_call(
@@ -204,5 +194,10 @@ pub fn psa_call(
         unsafe { slice::from_raw_parts_mut(out_vec, ovec_num) }
     };
 
-    psa_call_from_slices(handle, ctrl_param, in_vecs, out_vecs, spm)
+    let Ok(connection) = psa_call_from_slices(handle, ctrl_param, in_vecs, out_vecs, spm) else {
+        return PSA_ERROR_PROGRAMMER_ERROR;
+    };
+
+    spm.call(connection);
+    0
 }

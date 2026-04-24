@@ -14,7 +14,8 @@ use psc3::{chip_init, gpio, icache, peri_clk};
 use spe::{
     attest::attest_service::{self, CERTIFICATION_REF_MAX_SIZE},
     psa::psa_api,
-    psa_interface::PsaStatus,
+    psa_interface::{self, PsaStatus},
+    service::Service,
     spm::spm::{self, SpmPlatform},
     static_init,
 };
@@ -60,7 +61,16 @@ struct Psc3SecPlatform {
     initial_attestation: attest_service::AttestService<Psc3AttestPlatform>,
 }
 
-impl SpmPlatform for Psc3SecPlatform {}
+impl SpmPlatform for Psc3SecPlatform {
+    fn call(&self, msg: spe::psa::psa_call::PsaMsg) {
+        match msg.handle {
+            psa_interface::PsaHandle::AttestationService => self.initial_attestation.call(msg),
+            _ => {
+                panic!("Unsupported service handle: {:?}", msg.handle);
+            }
+        }
+    }
+}
 
 #[no_mangle]
 pub unsafe fn main() {

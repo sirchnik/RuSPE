@@ -12,14 +12,12 @@ pub mod hil;
 pub mod internal_trusted_storage;
 pub mod psa;
 pub mod serial;
-mod service;
+pub mod service;
 pub mod spm;
 pub mod static_init;
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 pub mod veneers;
 
 pub use psa_interface;
-
-use tock_cells::optional_cell::OptionalCell;
 
 pub use crate::errorcode::ErrorCode;

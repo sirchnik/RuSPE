@@ -1,4 +1,4 @@
-use crate::psa_interface::{PsaInVec, PsaOutVec};
+use crate::{ psa::psa_call::PsaMsg};
 
 pub struct Info {
     pub version: u32,
@@ -6,7 +6,7 @@ pub struct Info {
 
 pub trait Service {
     fn info(&self) -> Info;
-    fn call(&self, ctrl_param: u32, in_vec: *const PsaInVec, out_vec: *mut PsaOutVec);
+    fn call(&self, msg: PsaMsg);
     fn init(&mut self);
     fn deinit(&mut self);
 }

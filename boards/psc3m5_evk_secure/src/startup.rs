@@ -118,10 +118,24 @@ pub unsafe extern "C" fn hard_fault_handler() {
     // using the MRS instruction. We then branch to the unhandled_interrupt handler,
     // which will panic with the interrupt number.
 
+    // Check if STKOF in CFSR is set (bit 4). Pass this as arg1.
+    ldr r2, =0xE000ED28
+    ldr r1, [r2]
+    lsrs r1, r1, #4
+    ands r1, r1, #1
+
     mrs r0, ipsr
     b {unhandled_interrupt}
         ",
-        unhandled_interrupt = sym unhandled_interrupt,
+        unhandled_interrupt = sym hard_fault_handler_real,
+    );
+}
+
+pub unsafe extern "C" fn hard_fault_handler_real(interrupt_number: u32, stack_overflow: u32) {
+    panic!(
+        "Hard Fault. ISR {} is active. stack_overflow={}",
+        interrupt_number & 0x1ff,
+        stack_overflow
     );
 }
 

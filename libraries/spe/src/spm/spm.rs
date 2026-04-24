@@ -1,6 +1,4 @@
-use core::{cell::Cell, mem::MaybeUninit};
-
-use tock_cells::optional_cell::OptionalCell;
+use core::cell::Cell;
 
 use crate::psa::psa_call::PsaMsg;
 
@@ -17,7 +15,9 @@ pub struct Connection {
     pub outvec_written: [usize; PSA_MAX_IOVEC],
 }
 
-pub trait SpmPlatform {}
+pub trait SpmPlatform {
+    fn call(&self, msg: PsaMsg);
+}
 
 use core::fmt::Debug;
 impl Debug for dyn SpmPlatform {
@@ -47,7 +47,7 @@ impl Spm {
         }
     }
 
-    pub fn add_connection(&self, connection: Connection) -> Result<(), ()> {
+    fn add_connection(&self, connection: Connection) -> Result<(), ()> {
         if self.top_connection.get() >= MAX_CONNECTIONS {
             return Err(());
         }
@@ -56,5 +56,10 @@ impl Spm {
         self.top_connection.set(self.top_connection.get() + 1);
 
         Ok(())
+    }
+
+    pub fn call(&self, connection: Connection) {
+        self.add_connection(connection);
+        self.platform.call(connection.msg)
     }
 }
