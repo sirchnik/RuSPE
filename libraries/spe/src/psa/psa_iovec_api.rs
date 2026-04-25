@@ -2,9 +2,10 @@ use core::panic;
 
 use crate::{
     psa::psa_api,
-    psa_interface::PsaHandle,
     spm::spm::{Connection, PSA_MAX_IOVEC},
 };
+
+use psa_interface::PsaHandle;
 
 #[derive(Clone, Copy, Debug)]
 pub struct MappedInVec {

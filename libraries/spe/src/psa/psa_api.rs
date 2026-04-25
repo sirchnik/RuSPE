@@ -3,10 +3,11 @@ use core::{cell::OnceCell, panic};
 use cortexm33::support;
 
 use crate::{
+    StatusCode,
     psa::{psa_call, psa_iovec_api},
-    psa_interface::{PsaHandle, PsaInVec, PsaOutVec, PsaStatus, VectorDescriptor},
     spm::spm,
 };
+use psa_interface::{PsaHandle, PsaInVec, PsaOutVec, VectorDescriptor};
 
 ///! Entry points for PSA API calls from NSPE and other partitions.
 
@@ -38,7 +39,7 @@ pub fn psa_call(
     ctrl_param: VectorDescriptor,
     in_vec: *const PsaInVec,
     out_vec: *mut PsaOutVec,
-) -> PsaStatus {
+) -> Result<(), StatusCode> {
     if support::is_interrupt_context() {
         panic!("psa_call cannot be called from an interrupt context");
     }
@@ -47,11 +48,11 @@ pub fn psa_call(
 
     let spm = get_spm();
 
-    let status = psa_call::psa_call(handle, ctrl_param, in_vec, out_vec, spm);
+    let result = psa_call::psa_call(handle, ctrl_param, in_vec, out_vec, spm);
 
     // check comp changed during exe
 
-    return status;
+    result
 }
 
 pub fn psa_map_invec(msg_handle: PsaHandle, invec_idx: u32) -> psa_iovec_api::MappedInVec {

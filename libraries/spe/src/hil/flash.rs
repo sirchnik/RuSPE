@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use crate::ErrorCode;
+use crate::StatusCode;
 
 /// Flash errors returned in the callbacks.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -24,15 +24,15 @@ pub trait Flash {
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (ErrorCode, &'static mut Self::Page)>;
+    ) -> Result<(), (StatusCode, &'static mut Self::Page)>;
 
     /// Write a page of flash from the buffer.
     fn write_page(
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (ErrorCode, &'static mut Self::Page)>;
+    ) -> Result<(), (StatusCode, &'static mut Self::Page)>;
 
     /// Erase a page of flash by setting every byte to 0xFF.
-    fn erase_page(&self, page_number: usize) -> Result<(), ErrorCode>;
+    fn erase_page(&self, page_number: usize) -> Result<(), StatusCode>;
 }

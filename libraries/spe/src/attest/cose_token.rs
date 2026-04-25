@@ -1,7 +1,6 @@
 use crate::{
-    attest::attest_service::{PSA_ERROR_BUFFER_TOO_SMALL, PSA_ERROR_INVALID_ARGUMENT},
     cose::{CoseSign1, CoseSign1Error, RustCryptoBackend, Sign1Options, encode_payload_bstr},
-    psa_interface::PsaStatus,
+    StatusCode,
 };
 use minicbor::{Encoder, encode::write::Cursor};
 
@@ -17,22 +16,22 @@ const ATTESTATION_PRIVATE_KEY: [u8; 32] = [
 const MAX_PAYLOAD_SIZE: usize = 128;
 const MAX_ENCODED_PAYLOAD_BSTR_SIZE: usize = MAX_PAYLOAD_SIZE + 9;
 
-fn map_cose_error(err: CoseSign1Error) -> PsaStatus {
+fn map_cose_error(err: CoseSign1Error) -> StatusCode {
     match err {
-        CoseSign1Error::BufferTooSmall => PSA_ERROR_BUFFER_TOO_SMALL,
-        _ => PSA_ERROR_INVALID_ARGUMENT,
+        CoseSign1Error::BufferTooSmall => StatusCode::BufferTooSmall,
+        _ => StatusCode::InvalidArgument,
     }
 }
 
-fn encode_payload(challenge: &[u8], out: &mut [u8]) -> Result<usize, PsaStatus> {
+fn encode_payload(challenge: &[u8], out: &mut [u8]) -> Result<usize, StatusCode> {
     // Minimal EAT payload with nonce claim bound to the caller-provided challenge.
     let mut enc = Encoder::new(Cursor::new(out));
     enc.map(1)
-        .map_err(|_| PSA_ERROR_BUFFER_TOO_SMALL)?
+        .map_err(|_| StatusCode::BufferTooSmall)?
         .i64(EAT_NONCE_LABEL)
-        .map_err(|_| PSA_ERROR_BUFFER_TOO_SMALL)?
+        .map_err(|_| StatusCode::BufferTooSmall)?
         .bytes(challenge)
-        .map_err(|_| PSA_ERROR_BUFFER_TOO_SMALL)?;
+        .map_err(|_| StatusCode::BufferTooSmall)?;
 
     Ok(enc.writer().position())
 }
@@ -40,7 +39,7 @@ fn encode_payload(challenge: &[u8], out: &mut [u8]) -> Result<usize, PsaStatus> 
 pub fn encode_initial_attestation_token(
     challenge: &[u8],
     token: &mut [u8],
-) -> Result<usize, PsaStatus> {
+) -> Result<usize, StatusCode> {
     let mut payload = [0u8; MAX_PAYLOAD_SIZE];
     let payload_len = encode_payload(challenge, &mut payload)?;
 
@@ -62,10 +61,10 @@ pub fn encode_initial_attestation_token(
     Ok(encoded.encoded_len)
 }
 
-pub fn compute_initial_attestation_token_size(challenge_size: usize) -> Result<usize, PsaStatus> {
+pub fn compute_initial_attestation_token_size(challenge_size: usize) -> Result<usize, StatusCode> {
     let challenge = [0u8; 64];
     if challenge_size > challenge.len() {
-        return Err(PSA_ERROR_INVALID_ARGUMENT);
+        return Err(StatusCode::InvalidArgument);
     }
 
     let mut token = [0u8; crate::attest::attest_service::PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE];

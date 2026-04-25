@@ -6,10 +6,8 @@
 // unsafe(no_mangle) is required to ensure these functions are linkable from
 // non-secure code. It is unsafe because there could be name collisions.
 
-use crate::{
-    psa::psa_api,
-    psa_interface::{PsaHandle, PsaInVec, PsaOutVec, PsaStatus, VectorDescriptor},
-};
+use crate::psa::psa_api;
+use psa_interface::{PsaHandle, PsaInVec, PsaOutVec, PsaStatus, VectorDescriptor, into_psa_status};
 
 /// Retrieve the version of the PSA Framework API that is implemented.
 #[unsafe(no_mangle)]
@@ -32,7 +30,7 @@ pub extern "cmse-nonsecure-entry" fn psa_call_veneer(
     in_vec: *const PsaInVec,
     out_vec: *mut PsaOutVec,
 ) -> PsaStatus {
-    psa_api::psa_call(handle, ctrl_param, in_vec, out_vec)
+    into_psa_status(psa_api::psa_call(handle, ctrl_param, in_vec, out_vec))
 }
 
 // /// Close connection to secure function referenced by a connection handle.

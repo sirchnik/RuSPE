@@ -1,12 +1,7 @@
-use crate::{
-    psa_interface::{PsaHandle, PsaInVec, PsaOutVec, PsaStatus, VectorDescriptor},
-    spm::spm,
-    spm::spm::Connection,
-};
+use crate::{StatusCode, spm::spm, spm::spm::Connection};
 use core::{ptr, slice};
+use psa_interface::{PsaHandle, PsaInVec, PsaOutVec, VectorDescriptor};
 
-const PSA_SUCCESS: PsaStatus = 0;
-const PSA_ERROR_PROGRAMMER_ERROR: PsaStatus = -129;
 const PSA_MAX_IOVEC: usize = 4;
 
 #[derive(Clone, Copy, Debug)]
@@ -29,12 +24,12 @@ impl PsaMsg {
     }
 }
 
-fn validate_call_params(ctrl_param: VectorDescriptor) -> Result<(i32, usize, usize), PsaStatus> {
+fn validate_call_params(ctrl_param: VectorDescriptor) -> Result<(i32, usize, usize), StatusCode> {
     let msg_type = ctrl_param.unpack_type();
 
     // The request type must be zero or positive.
     if msg_type < 0 {
-        return Err(PSA_ERROR_PROGRAMMER_ERROR);
+        return Err(StatusCode::ProgrammerError);
     }
 
     if !ctrl_param.has_iovec() {
@@ -47,7 +42,7 @@ fn validate_call_params(ctrl_param: VectorDescriptor) -> Result<(i32, usize, usi
     let ovec_num = ctrl_param.out_len();
     match ivec_num.checked_add(ovec_num) {
         Some(total) if total <= PSA_MAX_IOVEC => Ok((msg_type, ivec_num, ovec_num)),
-        _ => Err(PSA_ERROR_PROGRAMMER_ERROR),
+        _ => Err(StatusCode::ProgrammerError),
     }
 }
 
@@ -57,53 +52,51 @@ fn validate_vec_pointer_shape(
     ovec_num: usize,
     in_vec: *const PsaInVec,
     out_vec: *mut PsaOutVec,
-) -> PsaStatus {
+) -> Result<(), StatusCode> {
     if !has_iovec {
-        return PSA_SUCCESS;
+        return Ok(());
     }
 
     // Mirrors the C memory-check preconditions in a safe subset.
     if ivec_num > 0 && in_vec.is_null() {
-        return PSA_ERROR_PROGRAMMER_ERROR;
+        return Err(StatusCode::ProgrammerError);
     }
 
     if ovec_num > 0 && out_vec.is_null() {
-        return PSA_ERROR_PROGRAMMER_ERROR;
+        return Err(StatusCode::ProgrammerError);
     }
 
-    PSA_SUCCESS
+    Ok(())
 }
 
-fn validate_invec_payload_nonoverlap(in_vecs: &[PsaInVec]) -> PsaStatus {
+fn validate_invec_payload_nonoverlap(in_vecs: &[PsaInVec]) -> Result<(), StatusCode> {
     // Mirrors TF-M's invec anti-overlap checks to avoid double-fetch
     // inconsistencies between distinct input payload buffers.
     if in_vecs.len() < 2 {
-        return PSA_SUCCESS;
+        return Ok(());
     }
 
     for i in 0..(in_vecs.len() - 1) {
         let left_base = in_vecs[i].base as usize;
-        let left_end = match left_base.checked_add(in_vecs[i].len) {
-            Some(end) => end,
-            None => return PSA_ERROR_PROGRAMMER_ERROR,
-        };
+        let left_end = left_base
+            .checked_add(in_vecs[i].len)
+            .ok_or(StatusCode::ProgrammerError)?;
 
         for right in &in_vecs[(i + 1)..] {
             let right_base = right.base as usize;
-            let right_end = match right_base.checked_add(right.len) {
-                Some(end) => end,
-                None => return PSA_ERROR_PROGRAMMER_ERROR,
-            };
+            let right_end = right_base
+                .checked_add(right.len)
+                .ok_or(StatusCode::ProgrammerError)?;
 
             // Non-overlap condition copied from C:
             // (right_end <= left_base) || (right_base >= left_end)
             if !((right_end <= left_base) || (right_base >= left_end)) {
-                return PSA_ERROR_PROGRAMMER_ERROR;
+                return Err(StatusCode::ProgrammerError);
             }
         }
     }
 
-    PSA_SUCCESS
+    Ok(())
 }
 
 pub fn psa_call_from_slices(
@@ -112,20 +105,14 @@ pub fn psa_call_from_slices(
     in_vecs: &[PsaInVec],
     out_vecs: &mut [PsaOutVec],
     _spm: &spm::Spm,
-) -> Result<Connection, PsaStatus> {
-    let (msg_type, ivec_num, ovec_num) = match validate_call_params(ctrl_param) {
-        Ok(values) => values,
-        Err(status) => return Err(status),
-    };
+) -> Result<Connection, StatusCode> {
+    let (msg_type, ivec_num, ovec_num) = validate_call_params(ctrl_param)?;
 
     if in_vecs.len() != ivec_num || out_vecs.len() != ovec_num {
-        return Err(PSA_ERROR_PROGRAMMER_ERROR);
+        return Err(StatusCode::ProgrammerError);
     }
 
-    let overlap_status = validate_invec_payload_nonoverlap(in_vecs);
-    if overlap_status != PSA_SUCCESS {
-        return Err(PSA_ERROR_PROGRAMMER_ERROR);
-    }
+    validate_invec_payload_nonoverlap(in_vecs)?;
 
     let mut msg = PsaMsg::new(handle, msg_type);
     let _ = (msg.handle, msg.msg_type);
@@ -165,17 +152,10 @@ pub fn psa_call(
     in_vec: *const PsaInVec,
     out_vec: *mut PsaOutVec,
     spm: &spm::Spm,
-) -> PsaStatus {
-    let (_msg_type, ivec_num, ovec_num) = match validate_call_params(ctrl_param) {
-        Ok(values) => values,
-        Err(status) => return status,
-    };
+) -> Result<(), StatusCode> {
+    let (_msg_type, ivec_num, ovec_num) = validate_call_params(ctrl_param)?;
 
-    let pointer_status =
-        validate_vec_pointer_shape(ctrl_param.has_iovec(), ivec_num, ovec_num, in_vec, out_vec);
-    if pointer_status != PSA_SUCCESS {
-        return pointer_status;
-    }
+    validate_vec_pointer_shape(ctrl_param.has_iovec(), ivec_num, ovec_num, in_vec, out_vec)?;
 
     let in_vecs: &[PsaInVec] = if ivec_num == 0 {
         &[]
@@ -198,10 +178,8 @@ pub fn psa_call(
         unsafe { slice::from_raw_parts_mut(out_vec, ovec_num) }
     };
 
-    let Ok(connection) = psa_call_from_slices(handle, ctrl_param, in_vecs, out_vecs, spm) else {
-        return PSA_ERROR_PROGRAMMER_ERROR;
-    };
+    let connection = psa_call_from_slices(handle, ctrl_param, in_vecs, out_vecs, spm)?;
 
     spm.call(connection);
-    0
+    Ok(())
 }

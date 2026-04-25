@@ -10,14 +10,14 @@
 
 use core::ptr::addr_of_mut;
 
+use psa_interface;
 use psc3::{chip_init, gpio, icache, peri_clk};
 use spe::{
     attest::attest_service::{self, CERTIFICATION_REF_MAX_SIZE},
     psa::psa_api,
-    psa_interface::{self, PsaStatus},
     service::Service,
     spm::spm::{self, SpmPlatform},
-    static_init,
+    static_init, StatusCode,
 };
 
 extern "Rust" {
@@ -32,27 +32,27 @@ mod startup;
 struct Psc3AttestPlatform;
 
 impl attest_service::AttestPlatform for Psc3AttestPlatform {
-    fn security_lifecycle(&self, buf: &mut [u8]) -> Result<(), PsaStatus> {
+    fn security_lifecycle(&self, buf: &mut [u8]) -> Result<(), StatusCode> {
         todo!()
     }
 
-    fn verfication_service(&self, buf: &mut [u8]) -> Result<(), PsaStatus> {
+    fn verfication_service(&self, buf: &mut [u8]) -> Result<(), StatusCode> {
         todo!()
     }
 
-    fn profile_definition(&self, buf: &mut [u8]) -> Result<(), PsaStatus> {
+    fn profile_definition(&self, buf: &mut [u8]) -> Result<(), StatusCode> {
         todo!()
     }
 
-    fn boot_seed(&self, seed: &mut [u8; 32]) -> Result<(), PsaStatus> {
+    fn boot_seed(&self, seed: &mut [u8; 32]) -> Result<(), StatusCode> {
         todo!()
     }
 
-    fn implementation_id(&self, buf: &mut [u8; 32]) -> Result<(), PsaStatus> {
+    fn implementation_id(&self, buf: &mut [u8; 32]) -> Result<(), StatusCode> {
         todo!()
     }
 
-    fn cert_ref(&self, buf: &mut [u8; CERTIFICATION_REF_MAX_SIZE]) -> Result<(), PsaStatus> {
+    fn cert_ref(&self, buf: &mut [u8; CERTIFICATION_REF_MAX_SIZE]) -> Result<(), StatusCode> {
         todo!()
     }
 }
