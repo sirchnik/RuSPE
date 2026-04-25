@@ -3,14 +3,11 @@ use crate::{
     attest::cose_token::{
         compute_initial_attestation_token_size, encode_initial_attestation_token,
     },
-    psa::{
-        iovec::{PsaInVecExt, PsaOutVecExt},
-        psa_call::PsaMsg,
-    },
+    psa::{psa_api, psa_call::PsaMsg},
     service::{Info, Service},
 };
 use core::mem::size_of;
-use psa_interface::{self, PsaInVec, PsaOutVec};
+use psa_interface::{self};
 
 /// TF-M attestation message type for token retrieval.
 pub const TFM_ATTEST_GET_TOKEN: u32 = 1001;
@@ -98,64 +95,11 @@ impl<P: AttestPlatform> AttestService<P> {
         compute_initial_attestation_token_size(challenge_size)
     }
 
-    /// Safe dispatch path that can be used by Rust callers with validated iovecs.
-    pub fn dispatch(
-        &self,
-        msg_type: u32,
-        in_vec: &[PsaInVec],
-        out_vec: &mut [PsaOutVec],
-    ) -> Result<(), StatusCode> {
-        if msg_type == psa_interface::AttestationServiceType::GetToken as u32 {
-            if in_vec.len() != 1 || out_vec.len() != 1 {
-                return Err(StatusCode::InvalidArgument);
-            }
-
-            let challenge_len = in_vec[0].len;
-            if !Self::challenge_size_is_supported(challenge_len) {
-                return Err(StatusCode::InvalidArgument);
-            }
-
-            if out_vec[0].len == 0 {
-                return Err(StatusCode::InvalidArgument);
-            }
-
-            if out_vec[0].len > PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE {
-                return Err(StatusCode::BufferTooSmall);
-            }
-
-            let mut challenge = [0u8; PSA_INITIAL_ATTEST_CHALLENGE_SIZE_64];
-            in_vec[0].read_into(&mut challenge[..challenge_len])?;
-
-            let token_size = self.initial_attest_get_token_size(challenge_len)?;
-
-            if token_size > out_vec[0].len {
-                return Err(StatusCode::BufferTooSmall);
-            }
-
-            let mut token = [0u8; PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE];
-            self.initial_attest_get_token(&challenge[..challenge_len], &mut token[..token_size])?;
-
-            out_vec[0].write_from(&token[..token_size])
-        } else if msg_type == psa_interface::AttestationServiceType::GetTokenSize as u32 {
-            if in_vec.len() != 1 || out_vec.len() != 1 {
-                return Err(StatusCode::InvalidArgument);
-            }
-
-            if in_vec[0].len != size_of::<usize>() {
-                return Err(StatusCode::InvalidArgument);
-            }
-
-            let mut challenge_size_bytes = [0u8; size_of::<usize>()];
-            in_vec[0].read_into(&mut challenge_size_bytes)?;
-
-            let challenge_size = usize::from_ne_bytes(challenge_size_bytes);
-            let token_size = self.initial_attest_get_token_size(challenge_size)?;
-
-            let token_size_bytes = token_size.to_ne_bytes();
-            out_vec[0].write_from(&token_size_bytes)
-        } else {
-            Err(StatusCode::NotSupported)
-        }
+    fn has_exactly_one_iovec(msg: &PsaMsg) -> bool {
+        msg.in_size[0].is_some()
+            && msg.out_size[0].is_some()
+            && msg.in_size[1..].iter().all(Option::is_none)
+            && msg.out_size[1..].iter().all(Option::is_none)
     }
 }
 
@@ -164,12 +108,88 @@ impl<P: AttestPlatform> Service for AttestService<P> {
         Info { version: 1 }
     }
 
-    fn call(&self, _msg: PsaMsg) {
-        // The trusted pointer-to-slice bridge from PSA iovecs into `dispatch()` is
-        // still pending, and this crate intentionally avoids introducing `unsafe`.
+    fn call(&self, msg: PsaMsg) -> Result<(), psa_interface::StatusCode> {
+        if !Self::has_exactly_one_iovec(&msg) {
+            return Err(psa_interface::StatusCode::InvalidArgument);
+        }
+
+        if msg.msg_type == psa_interface::AttestationServiceType::GetToken as i32 {
+            return psa_api::psa_map_invec(msg.handle, 0, |challenge| {
+                psa_api::psa_map_outvec(msg.handle, 0, |token_buf| {
+                    let mut written_len = 0;
+                    let result = (|| -> Result<(), StatusCode> {
+                        if !Self::challenge_size_is_supported(challenge.len()) {
+                            return Err(StatusCode::InvalidArgument);
+                        }
+
+                        if token_buf.is_empty() {
+                            return Err(StatusCode::InvalidArgument);
+                        }
+
+                        if token_buf.len() > PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE {
+                            return Err(StatusCode::BufferTooSmall);
+                        }
+
+                        let token_size = self.initial_attest_get_token_size(challenge.len())?;
+                        if token_size > token_buf.len() {
+                            return Err(StatusCode::BufferTooSmall);
+                        }
+
+                        self.initial_attest_get_token(challenge, &mut token_buf[..token_size])?;
+                        written_len = token_size;
+                        Ok(())
+                    })();
+
+                    if result.is_err() {
+                        token_buf.fill(0);
+                        written_len = 0;
+                    }
+
+                    (result, written_len)
+                })
+            });
+        } else if msg.msg_type == psa_interface::AttestationServiceType::GetTokenSize as i32 {
+            return psa_api::psa_map_invec(msg.handle, 0, |challenge_size_bytes| {
+                psa_api::psa_map_outvec(msg.handle, 0, |out_buf| {
+                    let mut written_len = 0;
+                    let result = (|| -> Result<(), StatusCode> {
+                        if challenge_size_bytes.len() != size_of::<usize>() {
+                            return Err(StatusCode::InvalidArgument);
+                        }
+
+                        let mut challenge_size = [0u8; size_of::<usize>()];
+                        challenge_size.copy_from_slice(challenge_size_bytes);
+                        let token_size = self
+                            .initial_attest_get_token_size(usize::from_ne_bytes(challenge_size))?;
+
+                        let token_size_bytes = token_size.to_ne_bytes();
+                        if out_buf.len() < token_size_bytes.len() {
+                            return Err(StatusCode::BufferTooSmall);
+                        }
+
+                        out_buf[..token_size_bytes.len()].copy_from_slice(&token_size_bytes);
+                        written_len = token_size_bytes.len();
+                        Ok(())
+                    })();
+
+                    if result.is_err() {
+                        out_buf.fill(0);
+                        written_len = 0;
+                    }
+
+                    (result, written_len)
+                })
+            });
+        } else {
+            Err(psa_interface::StatusCode::NotSupported)
+        }
     }
 
-    fn init(&mut self) {}
+    fn init(&mut self) -> Result<(), psa_interface::StatusCode> {
+        Ok(())
+    }
 
-    fn deinit(&mut self) {}
+    fn deinit(&mut self) -> Result<(), psa_interface::StatusCode> {
+        Ok(())
+    }
 }

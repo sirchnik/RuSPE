@@ -1,4 +1,4 @@
-use core::panic;
+use core::{panic, slice};
 
 use crate::{
     psa::psa_api,
@@ -6,18 +6,6 @@ use crate::{
 };
 
 use psa_interface::PsaHandle;
-
-#[derive(Clone, Copy, Debug)]
-pub struct MappedInVec {
-    pub base: *const u8,
-    pub len: usize,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct MappedOutVec {
-    pub base: *mut u8,
-    pub len: usize,
-}
 
 fn with_connection_for_handle<R>(msg_handle: PsaHandle, f: impl FnOnce(&mut Connection) -> R) -> R {
     let spm = psa_api::get_spm();
@@ -39,7 +27,7 @@ fn with_connection_for_handle<R>(msg_handle: PsaHandle, f: impl FnOnce(&mut Conn
     result
 }
 
-pub fn psa_map_invec(msg_handle: PsaHandle, invec_idx: u32) -> MappedInVec {
+pub fn psa_map_invec<R>(msg_handle: PsaHandle, invec_idx: u32, f: impl FnOnce(&[u8]) -> R) -> R {
     with_connection_for_handle(msg_handle, |connection| {
         let index = invec_idx as usize;
         if index >= PSA_MAX_IOVEC {
@@ -65,33 +53,28 @@ pub fn psa_map_invec(msg_handle: PsaHandle, invec_idx: u32) -> MappedInVec {
 
         connection.invec_mapped[index] = true;
 
-        MappedInVec {
-            base: connection.invec_base[index],
-            len: in_len,
-        }
-    })
-}
-
-pub fn psa_unmap_invec(msg_handle: PsaHandle, invec_idx: u32) {
-    with_connection_for_handle(msg_handle, |connection| {
-        let index = invec_idx as usize;
-        if index >= PSA_MAX_IOVEC {
-            panic!("invec index is out of range");
-        }
-
-        if !connection.invec_mapped[index] {
-            panic!("input vector has not been mapped");
-        }
+        // ### Safety
+        // `invec_base[index]` is checked non-null above. `in_len` comes from the
+        // SPM-tracked input vector size for this message and is the exact number
+        // of readable bytes associated with this pointer.
+        let invec = unsafe { slice::from_raw_parts(connection.invec_base[index], in_len) };
+        let result = f(invec);
 
         if connection.invec_unmapped[index] {
             panic!("input vector is already unmapped");
         }
 
         connection.invec_unmapped[index] = true;
-    });
+
+        result
+    })
 }
 
-pub fn psa_map_outvec(msg_handle: PsaHandle, outvec_idx: u32) -> MappedOutVec {
+pub fn psa_map_outvec<R>(
+    msg_handle: PsaHandle,
+    outvec_idx: u32,
+    f: impl FnOnce(&mut [u8]) -> (R, usize),
+) -> R {
     with_connection_for_handle(msg_handle, |connection| {
         let index = outvec_idx as usize;
         if index >= PSA_MAX_IOVEC {
@@ -117,35 +100,25 @@ pub fn psa_map_outvec(msg_handle: PsaHandle, outvec_idx: u32) -> MappedOutVec {
 
         connection.outvec_mapped[index] = true;
 
-        MappedOutVec {
-            base: connection.outvec_base[index],
-            len: out_len,
-        }
-    })
-}
-
-pub fn psa_unmap_outvec(msg_handle: PsaHandle, outvec_idx: u32, written_len: usize) {
-    with_connection_for_handle(msg_handle, |connection| {
-        let index = outvec_idx as usize;
-        if index >= PSA_MAX_IOVEC {
-            panic!("outvec index is out of range");
-        }
-
-        if !connection.outvec_mapped[index] {
-            panic!("output vector has not been mapped");
-        }
+        // ### Safety
+        // `outvec_base[index]` is checked non-null above. `out_len` comes from
+        // the SPM-tracked output vector size for this message and is the exact
+        // writable extent associated with this pointer.
+        let outvec = unsafe { slice::from_raw_parts_mut(connection.outvec_base[index], out_len) };
+        let (result, written_len) = f(outvec);
 
         if connection.outvec_unmapped[index] {
             panic!("output vector is already unmapped");
         }
 
-        let capacity = connection.msg.out_size[index].unwrap_or(0);
-        if written_len > capacity {
+        if written_len > out_len {
             panic!("written length exceeds output vector capacity");
         }
 
         connection.outvec_written[index] = written_len;
         connection.msg.out_size[index] = Some(written_len);
         connection.outvec_unmapped[index] = true;
-    });
+
+        result
+    })
 }

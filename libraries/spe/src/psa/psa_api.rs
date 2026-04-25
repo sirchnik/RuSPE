@@ -55,18 +55,14 @@ pub fn psa_call(
     result
 }
 
-pub fn psa_map_invec(msg_handle: PsaHandle, invec_idx: u32) -> psa_iovec_api::MappedInVec {
-    psa_iovec_api::psa_map_invec(msg_handle, invec_idx)
+pub fn psa_map_invec<R>(msg_handle: PsaHandle, invec_idx: u32, f: impl FnOnce(&[u8]) -> R) -> R {
+    psa_iovec_api::psa_map_invec(msg_handle, invec_idx, f)
 }
 
-pub fn psa_map_outvec(msg_handle: PsaHandle, outvec_idx: u32) -> psa_iovec_api::MappedOutVec {
-    psa_iovec_api::psa_map_outvec(msg_handle, outvec_idx)
-}
-
-pub fn psa_unmap_invec(msg_handle: PsaHandle, invec_idx: u32) {
-    psa_iovec_api::psa_unmap_invec(msg_handle, invec_idx)
-}
-
-pub fn psa_unmap_outvec(msg_handle: PsaHandle, outvec_idx: u32, written_len: usize) {
-    psa_iovec_api::psa_unmap_outvec(msg_handle, outvec_idx, written_len)
+pub fn psa_map_outvec<R>(
+    msg_handle: PsaHandle,
+    outvec_idx: u32,
+    f: impl FnOnce(&mut [u8]) -> (R, usize),
+) -> R {
+    psa_iovec_api::psa_map_outvec(msg_handle, outvec_idx, f)
 }
