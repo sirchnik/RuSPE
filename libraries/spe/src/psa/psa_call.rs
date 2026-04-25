@@ -150,8 +150,12 @@ pub fn psa_call_from_slices(
         msg,
         invec_base,
         invec_accessed,
+        invec_mapped: [false; PSA_MAX_IOVEC],
+        invec_unmapped: [false; PSA_MAX_IOVEC],
         outvec_base,
         outvec_written,
+        outvec_mapped: [false; PSA_MAX_IOVEC],
+        outvec_unmapped: [false; PSA_MAX_IOVEC],
     })
 }
 

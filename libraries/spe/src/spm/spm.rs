@@ -3,7 +3,7 @@ use core::cell::Cell;
 use crate::psa::psa_call::PsaMsg;
 
 const MAX_CONNECTIONS: usize = 4;
-const PSA_MAX_IOVEC: usize = 4;
+pub const PSA_MAX_IOVEC: usize = 4;
 
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
@@ -11,8 +11,12 @@ pub struct Connection {
     pub msg: PsaMsg,
     pub invec_base: [*const u8; PSA_MAX_IOVEC],
     pub invec_accessed: [usize; PSA_MAX_IOVEC],
+    pub invec_mapped: [bool; PSA_MAX_IOVEC],
+    pub invec_unmapped: [bool; PSA_MAX_IOVEC],
     pub outvec_base: [*mut u8; PSA_MAX_IOVEC],
     pub outvec_written: [usize; PSA_MAX_IOVEC],
+    pub outvec_mapped: [bool; PSA_MAX_IOVEC],
+    pub outvec_unmapped: [bool; PSA_MAX_IOVEC],
 }
 
 pub trait SpmPlatform {
@@ -59,7 +63,17 @@ impl Spm {
     }
 
     pub fn call(&self, connection: Connection) {
-        self.add_connection(connection);
+        if self.add_connection(connection).is_err() {
+            panic!("SPM connection stack exhausted");
+        }
         self.platform.call(connection.msg)
+    }
+
+    pub fn with_active_connection<R>(&self, f: impl FnOnce(&mut Connection) -> R) -> Option<R> {
+        let index = self.top_connection.get().checked_sub(1)?;
+        let mut connection = self.connections[index].take()?;
+        let result = f(&mut connection);
+        self.connections[index].set(Some(connection));
+        Some(result)
     }
 }
