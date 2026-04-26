@@ -180,6 +180,5 @@ pub fn psa_call(
 
     let connection = psa_call_from_slices(handle, ctrl_param, in_vecs, out_vecs, spm)?;
 
-    spm.call(connection);
-    Ok(())
+    spm.call(connection)
 }

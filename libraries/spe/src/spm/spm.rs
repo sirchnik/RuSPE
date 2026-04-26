@@ -20,7 +20,7 @@ pub struct Connection {
 }
 
 pub trait SpmPlatform {
-    fn call(&self, msg: PsaMsg);
+    fn call(&self, msg: PsaMsg) -> Result<(), crate::StatusCode>;
 }
 
 use core::fmt::Debug;
@@ -62,7 +62,7 @@ impl Spm {
         Ok(())
     }
 
-    pub fn call(&self, connection: Connection) {
+    pub fn call(&self, connection: Connection) -> Result<(), crate::StatusCode> {
         if self.add_connection(connection).is_err() {
             panic!("SPM connection stack exhausted");
         }
