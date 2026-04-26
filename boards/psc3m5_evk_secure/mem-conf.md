@@ -15,6 +15,9 @@ Notes:
 
 ### SRAM
 
+`0x3` and `0x2` in the address indicate secure and non-secure memory, respectively.
+These address spaces share the **same** physical SRAM though.
+
 | Region                      |  Size |       Configuration |
 | --------------------------- | ----: | ------------------: |
 | `0x3400_0000`-`0x3400_4000` | 16 KB |          Secure (S) |
@@ -23,11 +26,14 @@ Notes:
 
 ### Flash
 
-| Region                      |     Size |             Configuration |
-| --------------------------- | -------: | ------------------------: |
-| `0x3200_0000`-`0x3200_FF00` | 63.75 KB |                Secure (S) |
-| `0x3200_FF00`-`0x3201_0000` |    256 B | Non-Secure Callable (NSC) |
-| `0x2201_0100`-`0x2204_0000` |   192 KB |           Non-Secure (NS) |
+`0x3` and `0x2` in the address indicate secure and non-secure memory, respectively.
+These address spaces share the **same** physical Flash though.
+
+| Region                      |      Size |             Configuration |
+| --------------------------- | --------: | ------------------------: |
+| `0x3200_0000`-`0x3201_3F00` |   79,75 KB |                Secure (S) |
+| `0x3201_3F00`-`0x3201_4000` |     256 B | Non-Secure Callable (NSC) |
+| `0x2201_4000`-`0x2204_0000` |    176 KB |           Non-Secure (NS) |
 
 ## Implementation
 
@@ -39,3 +45,11 @@ Notes:
   Attribution Unit) is used in code.
 - Peripherals are marked non-secure in code with the PPC (Peripheral Protection
   Controller).
+
+## Files
+
+These files are relevant for the memory configuration:
+
+- `boards/psc3m5_evk_secure/layout.ld`: Linker script for the secure world
+- `boards/psc3m5_evk_secure/layout_non_secure.ld`: Linker script for the non-secure world
+- `boards/psc3m5_evk_secure/edgeprotecttools/ns_policy/policy_oem_provisioning.json`: MPC policy file defining the memory access permissions

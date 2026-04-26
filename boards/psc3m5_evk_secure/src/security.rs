@@ -6,7 +6,7 @@ use cortexm33::sau;
 use psc3::ppc;
 use psc3::ppc::PpcRegion;
 
-pub(crate) const NONSECURE_START_FLASH: *const [u32; 2] = 0x2201_0100 as *const [u32; 2];
+pub(crate) const NONSECURE_START_FLASH: *const [u32; 2] = 0x2201_4000 as *const [u32; 2];
 
 const NONSECURE_PRIV: &[PpcRegion] = &[
     PpcRegion::ProtPeri0Main,
@@ -239,7 +239,7 @@ fn configure_sau() -> Result<(), sau::SauError> {
     sau.set_region(
         0,
         sau::SauRegion {
-            base_address: 0x2201_0100,
+            base_address: 0x2201_4000,
             limit_address: 0x2203_FFFF,
             attribute: sau::SauRegionAttribute::NonSecure,
         },
@@ -248,8 +248,8 @@ fn configure_sau() -> Result<(), sau::SauError> {
     sau.set_region(
         1,
         sau::SauRegion {
-            base_address: 0x3200_FF00,
-            limit_address: 0x3200_FFFF,
+            base_address: 0x3201_3F00,
+            limit_address: 0x3201_3FFF,
             attribute: sau::SauRegionAttribute::NonSecureCallable,
         },
     )?;

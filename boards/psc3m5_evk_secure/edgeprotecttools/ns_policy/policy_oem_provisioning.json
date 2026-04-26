@@ -254,10 +254,9 @@
                 "value": [
                     {
                         "comment_1": "First Section left with defaults for secure flash.",
-                        "comment_2": "TODO: Can DMA now write on NSC?",
                         "description": "Non-Secure Flash + NSC Flash",
-                        "offset": "64 KB",
-                        "size": "192 KB",
+                        "offset": "80 KB",
+                        "size": "176 KB",
                         "attr": {
                             "value": {
                                 "pc0": "WR-",
