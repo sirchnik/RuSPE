@@ -15,12 +15,15 @@ use minicbor::{
 use p256::ecdsa::{Signature, SigningKey, signature::hazmat::PrehashSigner};
 use sha2::{Digest, Sha256};
 
-/// COSE header label: algorithm.
-pub const COSE_HEADER_PARAM_ALG: u8 = 1;
-/// COSE header label: content type.
-pub const COSE_HEADER_PARAM_CONTENT_TYPE: u8 = 3;
-/// COSE header label: key id.
-pub const COSE_HEADER_PARAM_KID: u8 = 4;
+enum CoseHeaderLabels {
+    Alg = 1,
+    ContentType = 3,
+    Kid = 4,
+    Iv = 5,
+    PartialIV = 6,
+    CounterSignature = 7,
+}
+
 /// CBOR tag for COSE_Sign1.
 pub const CBOR_TAG_COSE_SIGN1: u64 = 18;
 /// COSE algorithm identifier for ECDSA with SHA-256.
@@ -160,6 +163,9 @@ impl<'a, C: CoseCrypto> CoseSign1<'a, C> {
     }
 
     /// Encodes a complete COSE_Sign1 from raw payload bytes.
+    ///
+    /// The payload is encoded as one CBOR bstr item and included in the
+    /// signature `Sig_structure`.
     pub fn encode_from_payload(
         &self,
         payload: &[u8],
@@ -170,7 +176,7 @@ impl<'a, C: CoseCrypto> CoseSign1<'a, C> {
         protected_headers_enc
             .map(1)
             .map_err(map_encode_error)?
-            .u8(COSE_HEADER_PARAM_ALG)
+            .u8(CoseHeaderLabels::Alg as u8)
             .map_err(map_encode_error)?
             .i32(COSE_ALGORITHM_ES256)
             .map_err(map_encode_error)?;
@@ -202,7 +208,7 @@ impl<'a, C: CoseCrypto> CoseSign1<'a, C> {
             sign1_enc
                 .map(1)
                 .map_err(map_encode_error)?
-                .u8(COSE_HEADER_PARAM_KID)
+                .u8(CoseHeaderLabels::Kid as u8)
                 .map_err(map_encode_error)?
                 .bytes(self.key_id.unwrap_or(&[]))
                 .map_err(map_encode_error)?;
@@ -241,7 +247,7 @@ impl<'a, C: CoseCrypto> CoseSign1<'a, C> {
         protected_headers_enc
             .map(1)
             .map_err(map_encode_error)?
-            .u8(COSE_HEADER_PARAM_ALG)
+            .u8(CoseHeaderLabels::Alg as u8)
             .map_err(map_encode_error)?
             .i32(COSE_ALGORITHM_ES256)
             .map_err(map_encode_error)?;
@@ -273,7 +279,7 @@ impl<'a, C: CoseCrypto> CoseSign1<'a, C> {
             sign1_enc
                 .map(1)
                 .map_err(map_encode_error)?
-                .u8(COSE_HEADER_PARAM_KID)
+                .u8(CoseHeaderLabels::Kid as u8)
                 .map_err(map_encode_error)?
                 .bytes(self.key_id.unwrap_or(&[]))
                 .map_err(map_encode_error)?;
@@ -401,7 +407,8 @@ pub fn encode_payload_bstr(payload: &[u8], out: &mut [u8]) -> Result<usize, Cose
 
 #[cfg(test)]
 mod tests {
-    use spe::cose::{CoseSign1, RustCryptoBackend, Sign1Options, encode_payload_bstr};
+    use super::{CoseSign1, RustCryptoBackend, Sign1Options, encode_payload_bstr};
+    use minicbor::Decoder;
 
     const TEST_PAYLOAD: &[u8] = b"This is the content.";
     const TEST_KEY_ID: &[u8] = b"11";
@@ -424,6 +431,36 @@ mod tests {
         0x0b, 0x87, 0xab, 0x69, 0x36, 0xdd, 0xf4, 0x14, 0x57, 0xea, 0x30, 0xf9, 0x6c, 0xa6, 0xf2,
         0xcd, 0xee,
     ];
+
+    fn decode_hex_into(input: &str, out: &mut [u8]) -> usize {
+        fn nibble(c: u8) -> u8 {
+            match c {
+                b'0'..=b'9' => c - b'0',
+                b'a'..=b'f' => c - b'a' + 10,
+                b'A'..=b'F' => c - b'A' + 10,
+                _ => panic!("invalid hex digit"),
+            }
+        }
+
+        let bytes = input.as_bytes();
+        assert_eq!(bytes.len() % 2, 0, "hex input length must be even");
+        let out_len = bytes.len() / 2;
+        assert!(
+            out.len() >= out_len,
+            "output buffer too small for decoded hex"
+        );
+
+        let mut i = 0;
+        let mut j = 0;
+        while i < bytes.len() {
+            let hi = nibble(bytes[i]);
+            let lo = nibble(bytes[i + 1]);
+            out[j] = (hi << 4) | lo;
+            i += 2;
+            j += 1;
+        }
+        out_len
+    }
 
     #[test]
     fn encodes_test_vector_from_raw_payload() {

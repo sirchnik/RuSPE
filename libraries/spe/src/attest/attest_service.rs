@@ -1,22 +1,14 @@
 use crate::{
     StatusCode,
     attest::cose_token::{
-        compute_initial_attestation_token_size, encode_initial_attestation_token,
+        AttestClaim, AttestClaimValue, IatClaim, compute_initial_attestation_token_size,
+        encode_initial_attestation_token,
     },
     psa::{psa_api, psa_call::PsaMsg},
     service::{Info, Service},
 };
 use core::mem::size_of;
 use psa_interface::{self};
-
-/// TF-M attestation message type for token retrieval.
-pub const TFM_ATTEST_GET_TOKEN: u32 = 1001;
-/// TF-M attestation message type for token size retrieval.
-pub const TFM_ATTEST_GET_TOKEN_SIZE: u32 = 1002;
-
-pub const PSA_INITIAL_ATTEST_CHALLENGE_SIZE_32: usize = 32;
-pub const PSA_INITIAL_ATTEST_CHALLENGE_SIZE_48: usize = 48;
-pub const PSA_INITIAL_ATTEST_CHALLENGE_SIZE_64: usize = 64;
 
 /// Maximum token buffer size used by default TF-M builds.
 pub const PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE: usize = 0x250;
@@ -43,6 +35,12 @@ pub trait AttestPlatform {
     fn cert_ref(&self, buf: &mut [u8; CERTIFICATION_REF_MAX_SIZE]) -> Result<(), StatusCode>;
 }
 
+// Temporary development key used to exercise the token path.
+const TEMP_KEY: [u8; 32] = [
+    0x3d, 0x42, 0x9a, 0x83, 0xef, 0xe3, 0x87, 0x10, 0xab, 0x9a, 0xb4, 0xc0, 0x2c, 0xcb, 0xbe, 0x0b,
+    0x87, 0xab, 0x69, 0x36, 0xdd, 0xf4, 0x14, 0x57, 0xea, 0x30, 0xf9, 0x6c, 0xa6, 0xf2, 0xcd, 0xee,
+];
+
 pub struct AttestService<P: AttestPlatform> {
     platform: P,
 }
@@ -53,18 +51,14 @@ impl<P: AttestPlatform> AttestService<P> {
     }
 
     fn challenge_size_is_supported(challenge_size: usize) -> bool {
-        matches!(
-            challenge_size,
-            PSA_INITIAL_ATTEST_CHALLENGE_SIZE_32
-                | PSA_INITIAL_ATTEST_CHALLENGE_SIZE_48
-                | PSA_INITIAL_ATTEST_CHALLENGE_SIZE_64
-        )
+        matches!(challenge_size, 32 | 48 | 64)
     }
 
     /// Safe attestation entry point translated from TF-M's C partition.
     pub fn initial_attest_get_token(
         &self,
         challenge: &[u8],
+        additional_claims: &[AttestClaim<'_>],
         token: &mut [u8],
     ) -> Result<usize, StatusCode> {
         if !Self::challenge_size_is_supported(challenge.len()) {
@@ -79,7 +73,8 @@ impl<P: AttestPlatform> AttestService<P> {
             return Err(StatusCode::BufferTooSmall);
         }
 
-        let encoded_len = encode_initial_attestation_token(challenge, token)?;
+        let encoded_len =
+            encode_initial_attestation_token(challenge, additional_claims, token, &TEMP_KEY)?;
         token[encoded_len..].fill(0);
         Ok(encoded_len)
     }
@@ -87,12 +82,13 @@ impl<P: AttestPlatform> AttestService<P> {
     pub fn initial_attest_get_token_size(
         &self,
         challenge_size: usize,
+        additional_claims: &[AttestClaim<'_>],
     ) -> Result<usize, StatusCode> {
         if !Self::challenge_size_is_supported(challenge_size) {
             return Err(StatusCode::InvalidArgument);
         }
 
-        compute_initial_attestation_token_size(challenge_size)
+        compute_initial_attestation_token_size(challenge_size, additional_claims, &TEMP_KEY)
     }
 
     fn has_exactly_one_iovec(msg: &PsaMsg) -> bool {
@@ -129,13 +125,16 @@ impl<P: AttestPlatform> Service for AttestService<P> {
                         return Err(StatusCode::BufferTooSmall);
                     }
 
-                    let token_size = self.initial_attest_get_token_size(challenge.len())?;
-                    if token_size > token_buf.len() {
-                        return Err(StatusCode::BufferTooSmall);
-                    }
+                    let mut boot_seed = [0u8; 32];
+                    self.platform.boot_seed(&mut boot_seed)?;
 
-                    self.initial_attest_get_token(challenge, &mut token_buf[..token_size])?;
-                    written_len = token_size;
+                    let additional_claims = [AttestClaim {
+                        key: IatClaim::BootSeed,
+                        value: AttestClaimValue::Bytes(&boot_seed),
+                    }];
+
+                    self.initial_attest_get_token(challenge, &additional_claims, token_buf)?;
+                    written_len = token_buf.len();
                     Ok(())
                 })();
 
@@ -160,8 +159,19 @@ impl<P: AttestPlatform> Service for AttestService<P> {
 
                         let mut challenge_size = [0u8; size_of::<usize>()];
                         challenge_size.copy_from_slice(challenge_size_bytes);
-                        let token_size = self
-                            .initial_attest_get_token_size(usize::from_ne_bytes(challenge_size))?;
+
+                        let mut boot_seed = [0u8; 32];
+                        self.platform.boot_seed(&mut boot_seed)?;
+
+                        let additional_claims = [AttestClaim {
+                            key: IatClaim::BootSeed,
+                            value: AttestClaimValue::Bytes(&boot_seed),
+                        }];
+
+                        let token_size = self.initial_attest_get_token_size(
+                            usize::from_ne_bytes(challenge_size),
+                            &additional_claims,
+                        )?;
 
                         let token_size_bytes = token_size.to_ne_bytes();
                         if out_buf.len() < token_size_bytes.len() {
