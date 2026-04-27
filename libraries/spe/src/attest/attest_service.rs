@@ -1,6 +1,6 @@
 use crate::{
     StatusCode,
-    attest::cose_token::{
+    attest::psa_token::{
         AttestClaim, AttestClaimValue, IatClaim, compute_initial_attestation_token_size,
         encode_initial_attestation_token,
     },
@@ -102,8 +102,11 @@ impl<P: AttestPlatform> AttestService<P> {
             key: IatClaim::Nonce,
             value: AttestClaimValue::Bytes(&[]),
         }; MAX_TOTAL_CLAIMS];
-        let claims =
-            Self::build_claims(&dummy_nonce[..challenge_size], additional_claims, &mut claims_buf)?;
+        let claims = Self::build_claims(
+            &dummy_nonce[..challenge_size],
+            additional_claims,
+            &mut claims_buf,
+        )?;
 
         compute_initial_attestation_token_size(claims, &TEMP_KEY)
     }

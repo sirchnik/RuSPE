@@ -60,20 +60,21 @@ pub unsafe fn main() {
     // Set the UART used for panic
     (*addr_of_mut!(io::WRITER)).set_scb(&peripherals.scb3);
 
-    let in_vec = psa_interface::PsaInVec {
-        base: core::ptr::null(),
-        len: 0,
-    };
-
-    let mut out_vec = psa_interface::PsaOutVec {
-        base: core::ptr::null_mut(),
-        len: 0,
-    };
-
     let challenge = [0u8; 32];
     let mut token_buf = [0u8; 512];
 
-    spe_client::initial_attest_get_token(&challenge, &mut token_buf);
+    spe_client::initial_attest_get_token(&challenge, &mut token_buf).unwrap();
+
+    use core::fmt::Write;
+
+    let writer = unsafe { &mut *addr_of_mut!(io::WRITER) };
+    let _ = write!(writer, "\r\ntoken_buf: ");
+
+    for b in token_buf {
+        let _ = write!(writer, "{:02x}", b);
+    }
+
+    let _ = write!(writer, "\r\n");
 
     loop {}
 }

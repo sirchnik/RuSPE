@@ -1,6 +1,8 @@
 use crate::{
     StatusCode,
-    cose::{CoseSign1, CoseSign1Error, RustCryptoBackend, Sign1Options, encode_payload_bstr},
+    libs::cose_sign1::{
+        CoseSign1, CoseSign1Error, RustCryptoBackend, Sign1Options, encode_payload_bstr,
+    },
 };
 use minicbor::{Encoder, encode::write::Cursor};
 
@@ -127,9 +129,6 @@ fn encode_payload(claims: &[AttestClaim<'_>], out: &mut [u8]) -> Result<usize, S
 }
 
 /// Encode a COSE_Sign1-protected PSA initial attestation token.
-///
-/// The caller is responsible for including the `Nonce` claim in `claims` if
-/// the profile requires it. No `kid` is emitted in the unprotected header.
 pub fn encode_initial_attestation_token(
     claims: &[AttestClaim<'_>],
     token: &mut [u8],

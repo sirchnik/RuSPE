@@ -6,11 +6,10 @@
 #![feature(abi_cmse_nonsecure_call, cmse_nonsecure_entry)]
 
 pub mod attest;
-pub mod cose;
 pub mod hil;
 pub mod internal_trusted_storage;
+mod libs;
 pub mod psa;
-pub mod serial;
 pub mod service;
 pub mod spm;
 pub mod static_init;
