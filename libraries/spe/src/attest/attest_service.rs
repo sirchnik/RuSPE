@@ -35,6 +35,10 @@ pub trait AttestPlatform {
     fn cert_ref(&self, buf: &mut [u8; CERTIFICATION_REF_MAX_SIZE]) -> Result<(), StatusCode>;
 }
 
+/// Upper bound on the number of claims (Nonce + caller-supplied) that can be
+/// assembled on the stack for a single attestation token.
+const MAX_TOTAL_CLAIMS: usize = 16;
+
 // Temporary development key used to exercise the token path.
 const TEMP_KEY: [u8; 32] = [
     0x3d, 0x42, 0x9a, 0x83, 0xef, 0xe3, 0x87, 0x10, 0xab, 0x9a, 0xb4, 0xc0, 0x2c, 0xcb, 0xbe, 0x0b,
@@ -73,8 +77,13 @@ impl<P: AttestPlatform> AttestService<P> {
             return Err(StatusCode::BufferTooSmall);
         }
 
-        let encoded_len =
-            encode_initial_attestation_token(challenge, additional_claims, token, &TEMP_KEY)?;
+        let mut claims_buf = [AttestClaim {
+            key: IatClaim::Nonce,
+            value: AttestClaimValue::Bytes(&[]),
+        }; MAX_TOTAL_CLAIMS];
+        let claims = Self::build_claims(challenge, additional_claims, &mut claims_buf)?;
+
+        let encoded_len = encode_initial_attestation_token(claims, token, &TEMP_KEY)?;
         token[encoded_len..].fill(0);
         Ok(encoded_len)
     }
@@ -88,7 +97,40 @@ impl<P: AttestPlatform> AttestService<P> {
             return Err(StatusCode::InvalidArgument);
         }
 
-        compute_initial_attestation_token_size(challenge_size, additional_claims, &TEMP_KEY)
+        let dummy_nonce = [0u8; 64];
+        let mut claims_buf = [AttestClaim {
+            key: IatClaim::Nonce,
+            value: AttestClaimValue::Bytes(&[]),
+        }; MAX_TOTAL_CLAIMS];
+        let claims =
+            Self::build_claims(&dummy_nonce[..challenge_size], additional_claims, &mut claims_buf)?;
+
+        compute_initial_attestation_token_size(claims, &TEMP_KEY)
+    }
+
+    /// Prepend a Nonce claim to `additional_claims` into `buf` and return
+    /// the populated slice.
+    fn build_claims<'a>(
+        challenge: &'a [u8],
+        additional_claims: &[AttestClaim<'a>],
+        buf: &'a mut [AttestClaim<'a>; MAX_TOTAL_CLAIMS],
+    ) -> Result<&'a [AttestClaim<'a>], StatusCode> {
+        let total = additional_claims
+            .len()
+            .checked_add(1)
+            .ok_or(StatusCode::InvalidArgument)?;
+        if total > MAX_TOTAL_CLAIMS {
+            return Err(StatusCode::InvalidArgument);
+        }
+
+        buf[0] = AttestClaim {
+            key: IatClaim::Nonce,
+            value: AttestClaimValue::Bytes(challenge),
+        };
+        for (i, c) in additional_claims.iter().enumerate() {
+            buf[i + 1] = *c;
+        }
+        Ok(&buf[..total])
     }
 
     fn has_exactly_one_iovec(msg: &PsaMsg) -> bool {

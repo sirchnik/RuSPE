@@ -4,22 +4,31 @@ use crate::{
 };
 use minicbor::{Encoder, encode::write::Cursor};
 
-const ATTEST_ARM_RANGE_BASE: i32 = -75000;
-
-#[repr(i32)]
+/// PSA / EAT claim labels per RFC 9783 §6.
+#[repr(u32)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum IatClaim {
-    ProfileDefinition = ATTEST_ARM_RANGE_BASE - 0,
-    ClientId = ATTEST_ARM_RANGE_BASE - 1,
-    SecurityLifecycle = ATTEST_ARM_RANGE_BASE - 2,
-    ImplementationId = ATTEST_ARM_RANGE_BASE - 3,
-    BootSeed = ATTEST_ARM_RANGE_BASE - 4,
-    CertificationReference = ATTEST_ARM_RANGE_BASE - 5,
-    SwComponents = ATTEST_ARM_RANGE_BASE - 6,
-    NoSwComponents = ATTEST_ARM_RANGE_BASE - 7,
-    Nonce = ATTEST_ARM_RANGE_BASE - 8,
-    InstanceId = ATTEST_ARM_RANGE_BASE - 9,
-    VerificationService = ATTEST_ARM_RANGE_BASE - 10,
+    Nonce = 10,
+    InstanceId = 256,
+    ProfileDefinition = 265,
+    BootSeed = 268,
+    ClientId = 2394,
+    SecurityLifecycle = 2395,
+    ImplementationId = 2396,
+    CertificationReference = 2398,
+    SwComponents = 2399,
+    VerificationService = 2400,
+}
+
+/// One PSA software component (RFC 9783 §4.4.1).
+///
+/// Fields are emitted in the order used by the RFC examples:
+/// signer-id (5), measurement-value (2), measurement-type (1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SwComponent<'a> {
+    pub measurement_type: Option<&'a str>,
+    pub measurement_value: &'a [u8],
+    pub signer_id: &'a [u8],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -28,6 +37,7 @@ pub enum AttestClaimValue<'a> {
     Text(&'a str),
     Unsigned(u64),
     Signed(i64),
+    SwComponents(&'a [SwComponent<'a>]),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -35,8 +45,6 @@ pub struct AttestClaim<'a> {
     pub key: IatClaim,
     pub value: AttestClaimValue<'a>,
 }
-
-const TOKEN_KEY_ID: &[u8] = b"11";
 
 const MAX_PAYLOAD_SIZE: usize = crate::attest::attest_service::PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE;
 const MAX_ENCODED_PAYLOAD_BSTR_SIZE: usize = MAX_PAYLOAD_SIZE + 9;
@@ -46,6 +54,37 @@ fn map_cose_error(err: CoseSign1Error) -> StatusCode {
         CoseSign1Error::BufferTooSmall => StatusCode::BufferTooSmall,
         _ => StatusCode::InvalidArgument,
     }
+}
+
+fn encode_sw_components(
+    enc: &mut Encoder<Cursor<&mut [u8]>>,
+    components: &[SwComponent<'_>],
+) -> Result<(), StatusCode> {
+    enc.array(components.len() as u64)
+        .map_err(|_| StatusCode::BufferTooSmall)?;
+    for comp in components {
+        let mut entries: u64 = 2;
+        if comp.measurement_type.is_some() {
+            entries += 1;
+        }
+        enc.map(entries)
+            .map_err(|_| StatusCode::BufferTooSmall)?
+            .u8(5)
+            .map_err(|_| StatusCode::BufferTooSmall)?
+            .bytes(comp.signer_id)
+            .map_err(|_| StatusCode::BufferTooSmall)?
+            .u8(2)
+            .map_err(|_| StatusCode::BufferTooSmall)?
+            .bytes(comp.measurement_value)
+            .map_err(|_| StatusCode::BufferTooSmall)?;
+        if let Some(mt) = comp.measurement_type {
+            enc.u8(1)
+                .map_err(|_| StatusCode::BufferTooSmall)?
+                .str(mt)
+                .map_err(|_| StatusCode::BufferTooSmall)?;
+        }
+    }
+    Ok(())
 }
 
 fn encode_claim_value<'a>(
@@ -65,25 +104,20 @@ fn encode_claim_value<'a>(
         AttestClaimValue::Signed(value) => {
             enc.i64(value).map_err(|_| StatusCode::BufferTooSmall)?;
         }
+        AttestClaimValue::SwComponents(components) => {
+            encode_sw_components(enc, components)?;
+        }
     }
 
     Ok(())
 }
 
-fn encode_payload(
-    challenge: &[u8],
-    additional_claims: &[AttestClaim<'_>],
-    out: &mut [u8],
-) -> Result<usize, StatusCode> {
+fn encode_payload(claims: &[AttestClaim<'_>], out: &mut [u8]) -> Result<usize, StatusCode> {
     let mut enc = Encoder::new(Cursor::new(out));
-    enc.map((1 + additional_claims.len()) as u64)
-        .map_err(|_| StatusCode::BufferTooSmall)?
-        .i32(IatClaim::Nonce as i32)
-        .map_err(|_| StatusCode::BufferTooSmall)?
-        .bytes(challenge)
+    enc.map(claims.len() as u64)
         .map_err(|_| StatusCode::BufferTooSmall)?;
 
-    for claim in additional_claims {
+    for claim in claims {
         enc.i32(claim.key as i32)
             .map_err(|_| StatusCode::BufferTooSmall)?;
         encode_claim_value(&mut enc, claim.value)?;
@@ -92,21 +126,23 @@ fn encode_payload(
     Ok(enc.writer().position())
 }
 
+/// Encode a COSE_Sign1-protected PSA initial attestation token.
+///
+/// The caller is responsible for including the `Nonce` claim in `claims` if
+/// the profile requires it. No `kid` is emitted in the unprotected header.
 pub fn encode_initial_attestation_token(
-    challenge: &[u8],
-    additional_claims: &[AttestClaim<'_>],
+    claims: &[AttestClaim<'_>],
     token: &mut [u8],
     key: &[u8],
 ) -> Result<usize, StatusCode> {
     let mut payload = [0u8; MAX_PAYLOAD_SIZE];
-    let payload_len = encode_payload(challenge, additional_claims, &mut payload)?;
+    let payload_len = encode_payload(claims, &mut payload)?;
 
     let mut payload_bstr = [0u8; MAX_ENCODED_PAYLOAD_BSTR_SIZE];
     let payload_bstr_len =
         encode_payload_bstr(&payload[..payload_len], &mut payload_bstr).map_err(map_cose_error)?;
 
-    let signer =
-        CoseSign1::new(RustCryptoBackend, key, Sign1Options::default()).with_key_id(TOKEN_KEY_ID);
+    let signer = CoseSign1::new(RustCryptoBackend, key, Sign1Options::default());
 
     let encoded = signer
         .encode_from_payload_bstr(&payload_bstr[..payload_bstr_len], token)
@@ -116,29 +152,18 @@ pub fn encode_initial_attestation_token(
 }
 
 pub fn compute_initial_attestation_token_size(
-    challenge_size: usize,
-    additional_claims: &[AttestClaim<'_>],
+    claims: &[AttestClaim<'_>],
     key: &[u8],
 ) -> Result<usize, StatusCode> {
-    let challenge = [0u8; 64];
-    if challenge_size > challenge.len() {
-        return Err(StatusCode::InvalidArgument);
-    }
-
     let mut token = [0u8; crate::attest::attest_service::PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE];
-    encode_initial_attestation_token(
-        &challenge[..challenge_size],
-        additional_claims,
-        &mut token,
-        key,
-    )
+    encode_initial_attestation_token(claims, &mut token, key)
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        AttestClaim, AttestClaimValue, IatClaim, compute_initial_attestation_token_size,
-        encode_initial_attestation_token,
+        AttestClaim, AttestClaimValue, IatClaim, SwComponent,
+        compute_initial_attestation_token_size, encode_initial_attestation_token,
     };
     use minicbor::Decoder;
 
@@ -160,9 +185,7 @@ mod tests {
         let _protected_headers = dec.bytes().expect("protected header should decode");
 
         let unprotected_len = dec.map().expect("unprotected header should decode");
-        assert_eq!(unprotected_len, Some(1));
-        assert_eq!(dec.u8().expect("kid label should decode"), 4);
-        assert_eq!(dec.bytes().expect("kid value should decode"), b"11");
+        assert_eq!(unprotected_len, Some(0));
 
         let payload = dec.bytes().expect("payload should decode");
         let signature = dec.bytes().expect("signature should decode");
@@ -172,13 +195,16 @@ mod tests {
     }
 
     #[test]
-    fn token_payload_contains_nonce_without_additional_claims() {
+    fn token_payload_contains_only_nonce() {
         let challenge = [0xAB; 32];
+        let claims = [AttestClaim {
+            key: IatClaim::Nonce,
+            value: AttestClaimValue::Bytes(&challenge),
+        }];
         let mut token = [0u8; crate::attest::attest_service::PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE];
 
-        let encoded_len =
-            encode_initial_attestation_token(&challenge, &[], &mut token, TEST_PRIVATE_KEY)
-                .expect("token should encode");
+        let encoded_len = encode_initial_attestation_token(&claims, &mut token, TEST_PRIVATE_KEY)
+            .expect("token should encode");
 
         let payload = decode_payload_from_token(&token[..encoded_len]);
         let mut payload_dec = Decoder::new(payload);
@@ -202,6 +228,10 @@ mod tests {
         let boot_seed = [0x22; 32];
         let claims = [
             AttestClaim {
+                key: IatClaim::Nonce,
+                value: AttestClaimValue::Bytes(&challenge),
+            },
+            AttestClaim {
                 key: IatClaim::BootSeed,
                 value: AttestClaimValue::Bytes(&boot_seed),
             },
@@ -220,44 +250,54 @@ mod tests {
         ];
 
         let mut token = [0u8; crate::attest::attest_service::PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE];
-        let encoded_len =
-            encode_initial_attestation_token(&challenge, &claims, &mut token, TEST_PRIVATE_KEY)
-                .expect("token should encode");
+        let _ = encode_initial_attestation_token(&claims, &mut token, TEST_PRIVATE_KEY)
+            .expect("token should encode");
     }
 
     #[test]
     fn computed_token_size_matches_encoded_token_size() {
         let challenge = [0x44; 48];
         let boot_seed = [0x55; 32];
-        let claims = [AttestClaim {
-            key: IatClaim::BootSeed,
-            value: AttestClaimValue::Bytes(&boot_seed),
-        }];
+        let claims = [
+            AttestClaim {
+                key: IatClaim::Nonce,
+                value: AttestClaimValue::Bytes(&challenge),
+            },
+            AttestClaim {
+                key: IatClaim::BootSeed,
+                value: AttestClaimValue::Bytes(&boot_seed),
+            },
+        ];
 
-        let computed_size =
-            compute_initial_attestation_token_size(challenge.len(), &claims, TEST_PRIVATE_KEY)
-                .expect("token size should compute");
+        let computed_size = compute_initial_attestation_token_size(&claims, TEST_PRIVATE_KEY)
+            .expect("token size should compute");
 
         let mut token = [0u8; crate::attest::attest_service::PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE];
-        let encoded_len =
-            encode_initial_attestation_token(&challenge, &claims, &mut token, TEST_PRIVATE_KEY)
-                .expect("token should encode");
+        let encoded_len = encode_initial_attestation_token(&claims, &mut token, TEST_PRIVATE_KEY)
+            .expect("token should encode");
 
         assert_eq!(computed_size, encoded_len);
     }
 
+    /// RFC 9783 Appendix A.1 COSE_Sign1 token test vector.
     #[test]
     fn rfc_test_vector() {
         let ueid = [
             0x01, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
-            0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+            0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+            0x02, 0x02, 0x02, 0x02, 0x02,
         ];
-        let psa_impl_id = [0; 28];
-        let eat_nonce = [01; 28];
+        let psa_impl_id = [0u8; 32];
+        let eat_nonce = [0x01u8; 32];
+        let bootseed = [0u8; 8];
+        let signer_id = [0x04u8; 32];
+        let measurement_value = [0x03u8; 32];
 
-        let bootseed = [0; 8];
-
-        let mut token = [0u8; crate::attest::attest_service::PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE];
+        let sw_components = [SwComponent {
+            measurement_type: Some("PRoT"),
+            measurement_value: &measurement_value,
+            signer_id: &signer_id,
+        }];
 
         let claims = [
             AttestClaim {
@@ -269,12 +309,8 @@ mod tests {
                 value: AttestClaimValue::Bytes(&psa_impl_id),
             },
             AttestClaim {
-                key: IatClaim::ProfileDefinition,
-                value: AttestClaimValue::Text("tag:psacertified.org,2023:psa#tfm"),
-            },
-            AttestClaim {
-                key: IatClaim::BootSeed,
-                value: AttestClaimValue::Bytes(&bootseed),
+                key: IatClaim::Nonce,
+                value: AttestClaimValue::Bytes(&eat_nonce),
             },
             AttestClaim {
                 key: IatClaim::ClientId,
@@ -284,12 +320,23 @@ mod tests {
                 key: IatClaim::SecurityLifecycle,
                 value: AttestClaimValue::Unsigned(12288),
             },
+            AttestClaim {
+                key: IatClaim::ProfileDefinition,
+                value: AttestClaimValue::Text("tag:psacertified.org,2023:psa#tfm"),
+            },
+            AttestClaim {
+                key: IatClaim::BootSeed,
+                value: AttestClaimValue::Bytes(&bootseed),
+            },
+            AttestClaim {
+                key: IatClaim::SwComponents,
+                value: AttestClaimValue::SwComponents(&sw_components),
+            },
         ];
 
-        // Use the provided eat_nonce as the challenge parameter (nonce)
-        let encoded_len =
-            encode_initial_attestation_token(&eat_nonce, &claims, &mut token, TEST_PRIVATE_KEY)
-                .expect("token should encode");
+        let mut token = [0u8; crate::attest::attest_service::PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE];
+        let encoded_len = encode_initial_attestation_token(&claims, &mut token, TEST_PRIVATE_KEY)
+            .expect("token should encode");
 
         const EXPECTED_TOKEN: &[u8] = &[
             0xd2, 0x84, 0x43, 0xa1, 0x01, 0x26, 0xa0, 0x59, 0x01, 0x00, 0xa8, 0x19, 0x01, 0x00,
