@@ -22,7 +22,7 @@ static SPM: SingleThreadValue<OnceCell<&'static spm::Spm>> = SingleThreadValue {
     value: OnceCell::new(),
 };
 
-pub(crate) fn get_spm() -> &'static spm::Spm {
+fn get_spm() -> &'static spm::Spm {
     SPM.value
         .get()
         .expect("SPM must be initialized with set_spm() before PSA API use")
@@ -56,7 +56,7 @@ pub fn psa_call(
 }
 
 pub fn psa_map_invec<R>(msg_handle: PsaHandle, invec_idx: u32, f: impl FnOnce(&[u8]) -> R) -> R {
-    psa_iovec_api::psa_map_invec(msg_handle, invec_idx, f)
+    psa_iovec_api::psa_map_invec(get_spm(), msg_handle, invec_idx, f)
 }
 
 pub fn psa_map_outvec<R>(
@@ -64,5 +64,14 @@ pub fn psa_map_outvec<R>(
     outvec_idx: u32,
     f: impl FnOnce(&mut [u8]) -> (R, usize),
 ) -> R {
-    psa_iovec_api::psa_map_outvec(msg_handle, outvec_idx, f)
+    psa_iovec_api::psa_map_outvec(get_spm(), msg_handle, outvec_idx, f)
+}
+
+pub fn psa_map_invec_outvec<R>(
+    msg_handle: PsaHandle,
+    invec_idx: u32,
+    outvec_idx: u32,
+    f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize),
+) -> R {
+    psa_iovec_api::psa_map_invec_outvec(get_spm(), msg_handle, invec_idx, outvec_idx, f)
 }

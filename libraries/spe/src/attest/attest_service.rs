@@ -114,43 +114,44 @@ impl<P: AttestPlatform> Service for AttestService<P> {
         }
 
         if msg.msg_type == psa_interface::AttestationServiceType::GetToken as i32 {
-            return psa_api::psa_map_invec(msg.handle, 0, |challenge| {
-                psa_api::psa_map_outvec(msg.handle, 0, |token_buf| {
-                    let mut written_len = 0;
-                    let result = (|| -> Result<(), StatusCode> {
-                        if !Self::challenge_size_is_supported(challenge.len()) {
-                            return Err(StatusCode::InvalidArgument);
-                        }
-
-                        if token_buf.is_empty() {
-                            return Err(StatusCode::InvalidArgument);
-                        }
-
-                        if token_buf.len() > PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE {
-                            return Err(StatusCode::BufferTooSmall);
-                        }
-
-                        let token_size = self.initial_attest_get_token_size(challenge.len())?;
-                        if token_size > token_buf.len() {
-                            return Err(StatusCode::BufferTooSmall);
-                        }
-
-                        self.initial_attest_get_token(challenge, &mut token_buf[..token_size])?;
-                        written_len = token_size;
-                        Ok(())
-                    })();
-
-                    if result.is_err() {
-                        token_buf.fill(0);
-                        written_len = 0;
+            return psa_api::psa_map_invec_outvec(msg.handle, 0, 0, |challenge, token_buf| {
+                let mut written_len = 0;
+                let result = (|| -> Result<(), StatusCode> {
+                    if !Self::challenge_size_is_supported(challenge.len()) {
+                        return Err(StatusCode::InvalidArgument);
                     }
 
-                    (result, written_len)
-                })
+                    if token_buf.is_empty() {
+                        return Err(StatusCode::InvalidArgument);
+                    }
+
+                    if token_buf.len() > PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE {
+                        return Err(StatusCode::BufferTooSmall);
+                    }
+
+                    let token_size = self.initial_attest_get_token_size(challenge.len())?;
+                    if token_size > token_buf.len() {
+                        return Err(StatusCode::BufferTooSmall);
+                    }
+
+                    self.initial_attest_get_token(challenge, &mut token_buf[..token_size])?;
+                    written_len = token_size;
+                    Ok(())
+                })();
+
+                if result.is_err() {
+                    token_buf.fill(0);
+                    written_len = 0;
+                }
+
+                (result, written_len)
             });
         } else if msg.msg_type == psa_interface::AttestationServiceType::GetTokenSize as i32 {
-            return psa_api::psa_map_invec(msg.handle, 0, |challenge_size_bytes| {
-                psa_api::psa_map_outvec(msg.handle, 0, |out_buf| {
+            return psa_api::psa_map_invec_outvec(
+                msg.handle,
+                0,
+                0,
+                |challenge_size_bytes, out_buf| {
                     let mut written_len = 0;
                     let result = (|| -> Result<(), StatusCode> {
                         if challenge_size_bytes.len() != size_of::<usize>() {
@@ -178,8 +179,8 @@ impl<P: AttestPlatform> Service for AttestService<P> {
                     }
 
                     (result, written_len)
-                })
-            });
+                },
+            );
         } else {
             Err(psa_interface::StatusCode::NotSupported)
         }
