@@ -100,3 +100,60 @@ impl VectorDescriptor {
         ((self.0 >> 16) & 0x7) as usize
     }
 }
+
+/// PSA key identifier type (matches `psa_key_id_t` / `uint32_t` in TF-M).
+pub type PsaKeyId = u32;
+
+/// PSA algorithm identifier type (matches `psa_algorithm_t` / `uint32_t` in TF-M).
+pub type PsaAlgorithm = u32;
+
+/// PSA_ALG_ECDSA(PSA_ALG_SHA_256) — the algorithm value TF-M uses for ES256.
+pub const PSA_ALG_ECDSA_SHA256: PsaAlgorithm = 0x0600_0609;
+
+/// Packed AEAD nonce input, matches TF-M `struct tfm_crypto_aead_pack_input`.
+#[derive(Clone, Copy, Debug)]
+#[repr(C)]
+pub struct TfmCryptoAeadPackInput {
+    pub nonce: [u8; 16],
+    pub nonce_length: u32,
+}
+
+/// Non-pointer parameters packed into `invec[0]` for every TF-M crypto call.
+///
+/// Binary-compatible with TF-M `struct tfm_crypto_pack_iovec`.
+#[derive(Clone, Copy, Debug)]
+#[repr(C)]
+pub struct TfmCryptoPackIovec {
+    pub key_id: PsaKeyId,
+    pub alg: PsaAlgorithm,
+    pub op_handle: u32,
+    pub ad_length: u32,
+    pub plaintext_length: u32,
+    pub aead_in: TfmCryptoAeadPackInput,
+    pub function_id: u16,
+    pub step: u16,
+    pub capacity: u64,
+}
+
+impl TfmCryptoPackIovec {
+    /// Build a minimal iovec for asymmetric-sign operations.
+    pub const fn for_sign_hash(key_id: PsaKeyId, alg: PsaAlgorithm) -> Self {
+        Self {
+            key_id,
+            alg,
+            op_handle: 0,
+            ad_length: 0,
+            plaintext_length: 0,
+            aead_in: TfmCryptoAeadPackInput {
+                nonce: [0; 16],
+                nonce_length: 0,
+            },
+            function_id: TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID,
+            step: 0,
+            capacity: 0,
+        }
+    }
+}
+
+/// TF-M function SID for `psa_sign_hash` (group 7 = ASYM_SIGN, index 2).
+pub const TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID: u16 = 0x0702;
