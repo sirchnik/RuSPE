@@ -1,6 +1,6 @@
 use core::cell::Cell;
 
-use crate::psa::psa_call::PsaMsg;
+use crate::{libs::mutex::InterruptUnsafeMutex, psa::psa_call::PsaMsg};
 
 const MAX_CONNECTIONS: usize = 4;
 pub const PSA_MAX_IOVEC: usize = 4;
@@ -19,7 +19,7 @@ pub struct Connection {
     pub outvec_unmapped: [bool; PSA_MAX_IOVEC],
 }
 
-pub trait SpmPlatform {
+pub trait SpmPlatform: Sync {
     fn call(&self, msg: PsaMsg) -> Result<(), crate::StatusCode>;
 }
 
@@ -30,10 +30,10 @@ impl Debug for dyn SpmPlatform {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Spm {
-    connections: [Cell<Option<Connection>>; MAX_CONNECTIONS],
-    top_connection: Cell<usize>,
+    connections: [InterruptUnsafeMutex<Cell<Option<Connection>>>; MAX_CONNECTIONS],
+    top_connection: InterruptUnsafeMutex<Cell<usize>>,
     platform: &'static dyn SpmPlatform,
 }
 
@@ -41,12 +41,12 @@ impl Spm {
     pub const fn new(platform: &'static dyn SpmPlatform) -> Self {
         Self {
             connections: [
-                Cell::new(None),
-                Cell::new(None),
-                Cell::new(None),
-                Cell::new(None),
+                InterruptUnsafeMutex::new(Cell::new(None)),
+                InterruptUnsafeMutex::new(Cell::new(None)),
+                InterruptUnsafeMutex::new(Cell::new(None)),
+                InterruptUnsafeMutex::new(Cell::new(None)),
             ],
-            top_connection: Cell::new(0),
+            top_connection: InterruptUnsafeMutex::new(Cell::new(0)),
             platform,
         }
     }

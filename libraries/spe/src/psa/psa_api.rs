@@ -1,9 +1,10 @@
-use core::{cell::OnceCell, panic};
+use core::panic;
 
 use cortexm33::support;
 
 use crate::{
     StatusCode,
+    libs::once_lock::OnceLock,
     psa::{psa_call, psa_iovec_api},
     spm::spm,
 };
@@ -11,27 +12,15 @@ use psa_interface::{PsaHandle, PsaInVec, PsaOutVec, VectorDescriptor};
 
 ///! Entry points for PSA API calls from NSPE and other partitions.
 
-struct SingleThreadValue<T> {
-    value: T,
-}
-
-// expect only single core (maybe todo)
-unsafe impl<T> Sync for SingleThreadValue<T> {}
-
-static SPM: SingleThreadValue<OnceCell<&'static spm::Spm>> = SingleThreadValue {
-    value: OnceCell::new(),
-};
+static SPM: OnceLock<&'static spm::Spm> = OnceLock::new();
 
 fn get_spm() -> &'static spm::Spm {
-    SPM.value
-        .get()
+    SPM.get()
         .expect("SPM must be initialized with set_spm() before PSA API use")
 }
 
 pub fn set_spm(spm: &'static spm::Spm) {
-    SPM.value
-        .set(spm)
-        .expect("set_spm() may only be called once");
+    SPM.set(spm).unwrap();
 }
 
 pub fn psa_call(
