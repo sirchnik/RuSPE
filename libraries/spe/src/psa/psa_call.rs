@@ -1,4 +1,7 @@
-use crate::{StatusCode, spm::spm, spm::spm::Connection};
+use crate::{
+    StatusCode,
+    spm::spm::{Connection, SpmCall},
+};
 use core::{ptr, slice};
 use psa_interface::types::{PsaHandle, PsaInVec, PsaOutVec, VectorDescriptor};
 
@@ -104,7 +107,6 @@ pub fn psa_call_from_slices(
     ctrl_param: VectorDescriptor,
     in_vecs: &[PsaInVec],
     out_vecs: &mut [PsaOutVec],
-    _spm: &spm::Spm,
 ) -> Result<Connection, StatusCode> {
     let (msg_type, ivec_num, ovec_num) = validate_call_params(ctrl_param)?;
 
@@ -151,7 +153,7 @@ pub fn psa_call(
     ctrl_param: VectorDescriptor,
     in_vec: *const PsaInVec,
     out_vec: *mut PsaOutVec,
-    spm: &spm::Spm,
+    spm: &dyn SpmCall,
 ) -> Result<(), StatusCode> {
     let (_msg_type, ivec_num, ovec_num) = validate_call_params(ctrl_param)?;
 
@@ -178,7 +180,7 @@ pub fn psa_call(
         unsafe { slice::from_raw_parts_mut(out_vec, ovec_num) }
     };
 
-    let connection = psa_call_from_slices(handle, ctrl_param, in_vecs, out_vecs, spm)?;
+    let connection = psa_call_from_slices(handle, ctrl_param, in_vecs, out_vecs)?;
 
     spm.call(connection)
 }

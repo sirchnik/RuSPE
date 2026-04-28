@@ -102,7 +102,10 @@ pub unsafe fn main() {
         }
     );
 
-    let spm = static_init!(spm::Spm, spm::Spm::new(sec_platform));
+    let spm = static_init!(
+        spm::Spm<Psc3SecPlatform>,
+        spm::Spm::new(sec_platform)
+    );
 
     psa_api::set_spm(spm);
 

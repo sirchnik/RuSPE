@@ -1,15 +1,17 @@
 use core::{panic, slice};
 
-use crate::spm::spm::{Connection, PSA_MAX_IOVEC, Spm};
+use crate::spm::spm::{Connection, PSA_MAX_IOVEC, SpmCall};
 
 use psa_interface::types::PsaHandle;
 
 fn with_connection_for_handle<R>(
-    spm: &Spm,
+    spm: &dyn SpmCall,
     msg_handle: PsaHandle,
     f: impl FnOnce(&mut Connection) -> R,
 ) -> R {
-    let Some(result) = spm.with_active_connection(|connection| {
+    let mut result: Option<R> = None;
+    let mut f = Some(f);
+    spm.with_active_connection_dyn(&mut |connection| {
         if (connection.msg.handle as isize) != (msg_handle as isize) {
             panic!("invalid message handle for active connection");
         }
@@ -18,12 +20,11 @@ fn with_connection_for_handle<R>(
             panic!("message handle does not refer to a request message");
         }
 
-        f(connection)
-    }) else {
-        panic!("no active SPM connection");
-    };
+        let f = f.take().unwrap();
+        result = Some(f(connection));
+    });
 
-    result
+    result.expect("no active SPM connection")
 }
 
 fn prepare_invec(connection: &mut Connection, invec_idx: u32) -> (usize, usize, *const u8) {
@@ -148,7 +149,7 @@ fn with_mapped_outvec<R>(
 }
 
 pub fn psa_map_invec<R>(
-    spm: &Spm,
+    spm: &dyn SpmCall,
     msg_handle: PsaHandle,
     invec_idx: u32,
     f: impl FnOnce(&[u8]) -> R,
@@ -159,7 +160,7 @@ pub fn psa_map_invec<R>(
 }
 
 pub fn psa_map_outvec<R>(
-    spm: &Spm,
+    spm: &dyn SpmCall,
     msg_handle: PsaHandle,
     outvec_idx: u32,
     f: impl FnOnce(&mut [u8]) -> (R, usize),
@@ -170,7 +171,7 @@ pub fn psa_map_outvec<R>(
 }
 
 pub fn psa_map_invec_outvec<R>(
-    spm: &Spm,
+    spm: &dyn SpmCall,
     msg_handle: PsaHandle,
     invec_idx: u32,
     outvec_idx: u32,

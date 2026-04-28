@@ -23,22 +23,20 @@ pub trait SpmPlatform: Sync {
     fn call(&self, msg: PsaMsg) -> Result<(), crate::StatusCode>;
 }
 
-use core::fmt::Debug;
-impl Debug for dyn SpmPlatform {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "SpmPlatform")
-    }
+/// Object-safe trait for SPM operations, used for type-erased storage in statics.
+pub trait SpmCall: Sync {
+    fn call(&self, connection: Connection) -> Result<(), crate::StatusCode>;
+    fn with_active_connection_dyn(&self, f: &mut dyn FnMut(&mut Connection));
 }
 
-#[derive(Debug)]
-pub struct Spm {
+pub struct Spm<P: SpmPlatform + 'static> {
     connections: [InterruptUnsafeMutex<Cell<Option<Connection>>>; MAX_CONNECTIONS],
     top_connection: InterruptUnsafeMutex<Cell<usize>>,
-    platform: &'static dyn SpmPlatform,
+    platform: &'static P,
 }
 
-impl Spm {
-    pub const fn new(platform: &'static dyn SpmPlatform) -> Self {
+impl<P: SpmPlatform + 'static> Spm<P> {
+    pub const fn new(platform: &'static P) -> Self {
         Self {
             connections: [
                 InterruptUnsafeMutex::new(Cell::new(None)),
@@ -75,5 +73,15 @@ impl Spm {
         let result = f(&mut connection);
         self.connections[index].set(Some(connection));
         Some(result)
+    }
+}
+
+impl<P: SpmPlatform + 'static> SpmCall for Spm<P> {
+    fn call(&self, connection: Connection) -> Result<(), crate::StatusCode> {
+        Spm::call(self, connection)
+    }
+
+    fn with_active_connection_dyn(&self, f: &mut dyn FnMut(&mut Connection)) {
+        self.with_active_connection(|conn| f(conn));
     }
 }

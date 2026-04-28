@@ -6,22 +6,24 @@ use crate::{
     StatusCode,
     libs::once_lock::OnceLock,
     psa::{psa_call, psa_iovec_api},
-    spm::spm,
+    spm::spm::SpmCall,
 };
 use psa_interface::PsaApiCallInterface;
 use psa_interface::types::{PsaHandle, PsaInVec, PsaOutVec, VectorDescriptor};
 
 ///! Entry points for PSA API calls from NSPE and other partitions.
 
-static SPM: OnceLock<&'static spm::Spm> = OnceLock::new();
+static SPM: OnceLock<&'static dyn SpmCall> = OnceLock::new();
 
-fn get_spm() -> &'static spm::Spm {
-    SPM.get()
+fn get_spm() -> &'static dyn SpmCall {
+    *SPM.get()
         .expect("SPM must be initialized with set_spm() before PSA API use")
 }
 
-pub fn set_spm(spm: &'static spm::Spm) {
-    SPM.set(spm).unwrap();
+pub fn set_spm(spm: &'static dyn SpmCall) {
+    if SPM.set(spm).is_err() {
+        panic!("SPM already initialized");
+    }
 }
 
 pub struct InternalPsaClient;
