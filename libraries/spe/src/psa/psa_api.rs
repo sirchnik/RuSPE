@@ -8,6 +8,7 @@ use crate::{
     psa::{psa_call, psa_iovec_api},
     spm::spm,
 };
+use psa_interface::PsaApiCallInterface;
 use psa_interface::types::{PsaHandle, PsaInVec, PsaOutVec, VectorDescriptor};
 
 ///! Entry points for PSA API calls from NSPE and other partitions.
@@ -21,6 +22,45 @@ fn get_spm() -> &'static spm::Spm {
 
 pub fn set_spm(spm: &'static spm::Spm) {
     SPM.set(spm).unwrap();
+}
+
+pub struct InternalPsaClient;
+
+impl PsaApiCallInterface for InternalPsaClient {
+    fn psa_framework_version() -> u32 {
+        todo!();
+    }
+
+    fn psa_version(_service_id: u32) -> u32 {
+        todo!();
+    }
+
+    fn psa_call(
+        handle: PsaHandle,
+        ctrl_param: VectorDescriptor,
+        in_vec: &[PsaInVec],
+        out_vec: &mut [PsaOutVec],
+    ) -> psa_interface::types::PsaStatus {
+        let in_vec_ptr = if in_vec.is_empty() {
+            core::ptr::null()
+        } else {
+            in_vec.as_ptr()
+        };
+
+        let out_vec_ptr = if out_vec.is_empty() {
+            core::ptr::null_mut()
+        } else {
+            out_vec.as_mut_ptr()
+        };
+
+        crate::into_psa_status(psa_call::psa_call(
+            handle,
+            ctrl_param,
+            in_vec_ptr,
+            out_vec_ptr,
+            get_spm(),
+        ))
+    }
 }
 
 pub fn psa_call(

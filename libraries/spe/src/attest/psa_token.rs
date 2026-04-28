@@ -1,10 +1,14 @@
 use crate::{
     StatusCode,
     libs::cose_sign1::{
-        CoseSign1, CoseSign1Error, RustCryptoBackend, Sign1Options, encode_payload_bstr,
+        CoseCrypto, CoseHasher, CoseSign1, CoseSign1Error, RustCryptoBackend, RustCryptoHasher,
+        Sign1Options, encode_payload_bstr,
     },
+    psa::psa_api::InternalPsaClient,
 };
 use minicbor::{Encoder, encode::write::Cursor};
+use psa_interface::{psa_api::psa_sign_hash, types::PSA_ALG_ECDSA_SHA256};
+use sha2::{Digest, Sha256};
 
 /// PSA / EAT claim labels per RFC 9783 §6.
 #[repr(u32)]
@@ -128,11 +132,51 @@ fn encode_payload(claims: &[AttestClaim<'_>], out: &mut [u8]) -> Result<usize, S
     Ok(enc.writer().position())
 }
 
-/// Encode a COSE_Sign1-protected PSA initial attestation token.
+struct PsaCryptoBackend {
+    key_id: u32,
+}
+
+impl PsaCryptoBackend {
+    const fn new(key_id: u32) -> Self {
+        Self { key_id }
+    }
+}
+
+impl CoseCrypto for PsaCryptoBackend {
+    type Hasher = RustCryptoHasher;
+
+    fn hasher_sha256(&self) -> Self::Hasher {
+        RustCryptoHasher(Sha256::new())
+    }
+
+    fn sign_es256_prehash(&self, digest: &[u8; 32]) -> Result<[u8; 64], CoseSign1Error> {
+        let mut signature = [0u8; 64];
+        match psa_sign_hash::<InternalPsaClient>(
+            self.key_id,
+            PSA_ALG_ECDSA_SHA256,
+            digest,
+            &mut signature,
+        ) {
+            Ok(written_len) => {
+                if written_len == signature.len() {
+                    return Ok(signature);
+                }
+                Err(CoseSign1Error::BufferTooSmall)
+            }
+            Err(status) => {
+                if status == crate::StatusCode::BufferTooSmall as isize {
+                    return Err(CoseSign1Error::BufferTooSmall);
+                }
+                Err(CoseSign1Error::Unknown)
+            }
+        }
+    }
+}
+
 pub fn encode_initial_attestation_token(
     claims: &[AttestClaim<'_>],
     token: &mut [u8],
-    key: &[u8],
+    key_id: u32,
 ) -> Result<usize, StatusCode> {
     let mut payload = [0u8; MAX_PAYLOAD_SIZE];
     let payload_len = encode_payload(claims, &mut payload)?;
@@ -141,7 +185,7 @@ pub fn encode_initial_attestation_token(
     let payload_bstr_len =
         encode_payload_bstr(&payload[..payload_len], &mut payload_bstr).map_err(map_cose_error)?;
 
-    let signer = CoseSign1::new(RustCryptoBackend, key, Sign1Options::default());
+    let signer = CoseSign1::new(PsaCryptoBackend::new(key_id), Sign1Options::default());
 
     let encoded = signer
         .encode_from_payload_bstr(&payload_bstr[..payload_bstr_len], token)
@@ -152,10 +196,10 @@ pub fn encode_initial_attestation_token(
 
 pub fn compute_initial_attestation_token_size(
     claims: &[AttestClaim<'_>],
-    key: &[u8],
+    key_id: u32,
 ) -> Result<usize, StatusCode> {
     let mut token = [0u8; crate::attest::attest_service::PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE];
-    encode_initial_attestation_token(claims, &mut token, key)
+    encode_initial_attestation_token(claims, &mut token, key_id)
 }
 
 #[cfg(test)]

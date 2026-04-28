@@ -36,6 +36,7 @@ const SIG_CONTEXT_STRING: &str = "Signature1";
 /// Errors returned by COSE Sign1 parameter setup/encoding.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CoseSign1Error {
+    Unknown,
     /// Private key encoding or value is invalid.
     InvalidSigningKey,
     /// The provided encoded payload is not a single CBOR bstr item.
@@ -82,18 +83,16 @@ pub trait CoseCrypto {
 
     fn hasher_sha256(&self) -> Self::Hasher;
 
-    fn sign_es256_prehash(
-        &self,
-        signing_key: &[u8],
-        digest: &[u8; 32],
-    ) -> Result<[u8; 64], CoseSign1Error>;
+    fn sign_es256_prehash(&self, digest: &[u8; 32]) -> Result<[u8; 64], CoseSign1Error>;
 }
 
 /// Default RustCrypto backend using `sha2` and `p256`.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct RustCryptoBackend;
+pub struct RustCryptoBackend<'a> {
+    key: &'a [u8],
+}
 
-pub struct RustCryptoHasher(Sha256);
+pub struct RustCryptoHasher(pub Sha256);
 
 impl CoseHasher for RustCryptoHasher {
     fn update(&mut self, data: &[u8]) {
@@ -108,20 +107,16 @@ impl CoseHasher for RustCryptoHasher {
     }
 }
 
-impl CoseCrypto for RustCryptoBackend {
+impl CoseCrypto for RustCryptoBackend<'_> {
     type Hasher = RustCryptoHasher;
 
     fn hasher_sha256(&self) -> Self::Hasher {
         RustCryptoHasher(Sha256::new())
     }
 
-    fn sign_es256_prehash(
-        &self,
-        signing_key: &[u8],
-        digest: &[u8; 32],
-    ) -> Result<[u8; 64], CoseSign1Error> {
+    fn sign_es256_prehash(&self, digest: &[u8; 32]) -> Result<[u8; 64], CoseSign1Error> {
         let signing_key =
-            SigningKey::from_slice(signing_key).map_err(|_| CoseSign1Error::InvalidSigningKey)?;
+            SigningKey::from_slice(self.key).map_err(|_| CoseSign1Error::InvalidSigningKey)?;
         let signature: Signature = signing_key
             .sign_prehash(digest)
             .map_err(|_| CoseSign1Error::Signature)?;
@@ -135,18 +130,16 @@ impl CoseCrypto for RustCryptoBackend {
 pub struct CoseSign1<'a, C: CoseCrypto> {
     crypto: C,
     option_flags: Sign1Options,
-    signing_key: &'a [u8],
     key_id: Option<&'a [u8]>,
     external_aad: &'a [u8],
 }
 
 impl<'a, C: CoseCrypto> CoseSign1<'a, C> {
     /// Creates a signer configured for ES256 using a raw 32-byte P-256 private key.
-    pub fn new(crypto: C, signing_key: &'a [u8], option_flags: Sign1Options) -> Self {
+    pub fn new(crypto: C, option_flags: Sign1Options) -> Self {
         Self {
             crypto,
             option_flags,
-            signing_key,
             key_id: None,
             external_aad: &[],
         }
@@ -194,7 +187,7 @@ impl<'a, C: CoseCrypto> CoseSign1<'a, C> {
             self.external_aad,
             payload_bstr,
         )?;
-        let signature_bytes = self.crypto.sign_es256_prehash(self.signing_key, &digest)?;
+        let signature_bytes = self.crypto.sign_es256_prehash(&digest)?;
 
         let mut sign1_enc = Encoder::new(Cursor::new(out));
         if !self.option_flags.omit_cbor_tag {

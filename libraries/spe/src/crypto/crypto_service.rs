@@ -9,7 +9,7 @@ use crate::{
 };
 use core::mem::size_of;
 use p256::ecdsa::{Signature, SigningKey, signature::hazmat::PrehashSigner};
-use psa_interface::types::{self, TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID, TfmCryptoPackIovec};
+use psa_interface::types::{TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID, TfmCryptoPackIovec};
 
 /// P-256 ECDSA signature size in bytes (r ‖ s, 32 + 32).
 const P256_SIGNATURE_SIZE: usize = 64;
@@ -37,10 +37,8 @@ impl CryptoService {
         let key =
             SigningKey::from_slice(&self.signing_key).map_err(|_| StatusCode::GenericError)?;
 
-        let hash_array: &[u8; 32] = hash.try_into().map_err(|_| StatusCode::InvalidArgument)?;
-
         let sig: Signature = key
-            .sign_prehash(hash_array)
+            .sign_prehash(hash)
             .map_err(|_| StatusCode::GenericError)?;
 
         signature_buf[..P256_SIGNATURE_SIZE].copy_from_slice(&sig.to_bytes());

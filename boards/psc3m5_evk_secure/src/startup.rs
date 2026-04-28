@@ -20,7 +20,7 @@ extern "C" {
     link_section = ".stack_buffer"
 )]
 #[no_mangle]
-static mut STACK_MEMORY: [u8; 0x3000] = [0; 0x3000];
+static mut STACK_MEMORY: [u8; 0x3200] = [0; 0x3200];
 
 /// Initializes RAM and jumps to main. This is the entry point of the secure firmware.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]

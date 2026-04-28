@@ -8,7 +8,6 @@ use crate::{
     service::{Info, Service},
 };
 use core::mem::size_of;
-use psa_interface::types::{self};
 
 /// Maximum token buffer size used by default TF-M builds.
 pub const PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE: usize = 0x250;
@@ -39,11 +38,7 @@ pub trait AttestPlatform {
 /// assembled on the stack for a single attestation token.
 const MAX_TOTAL_CLAIMS: usize = 16;
 
-// Temporary development key used to exercise the token path.
-const TEMP_KEY: [u8; 32] = [
-    0x3d, 0x42, 0x9a, 0x83, 0xef, 0xe3, 0x87, 0x10, 0xab, 0x9a, 0xb4, 0xc0, 0x2c, 0xcb, 0xbe, 0x0b,
-    0x87, 0xab, 0x69, 0x36, 0xdd, 0xf4, 0x14, 0x57, 0xea, 0x30, 0xf9, 0x6c, 0xa6, 0xf2, 0xcd, 0xee,
-];
+const TEMP_KEY_ID: u32 = 0x1234_5678;
 
 pub struct AttestService<P: AttestPlatform> {
     platform: P,
@@ -83,7 +78,7 @@ impl<P: AttestPlatform> AttestService<P> {
         }; MAX_TOTAL_CLAIMS];
         let claims = Self::build_claims(challenge, additional_claims, &mut claims_buf)?;
 
-        let encoded_len = encode_initial_attestation_token(claims, token, &TEMP_KEY)?;
+        let encoded_len = encode_initial_attestation_token(claims, token, TEMP_KEY_ID)?;
         token[encoded_len..].fill(0);
         Ok(encoded_len)
     }
@@ -108,7 +103,7 @@ impl<P: AttestPlatform> AttestService<P> {
             &mut claims_buf,
         )?;
 
-        compute_initial_attestation_token_size(claims, &TEMP_KEY)
+        compute_initial_attestation_token_size(claims, TEMP_KEY_ID)
     }
 
     /// Prepend a Nonce claim to `additional_claims` into `buf` and return
