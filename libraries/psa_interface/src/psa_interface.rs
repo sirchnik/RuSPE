@@ -12,6 +12,11 @@ pub enum AttestationServiceType {
     GetTokenSize = 1002,
 }
 
+#[repr(C)]
+pub enum CryptoServiceType {
+    SignHash = 1,
+}
+
 /// FFI status integer used at the SPE/NSPE veneer boundary.
 pub type PsaStatus = isize;
 

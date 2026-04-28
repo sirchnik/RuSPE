@@ -2,6 +2,7 @@ use psa_interface;
 use psc3::cryptolite;
 use spe::{
     attest::attest_service::{self, CERTIFICATION_REF_MAX_SIZE},
+    crypto::crypto_service,
     service::Service,
     spm::spm::SpmPlatform,
     StatusCode,
@@ -46,12 +47,14 @@ impl attest_service::AttestPlatform for Psc3AttestPlatform {
 
 pub struct Psc3SecPlatform {
     pub initial_attestation: attest_service::AttestService<Psc3AttestPlatform>,
+    pub crypto: crypto_service::CryptoService,
 }
 
 impl SpmPlatform for Psc3SecPlatform {
     fn call(&self, msg: spe::psa::psa_call::PsaMsg) -> Result<(), StatusCode> {
         return match msg.handle {
             psa_interface::PsaHandle::AttestationService => self.initial_attestation.call(msg),
+            psa_interface::PsaHandle::Crypto => self.crypto.call(msg),
             _ => Err(StatusCode::NotSupported),
         };
     }

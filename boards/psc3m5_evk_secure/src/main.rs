@@ -13,6 +13,7 @@ use core::ptr::addr_of_mut;
 use psc3::{chip_init, gpio, icache, peri_clk};
 use spe::{
     attest::attest_service::{self},
+    crypto::crypto_service,
     psa::psa_api,
     spm::spm::{self},
     static_init,
@@ -92,6 +93,12 @@ pub unsafe fn main() {
         Psc3SecPlatform,
         Psc3SecPlatform {
             initial_attestation: attest_service::AttestService::new(Psc3AttestPlatform),
+            crypto: crypto_service::CryptoService::new([
+                0x3d, 0x42, 0x9a, 0x83, 0xef, 0xe3, 0x87, 0x10,
+                0xab, 0x9a, 0xb4, 0xc0, 0x2c, 0xcb, 0xbe, 0x0b,
+                0x87, 0xab, 0x69, 0x36, 0xdd, 0xf4, 0x14, 0x57,
+                0xea, 0x30, 0xf9, 0x6c, 0xa6, 0xf2, 0xcd, 0xee,
+            ]),
         }
     );
 

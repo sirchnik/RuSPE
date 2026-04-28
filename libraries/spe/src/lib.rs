@@ -6,6 +6,7 @@
 #![feature(abi_cmse_nonsecure_call, cmse_nonsecure_entry)]
 
 pub mod attest;
+pub mod crypto;
 pub mod hil;
 pub mod internal_trusted_storage;
 mod libs;
