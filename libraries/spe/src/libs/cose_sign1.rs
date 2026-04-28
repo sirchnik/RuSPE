@@ -152,12 +152,14 @@ impl<'a, C: CoseCrypto> CoseSign1<'a, C> {
         }
     }
 
+    #[allow(dead_code)]
     /// Sets the COSE `kid` value for the unprotected header.
     pub const fn with_key_id(mut self, key_id: &'a [u8]) -> Self {
         self.key_id = Some(key_id);
         self
     }
 
+    #[allow(dead_code)]
     /// Sets external AAD used in `Sig_structure`.
     pub const fn with_external_aad(mut self, external_aad: &'a [u8]) -> Self {
         self.external_aad = external_aad;

@@ -1,6 +1,5 @@
 use core::{
     cell::UnsafeCell,
-    hint::spin_loop,
     mem::MaybeUninit,
     sync::atomic::{AtomicU8, Ordering},
 };

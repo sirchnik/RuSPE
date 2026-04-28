@@ -27,6 +27,7 @@ impl<T> InterruptUnsafeMutex<T> {
             .is_err()
         {
             // Spin-wait until the lock is free
+            core::hint::spin_loop();
         }
         let result = f(&self.value);
         self.lock.store(false, Ordering::SeqCst);
