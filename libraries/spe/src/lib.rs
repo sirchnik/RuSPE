@@ -17,4 +17,4 @@ pub mod static_init;
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 pub mod veneers;
 
-pub use psa_interface::{StatusCode, into_psa_status};
+pub use psa_interface::status::{StatusCode, into_psa_status};

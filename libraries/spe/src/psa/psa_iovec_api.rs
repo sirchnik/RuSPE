@@ -2,7 +2,7 @@ use core::{panic, slice};
 
 use crate::spm::spm::{Connection, PSA_MAX_IOVEC, Spm};
 
-use psa_interface::PsaHandle;
+use psa_interface::types::PsaHandle;
 
 fn with_connection_for_handle<R>(
     spm: &Spm,

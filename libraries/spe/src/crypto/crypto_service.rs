@@ -8,8 +8,8 @@ use crate::{
     service::{Info, Service},
 };
 use core::mem::size_of;
-use p256::ecdsa::{signature::hazmat::PrehashSigner, Signature, SigningKey};
-use psa_interface::{self, TfmCryptoPackIovec, TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID};
+use p256::ecdsa::{Signature, SigningKey, signature::hazmat::PrehashSigner};
+use psa_interface::types::{self, TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID, TfmCryptoPackIovec};
 
 /// P-256 ECDSA signature size in bytes (r ‖ s, 32 + 32).
 const P256_SIGNATURE_SIZE: usize = 64;
@@ -73,15 +73,14 @@ impl Service for CryptoService {
         Info { version: 1 }
     }
 
-    fn call(&self, msg: PsaMsg) -> Result<(), psa_interface::StatusCode> {
+    fn call(&self, msg: PsaMsg) -> Result<(), psa_interface::status::StatusCode> {
         // TF-M layout: invec[0] = TfmCryptoPackIovec, invec[1] = hash,
         //              outvec[0] = signature buffer.
-        let iov = psa_api::psa_map_invec(msg.handle, 0, |iov_bytes| {
-            Self::parse_pack_iovec(iov_bytes)
-        })?;
+        let iov =
+            psa_api::psa_map_invec(msg.handle, 0, |iov_bytes| Self::parse_pack_iovec(iov_bytes))?;
 
         if iov.function_id != TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID {
-            return Err(psa_interface::StatusCode::NotSupported);
+            return Err(psa_interface::status::StatusCode::NotSupported);
         }
 
         psa_api::psa_map_invec_outvec(msg.handle, 1, 0, |hash, sig_buf| {
@@ -100,11 +99,11 @@ impl Service for CryptoService {
         })
     }
 
-    fn init(&mut self) -> Result<(), psa_interface::StatusCode> {
+    fn init(&mut self) -> Result<(), psa_interface::status::StatusCode> {
         Ok(())
     }
 
-    fn deinit(&mut self) -> Result<(), psa_interface::StatusCode> {
+    fn deinit(&mut self) -> Result<(), psa_interface::status::StatusCode> {
         Ok(())
     }
 }

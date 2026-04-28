@@ -7,7 +7,8 @@
 // non-secure code. It is unsafe because there could be name collisions.
 
 use crate::psa::psa_api;
-use psa_interface::{PsaHandle, PsaInVec, PsaOutVec, PsaStatus, VectorDescriptor, into_psa_status};
+use psa_interface::status::into_psa_status;
+use psa_interface::types::{PsaHandle, PsaInVec, PsaOutVec, PsaStatus, VectorDescriptor};
 
 /// Retrieve the version of the PSA Framework API that is implemented.
 #[unsafe(no_mangle)]

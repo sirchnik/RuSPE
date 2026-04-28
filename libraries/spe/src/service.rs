@@ -6,7 +6,7 @@ pub struct Info {
 
 pub trait Service {
     fn info(&self) -> Info;
-    fn call(&self, msg: PsaMsg) -> Result<(), psa_interface::StatusCode>;
-    fn init(&mut self) -> Result<(), psa_interface::StatusCode>;
-    fn deinit(&mut self) -> Result<(), psa_interface::StatusCode>;
+    fn call(&self, msg: PsaMsg) -> Result<(), psa_interface::status::StatusCode>;
+    fn init(&mut self) -> Result<(), psa_interface::status::StatusCode>;
+    fn deinit(&mut self) -> Result<(), psa_interface::status::StatusCode>;
 }

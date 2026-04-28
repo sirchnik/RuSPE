@@ -8,7 +8,7 @@ use crate::{
     psa::{psa_call, psa_iovec_api},
     spm::spm,
 };
-use psa_interface::{PsaHandle, PsaInVec, PsaOutVec, VectorDescriptor};
+use psa_interface::types::{PsaHandle, PsaInVec, PsaOutVec, VectorDescriptor};
 
 ///! Entry points for PSA API calls from NSPE and other partitions.
 

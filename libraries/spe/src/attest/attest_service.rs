@@ -8,7 +8,7 @@ use crate::{
     service::{Info, Service},
 };
 use core::mem::size_of;
-use psa_interface::{self};
+use psa_interface::types::{self};
 
 /// Maximum token buffer size used by default TF-M builds.
 pub const PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE: usize = 0x250;
@@ -149,12 +149,12 @@ impl<P: AttestPlatform> Service for AttestService<P> {
         Info { version: 1 }
     }
 
-    fn call(&self, msg: PsaMsg) -> Result<(), psa_interface::StatusCode> {
+    fn call(&self, msg: PsaMsg) -> Result<(), psa_interface::status::StatusCode> {
         if !Self::has_exactly_one_iovec(&msg) {
-            return Err(psa_interface::StatusCode::InvalidArgument);
+            return Err(psa_interface::status::StatusCode::InvalidArgument);
         }
 
-        if msg.msg_type == psa_interface::AttestationServiceType::GetToken as i32 {
+        if msg.msg_type == psa_interface::types::AttestationServiceType::GetToken as i32 {
             return psa_api::psa_map_invec_outvec(msg.handle, 0, 0, |challenge, token_buf| {
                 let mut written_len = 0;
                 let result = (|| -> Result<(), StatusCode> {
@@ -190,7 +190,8 @@ impl<P: AttestPlatform> Service for AttestService<P> {
 
                 (result, written_len)
             });
-        } else if msg.msg_type == psa_interface::AttestationServiceType::GetTokenSize as i32 {
+        } else if msg.msg_type == psa_interface::types::AttestationServiceType::GetTokenSize as i32
+        {
             return psa_api::psa_map_invec_outvec(
                 msg.handle,
                 0,
@@ -237,15 +238,15 @@ impl<P: AttestPlatform> Service for AttestService<P> {
                 },
             );
         } else {
-            Err(psa_interface::StatusCode::NotSupported)
+            Err(psa_interface::status::StatusCode::NotSupported)
         }
     }
 
-    fn init(&mut self) -> Result<(), psa_interface::StatusCode> {
+    fn init(&mut self) -> Result<(), psa_interface::status::StatusCode> {
         Ok(())
     }
 
-    fn deinit(&mut self) -> Result<(), psa_interface::StatusCode> {
+    fn deinit(&mut self) -> Result<(), psa_interface::status::StatusCode> {
         Ok(())
     }
 }

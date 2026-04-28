@@ -1,6 +1,6 @@
 use crate::{StatusCode, spm::spm, spm::spm::Connection};
 use core::{ptr, slice};
-use psa_interface::{PsaHandle, PsaInVec, PsaOutVec, VectorDescriptor};
+use psa_interface::types::{PsaHandle, PsaInVec, PsaOutVec, VectorDescriptor};
 
 const PSA_MAX_IOVEC: usize = 4;
 

@@ -18,9 +18,9 @@ use psc3::{BASE_VECTORS, IRQS};
 
 use kernel::static_init;
 
-use psa_interface;
+use psa_interface::{self, psa_api};
 
-use spe_client;
+use psa_veneer_client::{self, PsaVeneerClient};
 
 mod io;
 
@@ -63,7 +63,7 @@ pub unsafe fn main() {
     let challenge = [0u8; 32];
     let mut token_buf = [0u8; 512];
 
-    spe_client::initial_attest_get_token(&challenge, &mut token_buf).unwrap();
+    psa_api::initial_attest_get_token::<PsaVeneerClient>(&challenge, &mut token_buf).unwrap();
 
     use core::fmt::Write;
 

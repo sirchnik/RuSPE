@@ -4,10 +4,6 @@
 
 #![no_std]
 
-pub mod status;
-pub mod types;
+mod veneer_client;
 
-mod interface_trait;
-pub mod psa_api;
-
-pub use crate::interface_trait::PsaApiCallInterface;
+pub use crate::veneer_client::*;

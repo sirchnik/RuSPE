@@ -4,7 +4,7 @@
 
 //! PSA standard error codes used by the PSA interface.
 
-use crate::PsaStatus;
+use crate::types::PsaStatus;
 
 /// PSA-aligned status code returned by PSA APIs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

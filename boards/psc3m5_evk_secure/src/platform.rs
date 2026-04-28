@@ -53,8 +53,10 @@ pub struct Psc3SecPlatform {
 impl SpmPlatform for Psc3SecPlatform {
     fn call(&self, msg: spe::psa::psa_call::PsaMsg) -> Result<(), StatusCode> {
         return match msg.handle {
-            psa_interface::PsaHandle::AttestationService => self.initial_attestation.call(msg),
-            psa_interface::PsaHandle::Crypto => self.crypto.call(msg),
+            psa_interface::types::PsaHandle::AttestationService => {
+                self.initial_attestation.call(msg)
+            }
+            psa_interface::types::PsaHandle::Crypto => self.crypto.call(msg),
             _ => Err(StatusCode::NotSupported),
         };
     }
