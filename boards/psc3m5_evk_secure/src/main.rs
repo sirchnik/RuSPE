@@ -26,6 +26,12 @@ extern "Rust" {
     static __veneer_limit: ();
 }
 
+// These symbols are defined in the linker script.
+extern "C" {
+    /// Beginning of the stack region.
+    static _sstack: u8;
+}
+
 mod io;
 mod platform;
 mod security;
@@ -52,6 +58,9 @@ pub unsafe fn main() {
 
     // useless. strangely only setting vector table in scb from ns works
     // mxcm33::set_ns_vector_table_base(security::NONSECURE_START_FLASH as u32);
+
+    // set msplim. There was one incident where then non-secure handled stack overflow.
+    cortexm33::support::set_msplim(core::ptr::addr_of!(_sstack) as u32);
 
     unsafe {
         let aircr = 0xe000ed0c as *mut u32;
@@ -94,18 +103,14 @@ pub unsafe fn main() {
         Psc3SecPlatform {
             initial_attestation: attest_service::AttestService::new(Psc3AttestPlatform),
             crypto: crypto_service::CryptoService::new([
-                0x3d, 0x42, 0x9a, 0x83, 0xef, 0xe3, 0x87, 0x10,
-                0xab, 0x9a, 0xb4, 0xc0, 0x2c, 0xcb, 0xbe, 0x0b,
-                0x87, 0xab, 0x69, 0x36, 0xdd, 0xf4, 0x14, 0x57,
-                0xea, 0x30, 0xf9, 0x6c, 0xa6, 0xf2, 0xcd, 0xee,
+                0x3d, 0x42, 0x9a, 0x83, 0xef, 0xe3, 0x87, 0x10, 0xab, 0x9a, 0xb4, 0xc0, 0x2c, 0xcb,
+                0xbe, 0x0b, 0x87, 0xab, 0x69, 0x36, 0xdd, 0xf4, 0x14, 0x57, 0xea, 0x30, 0xf9, 0x6c,
+                0xa6, 0xf2, 0xcd, 0xee,
             ]),
         }
     );
 
-    let spm = static_init!(
-        spm::Spm<Psc3SecPlatform>,
-        spm::Spm::new(sec_platform)
-    );
+    let spm = static_init!(spm::Spm<Psc3SecPlatform>, spm::Spm::new(sec_platform));
 
     psa_api::set_spm(spm);
 
