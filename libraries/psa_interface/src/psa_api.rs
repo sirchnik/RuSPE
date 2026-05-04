@@ -6,19 +6,19 @@ pub fn initial_attest_get_token<T: PsaApiCallInterface>(
     challenge: &[u8],
     token_buf: &mut [u8],
 ) -> Result<(), types::PsaStatus> {
-    let in_vec = [types::PsaInVec {
+    let in_vec = [types::FFInVec {
         base: challenge.as_ptr(),
         len: challenge.len(),
     }];
 
-    let mut out_vec = [types::PsaOutVec {
+    let mut out_vec = [types::FFOutVec {
         base: token_buf.as_mut_ptr(),
         len: token_buf.len(),
     }];
 
     let status = T::psa_call(
-        types::PsaHandle::AttestationService,
-        types::VectorDescriptor::new(
+        types::ServiceHandle::AttestationService,
+        types::CtrlParam::new(
             types::AttestationServiceType::GetToken as i16,
             1,
             true,
@@ -49,24 +49,24 @@ pub fn psa_sign_hash<T: PsaApiCallInterface>(
     let iov = types::TfmCryptoPackIovec::for_sign_hash(key, alg);
 
     let in_vec = [
-        types::PsaInVec {
+        types::FFInVec {
             base: &iov as *const types::TfmCryptoPackIovec as *const u8,
             len: core::mem::size_of::<types::TfmCryptoPackIovec>(),
         },
-        types::PsaInVec {
+        types::FFInVec {
             base: hash.as_ptr(),
             len: hash.len(),
         },
     ];
 
-    let mut out_vec = [types::PsaOutVec {
+    let mut out_vec = [types::FFOutVec {
         base: signature.as_mut_ptr(),
         len: signature.len(),
     }];
 
     let status = T::psa_call(
-        types::PsaHandle::Crypto,
-        types::VectorDescriptor::new(types::CryptoServiceType::SignHash as i16, 2, true, 1, true),
+        types::ServiceHandle::Crypto,
+        types::CtrlParam::new(types::CryptoServiceType::SignHash as i16, 2, true, 1, true),
         &in_vec,
         &mut out_vec,
     );

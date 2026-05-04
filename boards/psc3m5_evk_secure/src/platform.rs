@@ -36,6 +36,7 @@ impl attest_service::AttestPlatform for Psc3AttestPlatform {
             .trng_try_fill_bytes(seed)
             .map_err(|_| StatusCode::GenericError)
     }
+    // TODO get key from `raw_data_pc012`
 
     fn implementation_id(&self, buf: &mut [u8; 32]) -> Result<(), StatusCode> {
         todo!()
@@ -54,10 +55,10 @@ pub struct Psc3SecPlatform {
 impl SpmPlatform for Psc3SecPlatform {
     fn call(&self, msg: PsaMsg) -> Result<(), StatusCode> {
         return match msg.handle {
-            psa_interface::types::PsaHandle::AttestationService => {
+            psa_interface::types::ServiceHandle::AttestationService => {
                 self.initial_attestation.call(msg)
             }
-            psa_interface::types::PsaHandle::Crypto => self.crypto.call(msg),
+            psa_interface::types::ServiceHandle::Crypto => self.crypto.call(msg),
             _ => Err(StatusCode::NotSupported),
         };
     }

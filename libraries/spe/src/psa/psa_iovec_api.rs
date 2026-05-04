@@ -2,11 +2,11 @@ use core::{panic, slice};
 
 use crate::spm::spm::{Connection, PSA_MAX_IOVEC, SpmCall};
 
-use psa_interface::types::PsaHandle;
+use psa_interface::types::ServiceHandle;
 
 fn with_connection_for_handle<R>(
     spm: &dyn SpmCall,
-    msg_handle: PsaHandle,
+    msg_handle: ServiceHandle,
     f: impl FnOnce(&mut Connection) -> R,
 ) -> R {
     let mut result: Option<R> = None;
@@ -150,7 +150,7 @@ fn with_mapped_outvec<R>(
 
 pub fn psa_map_invec<R>(
     spm: &dyn SpmCall,
-    msg_handle: PsaHandle,
+    msg_handle: ServiceHandle,
     invec_idx: u32,
     f: impl FnOnce(&[u8]) -> R,
 ) -> R {
@@ -161,7 +161,7 @@ pub fn psa_map_invec<R>(
 
 pub fn psa_map_outvec<R>(
     spm: &dyn SpmCall,
-    msg_handle: PsaHandle,
+    msg_handle: ServiceHandle,
     outvec_idx: u32,
     f: impl FnOnce(&mut [u8]) -> (R, usize),
 ) -> R {
@@ -172,7 +172,7 @@ pub fn psa_map_outvec<R>(
 
 pub fn psa_map_invec_outvec<R>(
     spm: &dyn SpmCall,
-    msg_handle: PsaHandle,
+    msg_handle: ServiceHandle,
     invec_idx: u32,
     outvec_idx: u32,
     f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize),

@@ -9,7 +9,7 @@ use crate::{
     spm::spm::SpmCall,
 };
 use psa_interface::PsaApiCallInterface;
-use psa_interface::types::{PsaHandle, PsaInVec, PsaOutVec, VectorDescriptor};
+use psa_interface::types::{CtrlParam, FFInVec, FFOutVec, ServiceHandle};
 
 ///! Entry points for PSA API calls from NSPE and other partitions.
 
@@ -38,10 +38,10 @@ impl PsaApiCallInterface for InternalPsaClient {
     }
 
     fn psa_call(
-        handle: PsaHandle,
-        ctrl_param: VectorDescriptor,
-        in_vec: &[PsaInVec],
-        out_vec: &mut [PsaOutVec],
+        handle: ServiceHandle,
+        ctrl_param: CtrlParam,
+        in_vec: &[FFInVec],
+        out_vec: &mut [FFOutVec],
     ) -> psa_interface::types::PsaStatus {
         let in_vec_ptr = if in_vec.is_empty() {
             core::ptr::null()
@@ -66,10 +66,10 @@ impl PsaApiCallInterface for InternalPsaClient {
 }
 
 pub fn psa_call(
-    handle: PsaHandle,
-    ctrl_param: VectorDescriptor,
-    in_vec: *const PsaInVec,
-    out_vec: *mut PsaOutVec,
+    handle: ServiceHandle,
+    ctrl_param: CtrlParam,
+    in_vec: *const FFInVec,
+    out_vec: *mut FFOutVec,
 ) -> Result<(), StatusCode> {
     if support::is_interrupt_context() {
         panic!("psa_call cannot be called from an interrupt context");
@@ -86,12 +86,16 @@ pub fn psa_call(
     result
 }
 
-pub fn psa_map_invec<R>(msg_handle: PsaHandle, invec_idx: u32, f: impl FnOnce(&[u8]) -> R) -> R {
+pub fn psa_map_invec<R>(
+    msg_handle: ServiceHandle,
+    invec_idx: u32,
+    f: impl FnOnce(&[u8]) -> R,
+) -> R {
     psa_iovec_api::psa_map_invec(get_spm(), msg_handle, invec_idx, f)
 }
 
 pub fn psa_map_outvec<R>(
-    msg_handle: PsaHandle,
+    msg_handle: ServiceHandle,
     outvec_idx: u32,
     f: impl FnOnce(&mut [u8]) -> (R, usize),
 ) -> R {
@@ -99,7 +103,7 @@ pub fn psa_map_outvec<R>(
 }
 
 pub fn psa_map_invec_outvec<R>(
-    msg_handle: PsaHandle,
+    msg_handle: ServiceHandle,
     invec_idx: u32,
     outvec_idx: u32,
     f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize),

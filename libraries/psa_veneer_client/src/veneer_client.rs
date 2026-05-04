@@ -9,10 +9,10 @@ unsafe extern "C" {
 
     /// Call a secure function referenced by a connection handle.
     fn psa_call_veneer(
-        handle: types::PsaHandle,
-        ctrl_param: types::VectorDescriptor,
-        in_vec: *const types::PsaInVec,
-        out_vec: *mut types::PsaOutVec,
+        handle: types::ServiceHandle,
+        ctrl_param: types::CtrlParam,
+        in_vec: *const types::FFInVec,
+        out_vec: *mut types::FFOutVec,
     ) -> types::PsaStatus;
 }
 
@@ -28,10 +28,10 @@ impl PsaApiCallInterface for PsaVeneerClient {
     }
 
     fn psa_call(
-        handle: types::PsaHandle,
-        ctrl_param: types::VectorDescriptor,
-        in_vec: &[types::PsaInVec],
-        out_vec: &mut [types::PsaOutVec],
+        handle: types::ServiceHandle,
+        ctrl_param: types::CtrlParam,
+        in_vec: &[types::FFInVec],
+        out_vec: &mut [types::FFOutVec],
     ) -> types::PsaStatus {
         let in_vec_ptr = if in_vec.is_empty() {
             core::ptr::null()

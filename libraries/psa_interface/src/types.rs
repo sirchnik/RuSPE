@@ -1,6 +1,6 @@
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
-pub enum PsaHandle {
+pub enum ServiceHandle {
     InternalTrustedStorageService = 0x40000102,
     Crypto = 0x40000100,
     AttestationService = 0x40000103,
@@ -22,14 +22,14 @@ pub type PsaStatus = isize;
 
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
-pub struct PsaInVec {
+pub struct FFInVec {
     pub base: *const u8,
     pub len: usize,
 }
 
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
-pub struct PsaOutVec {
+pub struct FFOutVec {
     pub base: *mut u8,
     pub len: usize,
 }
@@ -45,9 +45,9 @@ pub struct PsaOutVec {
 ///
 #[derive(Clone, Copy)]
 #[repr(C)]
-pub struct VectorDescriptor(u32);
+pub struct CtrlParam(u32);
 
-impl VectorDescriptor {
+impl CtrlParam {
     pub const NS_VEC_DESC_BIT: u32 = 0x8000_0000;
 
     /// Creates a new descriptor from components, handling the masks and offsets.

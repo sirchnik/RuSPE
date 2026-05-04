@@ -8,7 +8,7 @@
 
 use crate::psa::psa_api;
 use psa_interface::status::into_psa_status;
-use psa_interface::types::{PsaHandle, PsaInVec, PsaOutVec, PsaStatus, VectorDescriptor};
+use psa_interface::types::{CtrlParam, FFInVec, FFOutVec, PsaStatus, ServiceHandle};
 
 /// Retrieve the version of the PSA Framework API that is implemented.
 #[unsafe(no_mangle)]
@@ -26,10 +26,10 @@ pub extern "cmse-nonsecure-entry" fn psa_version_veneer(service_id: u32) -> u32 
 /// Call a secure function referenced by a connection handle.
 #[unsafe(no_mangle)]
 pub extern "cmse-nonsecure-entry" fn psa_call_veneer(
-    handle: PsaHandle,
-    ctrl_param: VectorDescriptor,
-    in_vec: *const PsaInVec,
-    out_vec: *mut PsaOutVec,
+    handle: ServiceHandle,
+    ctrl_param: CtrlParam,
+    in_vec: *const FFInVec,
+    out_vec: *mut FFOutVec,
 ) -> PsaStatus {
     into_psa_status(psa_api::psa_call(handle, ctrl_param, in_vec, out_vec))
 }

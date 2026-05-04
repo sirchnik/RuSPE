@@ -3,13 +3,13 @@ use crate::{
     spm::spm::{Connection, SpmCall},
 };
 use core::{ptr, slice};
-use psa_interface::types::{PsaHandle, PsaInVec, PsaOutVec, VectorDescriptor};
+use psa_interface::types::{CtrlParam, FFInVec, FFOutVec, ServiceHandle};
 
 const PSA_MAX_IOVEC: usize = 4;
 
 #[derive(Clone, Copy, Debug)]
 pub struct PsaMsg {
-    pub handle: PsaHandle,
+    pub handle: ServiceHandle,
     pub msg_type: i32,
     // client_id: u32, // TODO: Do I need this?
     pub in_size: [Option<usize>; PSA_MAX_IOVEC],
@@ -17,7 +17,7 @@ pub struct PsaMsg {
 }
 
 impl PsaMsg {
-    const fn new(handle: PsaHandle, msg_type: i32) -> Self {
+    const fn new(handle: ServiceHandle, msg_type: i32) -> Self {
         Self {
             handle,
             msg_type,
@@ -27,7 +27,7 @@ impl PsaMsg {
     }
 }
 
-fn validate_call_params(ctrl_param: VectorDescriptor) -> Result<(i32, usize, usize), StatusCode> {
+fn validate_call_params(ctrl_param: CtrlParam) -> Result<(i32, usize, usize), StatusCode> {
     let msg_type = ctrl_param.unpack_type();
 
     // The request type must be zero or positive.
@@ -53,8 +53,8 @@ fn validate_vec_pointer_shape(
     has_iovec: bool,
     ivec_num: usize,
     ovec_num: usize,
-    in_vec: *const PsaInVec,
-    out_vec: *mut PsaOutVec,
+    in_vec: *const FFInVec,
+    out_vec: *mut FFOutVec,
 ) -> Result<(), StatusCode> {
     if !has_iovec {
         return Ok(());
@@ -72,7 +72,7 @@ fn validate_vec_pointer_shape(
     Ok(())
 }
 
-fn validate_invec_payload_nonoverlap(in_vecs: &[PsaInVec]) -> Result<(), StatusCode> {
+fn validate_invec_payload_nonoverlap(in_vecs: &[FFInVec]) -> Result<(), StatusCode> {
     // Mirrors TF-M's invec anti-overlap checks to avoid double-fetch
     // inconsistencies between distinct input payload buffers.
     if in_vecs.len() < 2 {
@@ -103,10 +103,10 @@ fn validate_invec_payload_nonoverlap(in_vecs: &[PsaInVec]) -> Result<(), StatusC
 }
 
 pub fn psa_call_from_slices(
-    handle: PsaHandle,
-    ctrl_param: VectorDescriptor,
-    in_vecs: &[PsaInVec],
-    out_vecs: &mut [PsaOutVec],
+    handle: ServiceHandle,
+    ctrl_param: CtrlParam,
+    in_vecs: &[FFInVec],
+    out_vecs: &mut [FFOutVec],
 ) -> Result<Connection, StatusCode> {
     let (msg_type, ivec_num, ovec_num) = validate_call_params(ctrl_param)?;
 
@@ -149,17 +149,17 @@ pub fn psa_call_from_slices(
 }
 
 pub fn psa_call(
-    handle: PsaHandle,
-    ctrl_param: VectorDescriptor,
-    in_vec: *const PsaInVec,
-    out_vec: *mut PsaOutVec,
+    handle: ServiceHandle,
+    ctrl_param: CtrlParam,
+    in_vec: *const FFInVec,
+    out_vec: *mut FFOutVec,
     spm: &dyn SpmCall,
 ) -> Result<(), StatusCode> {
     let (_msg_type, ivec_num, ovec_num) = validate_call_params(ctrl_param)?;
 
     validate_vec_pointer_shape(ctrl_param.has_iovec(), ivec_num, ovec_num, in_vec, out_vec)?;
 
-    let in_vecs: &[PsaInVec] = if ivec_num == 0 {
+    let in_vecs: &[FFInVec] = if ivec_num == 0 {
         &[]
     } else {
         // ### Safety
@@ -169,7 +169,7 @@ pub fn psa_call(
         unsafe { slice::from_raw_parts(in_vec, ivec_num) }
     };
 
-    let out_vecs: &mut [PsaOutVec] = if ovec_num == 0 {
+    let out_vecs: &mut [FFOutVec] = if ovec_num == 0 {
         &mut []
     } else {
         // ### Safety
