@@ -1,6 +1,6 @@
 use core::{panic, slice};
 
-use crate::spm::spm::{Connection, PSA_MAX_IOVEC, SpmCall};
+use crate::spm::spm::{Connection, PSA_MAX_IOVEC, SpmCall, SpmError};
 
 use psa_interface::types::ServiceHandle;
 
@@ -11,7 +11,7 @@ fn with_connection_for_handle<R>(
 ) -> R {
     let mut result: Option<R> = None;
     let mut f = Some(f);
-    spm.with_active_connection_dyn(&mut |connection| {
+    match spm.with_active_connection(&mut |connection| {
         if (connection.msg.handle as isize) != (msg_handle as isize) {
             panic!("invalid message handle for active connection");
         }
@@ -22,7 +22,11 @@ fn with_connection_for_handle<R>(
 
         let f = f.take().unwrap();
         result = Some(f(connection));
-    });
+    }) {
+        Ok(()) => {}
+        Err(SpmError::NoActiveConnection) => panic!("no active SPM connection"),
+        Err(err) => panic!("failed to access active SPM connection: {:?}", err),
+    }
 
     result.expect("no active SPM connection")
 }
