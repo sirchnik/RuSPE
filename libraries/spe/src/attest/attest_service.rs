@@ -30,6 +30,8 @@ pub trait AttestPlatform {
     fn boot_seed(&self, seed: &mut [u8; 32]) -> Result<(), StatusCode>;
     /// Get the implementation ID of the device.
     fn implementation_id(&self, buf: &mut [u8; 32]) -> Result<(), StatusCode>;
+    /// Get the instance ID (UEID) of the device (33 bytes: 1-byte type + 32-byte ID).
+    fn instance_id(&self, buf: &mut [u8; 33]) -> Result<(), StatusCode>;
     /// Get the hardware version (UTF-8 text, EAN-13 format). Returns number of bytes written.
     fn cert_ref(&self, buf: &mut [u8; CERTIFICATION_REF_MAX_SIZE]) -> Result<usize, StatusCode>;
 }
@@ -190,7 +192,14 @@ impl<P: AttestPlatform> Service for AttestService<P> {
                     let mut impl_id = [0u8; 32];
                     self.platform.implementation_id(&mut impl_id)?;
 
+                    let mut instance_id = [0u8; 33];
+                    self.platform.instance_id(&mut instance_id)?;
+
                     let additional_claims = [
+                        AttestClaim {
+                            key: IatClaim::InstanceId,
+                            value: AttestClaimValue::Bytes(&instance_id),
+                        },
                         AttestClaim {
                             key: IatClaim::ProfileDefinition,
                             value: AttestClaimValue::Text(profile_str),

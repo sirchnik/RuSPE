@@ -55,6 +55,14 @@ impl attest_service::AttestPlatform for Psc3AttestPlatform {
         Ok(())
     }
 
+    fn instance_id(&self, buf: &mut [u8; 33]) -> Result<(), StatusCode> {
+        // Type byte 0x01 (RAND) followed by 32-byte random instance ID.
+        // TODO: derive from a device-unique key or TRNG.
+        buf[0] = 0x01;
+        buf[1..].fill(0x02);
+        Ok(())
+    }
+
     fn cert_ref(&self, buf: &mut [u8; CERTIFICATION_REF_MAX_SIZE]) -> Result<usize, StatusCode> {
         // No certification reference provided; return empty string.
         Ok(0)

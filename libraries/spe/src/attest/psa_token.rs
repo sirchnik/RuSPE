@@ -484,10 +484,7 @@ mod tests {
 
         // ProfileDefinition (265): text
         assert_eq!(dec.i32().unwrap(), IatClaim::ProfileDefinition as i32);
-        assert_eq!(
-            dec.str().unwrap(),
-            "tag:psacertified.org,2023:psa#tfm"
-        );
+        assert_eq!(dec.str().unwrap(), "tag:psacertified.org,2023:psa#tfm");
 
         // ClientId (2394): signed integer
         assert_eq!(dec.i32().unwrap(), IatClaim::ClientId as i32);
@@ -528,6 +525,8 @@ mod tests {
     /// Full token encode/decode roundtrip with platform-style claims.
     #[test]
     fn platform_claims_full_token_roundtrip() {
+        use super::encode_payload;
+
         let nonce = [0xAA; 32];
         let boot_seed = [0xBB; 32];
         let impl_id = b"acme-implementation-id-000000001";
@@ -577,11 +576,10 @@ mod tests {
             },
         ];
 
-        let mut token = [0u8; crate::attest::attest_service::PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE];
-        let encoded_len = encode_initial_attestation_token(&claims, &mut token, TEST_PRIVATE_KEY)
-            .expect("token should encode");
+        let mut payload_buf = [0u8; 512];
+        let payload_len = encode_payload(&claims, &mut payload_buf).expect("payload should encode");
+        let payload = &payload_buf[..payload_len];
 
-        let payload = decode_payload_from_token(&token[..encoded_len]);
         let mut dec = Decoder::new(payload);
         let map_len = dec.map().expect("map should decode").unwrap();
         assert_eq!(map_len, claims.len() as u64);
@@ -606,11 +604,11 @@ mod tests {
         assert_eq!(dec.i32().unwrap(), IatClaim::BootSeed as i32);
         assert_eq!(dec.bytes().unwrap(), boot_seed);
 
-        // Skip SwComponents decoding (already tested above)
+        // SwComponents
         assert_eq!(dec.i32().unwrap(), IatClaim::SwComponents as i32);
         let arr_len = dec.array().unwrap().unwrap();
         assert_eq!(arr_len, 1);
-        dec.map().unwrap(); // skip component map header
+        dec.map().unwrap();
         dec.u8().unwrap();
         dec.bytes().unwrap();
         dec.u8().unwrap();
