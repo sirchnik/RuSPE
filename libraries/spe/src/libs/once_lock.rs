@@ -18,7 +18,7 @@ pub struct OnceLock<T> {
     value: UnsafeCell<MaybeUninit<T>>,
 }
 
-// SAFETY:
+// # Safety:
 // 1. `Send` is required because the value `T` might be created on one thread
 //    and dropped on another when the `OnceLock` is dropped.
 // 2. `Sync` is required because multiple threads can access `&T` (via `get`)
@@ -45,7 +45,7 @@ impl<T> OnceLock<T> {
         }
 
         if state == OnceLockState::Initialized as u8 {
-            // SAFETY:
+            // # Safety:
             // 1. The state is INITIALIZED, which means a successful `set` call
             //    has completed writing to the value.
             // 2. We used Acquire ordering to load the state, synchronizing with
@@ -69,14 +69,13 @@ impl<T> OnceLock<T> {
             Ordering::Acquire,
         ) {
             Ok(_) => {
-                // SAFETY:
+                // # Safety:
                 // Having successfully transitioned the state to INITIALIZING,
                 // we have exclusive mutable access to the inner UnsafeCell.
                 unsafe {
                     (*self.value.get()).write(value);
                 }
 
-                // SAFETY:
                 // Use Release ordering to ensure the write to `value` above happens
                 // before the state becomes INITIALIZED. This synchronizes with
                 // the Acquire load in `get`.
@@ -91,11 +90,11 @@ impl<T> OnceLock<T> {
 
 impl<T> Drop for OnceLock<T> {
     fn drop(&mut self) {
-        // SAFETY:
         // We use Relaxed here because we have unique access (&mut self),
         // so no other threads can be accessing the lock.
         if *self.state.get_mut() == OnceLockState::Initialized as u8 {
-            // SAFETY: The state is INITIALIZED, so the value is valid.
+            // # Safety:
+            // The state is INITIALIZED, so the value is valid.
             // We are in `drop`, so the value will never be accessed again.
             unsafe {
                 self.value.get_mut().assume_init_drop();

@@ -17,11 +17,12 @@ pub struct Connection {
     pub outvec_unmapped: [bool; PSA_MAX_IOVEC],
 }
 
-// #Safety
+// # Safety
 // Connection is not Send because it contains raw pointers.
 // Rust did declare raw pointers as !Send as it cannot guarantee ownership and lifetimes.
 // As raw pointers can only be dereferenced in unsafe code, we circumvent the language design and
 // mark Connection Send.
+// There was once a discussion about this in the Rust community https://internals.rust-lang.org/t/shouldnt-pointers-be-send-sync-or/8818
 unsafe impl Send for Connection {}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

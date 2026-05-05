@@ -28,7 +28,8 @@ impl<T> Mutex<T> {
             .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
             .is_ok()
         {
-            // SAFETY: We have exclusive access via the atomic flag.
+            // # Safety
+            // We have exclusive access via the atomic flag.
             let result = unsafe { f(&mut *self.value.get()) };
 
             self.lock.store(false, Ordering::Release);

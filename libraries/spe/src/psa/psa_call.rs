@@ -162,7 +162,7 @@ pub fn psa_call(
     let in_vecs: &[FFInVec] = if ivec_num == 0 {
         &[]
     } else {
-        // ### Safety
+        // # Safety:
         // `validate_vec_pointer_shape()` guarantees `in_vec` is non-null when
         // `ivec_num > 0`. The caller provides the C ABI contract that the pointer
         // references at least `ivec_num` contiguous `PsaInVec` elements.
@@ -172,7 +172,7 @@ pub fn psa_call(
     let out_vecs: &mut [FFOutVec] = if ovec_num == 0 {
         &mut []
     } else {
-        // ### Safety
+        // # Safety:
         // `validate_vec_pointer_shape()` guarantees `out_vec` is non-null when
         // `ovec_num > 0`. The caller provides the C ABI contract that the pointer
         // references at least `ovec_num` contiguous `PsaOutVec` elements with

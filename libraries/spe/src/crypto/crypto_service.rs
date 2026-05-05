@@ -51,14 +51,12 @@ impl CryptoService {
             return Err(StatusCode::ProgrammerError);
         }
         let mut iov = TfmCryptoPackIovec::for_sign_hash(0, 0);
-        // Safety-note: no `unsafe` here — we copy byte-by-byte via a
-        // properly-sized stack buffer.  The struct is `repr(C)` + `Copy`.
         let dst = &mut iov as *mut TfmCryptoPackIovec as *mut u8;
         for (i, &b) in buf.iter().enumerate() {
             // `dst` points to stack memory of exactly size_of::<TfmCryptoPackIovec>().
             // `i` is bounded by `buf.len()` which we checked equals that size.
             //
-            // ### Safety
+            // # Safety:
             // Writing to our own stack-allocated, correctly-sized struct.
             unsafe { dst.add(i).write(b) };
         }

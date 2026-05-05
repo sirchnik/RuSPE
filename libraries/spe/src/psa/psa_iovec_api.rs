@@ -123,7 +123,7 @@ fn with_mapped_invec<R>(
 ) -> R {
     let (index, in_len, base) = prepare_invec(connection, invec_idx);
 
-    // ### Safety
+    // # Safety:
     // `base` is checked non-null in `prepare_invec`, and `in_len` is from the
     // SPM-tracked input vector size for this message.
     let invec = unsafe { slice::from_raw_parts(base, in_len) };
@@ -141,7 +141,7 @@ fn with_mapped_outvec<R>(
 ) -> R {
     let (index, out_len, base) = prepare_outvec(connection, outvec_idx);
 
-    // ### Safety
+    // # Safety:
     // `base` is checked non-null in `prepare_outvec`, and `out_len` is from
     // the SPM-tracked output vector size for this message.
     let outvec = unsafe { slice::from_raw_parts_mut(base, out_len) };
@@ -185,11 +185,11 @@ pub fn psa_map_invec_outvec<R>(
         let (in_index, in_len, in_base) = prepare_invec(connection, invec_idx);
         let (out_index, out_len, out_base) = prepare_outvec(connection, outvec_idx);
 
-        // ### Safety
+        // # Safety:
         // `in_base` and `out_base` are checked non-null by `prepare_invec` and
         // `prepare_outvec`, and lengths are SPM-tracked vector sizes.
         let invec = unsafe { slice::from_raw_parts(in_base, in_len) };
-        // ### Safety
+        // # Safety:
         // See rationale above for output pointer and bounds.
         let outvec = unsafe { slice::from_raw_parts_mut(out_base, out_len) };
 
