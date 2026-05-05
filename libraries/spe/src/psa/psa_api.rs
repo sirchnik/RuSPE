@@ -16,12 +16,12 @@ use psa_interface::types::{CtrlParam, FFInVec, FFOutVec, ServiceHandle};
 static SPM: OnceLock<&'static dyn SpmCall> = OnceLock::new();
 
 fn get_spm() -> &'static dyn SpmCall {
-    *SPM.get()
+    *SPM.try_get()
         .expect("SPM must be initialized with set_spm() before PSA API use")
 }
 
 pub fn set_spm(spm: &'static dyn SpmCall) {
-    if SPM.set(spm).is_err() {
+    if SPM.try_set(spm).is_err() {
         panic!("SPM already initialized");
     }
 }

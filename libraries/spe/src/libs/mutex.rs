@@ -1,56 +1,66 @@
 use core::{
-    cell::Cell,
+    cell::UnsafeCell,
     sync::atomic::{AtomicBool, Ordering},
 };
 
 #[derive(Debug)]
-pub struct InterruptUnsafeMutex<T> {
-    value: T,
+pub struct Mutex<T> {
     lock: AtomicBool,
+    value: UnsafeCell<T>,
 }
 
-unsafe impl<T> Sync for InterruptUnsafeMutex<T> {}
+// Soundness: T must be Send because Mutex allows transferring T
+// to another thread that acquires the lock.
+unsafe impl<T: Send> Sync for Mutex<T> {}
 
-impl<T> InterruptUnsafeMutex<T> {
+impl<T> Mutex<T> {
     pub const fn new(value: T) -> Self {
         Self {
-            value,
             lock: AtomicBool::new(false),
+            value: UnsafeCell::new(value),
         }
     }
 
-    pub fn lock<R>(&self, f: impl FnOnce(&T) -> R) -> R {
-        // Spin until we acquire the lock
-        while self
+    /// Primary entry point: Provides &mut T to the closure if the lock is free.
+    pub fn try_lock<R>(&self, f: impl FnOnce(&mut T) -> R) -> Result<R, ()> {
+        if self
             .lock
-            .compare_exchange_weak(false, true, Ordering::SeqCst, Ordering::SeqCst)
-            .is_err()
+            .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
+            .is_ok()
         {
-            // Spin-wait until the lock is free
-            core::hint::spin_loop();
-        }
-        let result = f(&self.value);
-        self.lock.store(false, Ordering::SeqCst);
-        result
-    }
-}
+            // SAFETY: We have exclusive access via the atomic flag.
+            let result = unsafe { f(&mut *self.value.get()) };
 
-impl<T> InterruptUnsafeMutex<Cell<T>> {
-    pub fn get(&self) -> T
+            self.lock.store(false, Ordering::Release);
+            Ok(result)
+        } else {
+            Err(())
+        }
+    }
+
+    /// Sets the value if the lock is available.
+    pub fn try_set(&self, value: T) -> Result<(), ()> {
+        self.try_lock(|inner| *inner = value)
+    }
+
+    /// Returns a copy of the value if the lock is available.
+    pub fn try_get(&self) -> Option<T>
     where
         T: Copy,
     {
-        self.lock(|cell| cell.get())
+        self.try_lock(|inner| *inner).ok()
     }
 
-    pub fn take(&self) -> T
+    /// Replaces the value and returns the old one if the lock is available.
+    pub fn try_replace(&self, value: T) -> Result<T, ()> {
+        self.try_lock(|inner| core::mem::replace(inner, value))
+    }
+
+    /// Takes the value, leaving Default::default() in its place.
+    pub fn try_take(&self) -> Option<T>
     where
         T: Default,
     {
-        self.lock(|cell| cell.take())
-    }
-
-    pub fn set(&self, value: T) {
-        self.lock(|cell| cell.set(value));
+        self.try_lock(|inner| core::mem::take(inner)).ok()
     }
 }

@@ -1,8 +1,8 @@
 use crate::{
     StatusCode,
     attest::psa_token::{
-        AttestClaim, AttestClaimValue, IatClaim, compute_initial_attestation_token_size,
-        encode_initial_attestation_token,
+        AttestClaim, AttestClaimValue, IatClaim, SwComponent,
+        compute_initial_attestation_token_size, encode_initial_attestation_token,
     },
     psa::{psa_api, psa_call::PsaMsg},
     service::{Info, Service},
@@ -23,7 +23,7 @@ pub trait AttestPlatform {
     /// Get the security lifecycle of the device.
     fn security_lifecycle(&self, buf: &mut [u8]) -> Result<(), StatusCode>;
     /// Get the verification service indicator for initial attestation.
-    fn verfication_service(&self, buf: &mut [u8]) -> Result<(), StatusCode>;
+    fn verification_service(&self, buf: &mut [u8]) -> Result<(), StatusCode>;
     /// Get the name of the profile definition document for initial attestation.
     fn profile_definition(&self, buf: &mut [u8]) -> Result<(), StatusCode>;
     /// Generate or retrieve the 32-byte boot seed value used for initial attestation.
@@ -168,10 +168,65 @@ impl<P: AttestPlatform> Service for AttestService<P> {
                     let mut boot_seed = [0u8; 32];
                     self.platform.boot_seed(&mut boot_seed)?;
 
-                    let additional_claims = [AttestClaim {
-                        key: IatClaim::BootSeed,
-                        value: AttestClaimValue::Bytes(&boot_seed),
-                    }];
+                    let additional_claims = [
+                        AttestClaim {
+                            key: IatClaim::ProfileDefinition,
+                            value: AttestClaimValue::Bytes(&{
+                                let mut buf = [0u8; 32];
+                                self.platform.profile_definition(&mut buf)?;
+                                //todo isn't this more than a claim? Do I need an if for the platform prof definition?
+                                buf
+                            }),
+                        },
+                        AttestClaim {
+                            key: IatClaim::ClientId,
+                            value: AttestClaimValue::Signed(1),
+                        },
+                        AttestClaim {
+                            key: IatClaim::SecurityLifecycle,
+                            value: AttestClaimValue::Bytes(&{
+                                let mut buf = [0u8; 32];
+                                self.platform.security_lifecycle(&mut buf)?;
+                                buf
+                            }),
+                        },
+                        AttestClaim {
+                            key: IatClaim::BootSeed,
+                            value: AttestClaimValue::Bytes(&boot_seed),
+                        },
+                        AttestClaim {
+                            key: IatClaim::SwComponents,
+                            value: AttestClaimValue::SwComponents(&[SwComponent {
+                                measurement_type: None,
+                                measurement_value: &[3],
+                                signer_id: &[8],
+                            }]),
+                        },
+                        AttestClaim {
+                            key: IatClaim::CertificationReference,
+                            value: AttestClaimValue::Bytes(&{
+                                let mut buf = [0u8; CERTIFICATION_REF_MAX_SIZE];
+                                self.platform.cert_ref(&mut buf)?;
+                                buf
+                            }),
+                        },
+                        AttestClaim {
+                            key: IatClaim::ImplementationId,
+                            value: AttestClaimValue::Bytes(&{
+                                let mut buf = [0u8; 32];
+                                self.platform.implementation_id(&mut buf)?;
+                                buf
+                            }),
+                        },
+                        AttestClaim {
+                            key: IatClaim::VerificationService,
+                            value: AttestClaimValue::Bytes(&{
+                                let mut buf = [0u8; 32];
+                                self.platform.verification_service(&mut buf)?;
+                                buf
+                            }),
+                        },
+                    ];
 
                     self.initial_attest_get_token(challenge, &additional_claims, token_buf)?;
                     written_len = token_buf.len();
