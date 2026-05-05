@@ -12,36 +12,22 @@ use spe::{
 pub struct Psc3AttestPlatform;
 
 impl attest_service::AttestPlatform for Psc3AttestPlatform {
-    fn security_lifecycle(&self, buf: &mut [u8]) -> Result<(), StatusCode> {
-        // Use unsigned lifecycle value 12288 (0x3000)
-        let lifecycle: u64 = 12288;
-        let bytes = lifecycle.to_ne_bytes();
-        let len = cmp::min(buf.len(), bytes.len());
-        buf[..len].copy_from_slice(&bytes[..len]);
-        if len < buf.len() {
-            buf[len..].fill(0);
-        }
-        Ok(())
+    fn security_lifecycle(&self) -> Result<u32, StatusCode> {
+        Ok(12288)
     }
 
-    fn verification_service(&self, buf: &mut [u8]) -> Result<(), StatusCode> {
+    fn verification_service(&self, buf: &mut [u8]) -> Result<usize, StatusCode> {
         let s = b"https://psa-verifier.org";
         let len = cmp::min(buf.len(), s.len());
         buf[..len].copy_from_slice(&s[..len]);
-        if len < buf.len() {
-            buf[len..].fill(0);
-        }
-        Ok(())
+        Ok(len)
     }
 
-    fn profile_definition(&self, buf: &mut [u8]) -> Result<(), StatusCode> {
+    fn profile_definition(&self, buf: &mut [u8]) -> Result<usize, StatusCode> {
         let s = b"tag:psacertified.org,2023:psa#tfm";
         let len = cmp::min(buf.len(), s.len());
         buf[..len].copy_from_slice(&s[..len]);
-        if len < buf.len() {
-            buf[len..].fill(0);
-        }
-        Ok(())
+        Ok(len)
     }
 
     fn boot_seed(&self, seed: &mut [u8; 32]) -> Result<(), StatusCode> {
@@ -69,10 +55,9 @@ impl attest_service::AttestPlatform for Psc3AttestPlatform {
         Ok(())
     }
 
-    fn cert_ref(&self, buf: &mut [u8; CERTIFICATION_REF_MAX_SIZE]) -> Result<(), StatusCode> {
+    fn cert_ref(&self, buf: &mut [u8; CERTIFICATION_REF_MAX_SIZE]) -> Result<usize, StatusCode> {
         // No certification reference provided; return empty string.
-        buf.fill(0);
-        Ok(())
+        Ok(0)
     }
 }
 

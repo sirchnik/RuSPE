@@ -1,8 +1,7 @@
 use crate::{
     StatusCode,
     libs::cose_sign1::{
-        CoseCrypto, CoseHasher, CoseSign1, CoseSign1Error, RustCryptoBackend, RustCryptoHasher,
-        Sign1Options, encode_payload_bstr,
+        CoseCrypto, CoseSign1, CoseSign1Error, RustCryptoHasher, Sign1Options, encode_payload_bstr,
     },
     psa::psa_api::InternalPsaClient,
 };
@@ -408,5 +407,225 @@ mod tests {
             0x8e, 0xa1, 0x0b, 0x2f, 0x70, 0x41, 0xa9, 0x0e, 0x8e, 0x5a,
         ];
         assert_eq!(&token[..encoded_len], EXPECTED_TOKEN);
+    }
+
+    /// Verify our platform claims use TFM-matching CBOR types:
+    /// - ProfileDefinition (265): text string
+    /// - SecurityLifecycle (2395): unsigned integer
+    /// - VerificationService (2400): text string
+    /// - CertificationReference (2398): text string
+    /// - ImplementationId (2396): byte string
+    /// - BootSeed (268): byte string
+    /// - ClientId (2394): signed integer
+    #[test]
+    fn platform_claims_match_tfm_types() {
+        use super::encode_payload;
+
+        let nonce = [0u8; 32];
+        let boot_seed = [0x1d; 32];
+        let impl_id = b"acme-implementation-id-000000001";
+
+        let sw_components = [SwComponent {
+            measurement_type: None,
+            measurement_value: &[0x03],
+            signer_id: &[0x08],
+        }];
+
+        let claims = [
+            AttestClaim {
+                key: IatClaim::Nonce,
+                value: AttestClaimValue::Bytes(&nonce),
+            },
+            AttestClaim {
+                key: IatClaim::ProfileDefinition,
+                value: AttestClaimValue::Text("tag:psacertified.org,2023:psa#tfm"),
+            },
+            AttestClaim {
+                key: IatClaim::ClientId,
+                value: AttestClaimValue::Signed(1),
+            },
+            AttestClaim {
+                key: IatClaim::SecurityLifecycle,
+                value: AttestClaimValue::Unsigned(12288),
+            },
+            AttestClaim {
+                key: IatClaim::BootSeed,
+                value: AttestClaimValue::Bytes(&boot_seed),
+            },
+            AttestClaim {
+                key: IatClaim::SwComponents,
+                value: AttestClaimValue::SwComponents(&sw_components),
+            },
+            AttestClaim {
+                key: IatClaim::CertificationReference,
+                value: AttestClaimValue::Text(""),
+            },
+            AttestClaim {
+                key: IatClaim::ImplementationId,
+                value: AttestClaimValue::Bytes(impl_id),
+            },
+            AttestClaim {
+                key: IatClaim::VerificationService,
+                value: AttestClaimValue::Text("https://psa-verifier.org"),
+            },
+        ];
+
+        let mut payload_buf = [0u8; 512];
+        let payload_len = encode_payload(&claims, &mut payload_buf).expect("payload should encode");
+        let payload = &payload_buf[..payload_len];
+
+        let mut dec = Decoder::new(payload);
+        let map_len = dec.map().expect("should decode map").unwrap();
+        assert_eq!(map_len, claims.len() as u64);
+
+        // Nonce (10): bytes
+        assert_eq!(dec.i32().unwrap(), IatClaim::Nonce as i32);
+        assert_eq!(dec.bytes().unwrap(), nonce);
+
+        // ProfileDefinition (265): text
+        assert_eq!(dec.i32().unwrap(), IatClaim::ProfileDefinition as i32);
+        assert_eq!(
+            dec.str().unwrap(),
+            "tag:psacertified.org,2023:psa#tfm"
+        );
+
+        // ClientId (2394): signed integer
+        assert_eq!(dec.i32().unwrap(), IatClaim::ClientId as i32);
+        assert_eq!(dec.i64().unwrap(), 1);
+
+        // SecurityLifecycle (2395): unsigned integer
+        assert_eq!(dec.i32().unwrap(), IatClaim::SecurityLifecycle as i32);
+        assert_eq!(dec.u64().unwrap(), 12288);
+
+        // BootSeed (268): bytes
+        assert_eq!(dec.i32().unwrap(), IatClaim::BootSeed as i32);
+        assert_eq!(dec.bytes().unwrap(), boot_seed);
+
+        // SwComponents (2399): array
+        assert_eq!(dec.i32().unwrap(), IatClaim::SwComponents as i32);
+        let arr_len = dec.array().unwrap().unwrap();
+        assert_eq!(arr_len, 1);
+        let comp_map_len = dec.map().unwrap().unwrap();
+        assert_eq!(comp_map_len, 2); // no measurement_type
+        assert_eq!(dec.u8().unwrap(), 5); // signer_id key
+        assert_eq!(dec.bytes().unwrap(), [0x08]);
+        assert_eq!(dec.u8().unwrap(), 2); // measurement_value key
+        assert_eq!(dec.bytes().unwrap(), [0x03]);
+
+        // CertificationReference (2398): text
+        assert_eq!(dec.i32().unwrap(), IatClaim::CertificationReference as i32);
+        assert_eq!(dec.str().unwrap(), "");
+
+        // ImplementationId (2396): bytes
+        assert_eq!(dec.i32().unwrap(), IatClaim::ImplementationId as i32);
+        assert_eq!(dec.bytes().unwrap(), impl_id);
+
+        // VerificationService (2400): text
+        assert_eq!(dec.i32().unwrap(), IatClaim::VerificationService as i32);
+        assert_eq!(dec.str().unwrap(), "https://psa-verifier.org");
+    }
+
+    /// Full token encode/decode roundtrip with platform-style claims.
+    #[test]
+    fn platform_claims_full_token_roundtrip() {
+        let nonce = [0xAA; 32];
+        let boot_seed = [0xBB; 32];
+        let impl_id = b"acme-implementation-id-000000001";
+
+        let sw_components = [SwComponent {
+            measurement_type: None,
+            measurement_value: &[0x03],
+            signer_id: &[0x08],
+        }];
+
+        let claims = [
+            AttestClaim {
+                key: IatClaim::Nonce,
+                value: AttestClaimValue::Bytes(&nonce),
+            },
+            AttestClaim {
+                key: IatClaim::ProfileDefinition,
+                value: AttestClaimValue::Text("tag:psacertified.org,2023:psa#tfm"),
+            },
+            AttestClaim {
+                key: IatClaim::ClientId,
+                value: AttestClaimValue::Signed(1),
+            },
+            AttestClaim {
+                key: IatClaim::SecurityLifecycle,
+                value: AttestClaimValue::Unsigned(12288),
+            },
+            AttestClaim {
+                key: IatClaim::BootSeed,
+                value: AttestClaimValue::Bytes(&boot_seed),
+            },
+            AttestClaim {
+                key: IatClaim::SwComponents,
+                value: AttestClaimValue::SwComponents(&sw_components),
+            },
+            AttestClaim {
+                key: IatClaim::CertificationReference,
+                value: AttestClaimValue::Text(""),
+            },
+            AttestClaim {
+                key: IatClaim::ImplementationId,
+                value: AttestClaimValue::Bytes(impl_id),
+            },
+            AttestClaim {
+                key: IatClaim::VerificationService,
+                value: AttestClaimValue::Text("https://psa-verifier.org"),
+            },
+        ];
+
+        let mut token = [0u8; crate::attest::attest_service::PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE];
+        let encoded_len = encode_initial_attestation_token(&claims, &mut token, TEST_PRIVATE_KEY)
+            .expect("token should encode");
+
+        let payload = decode_payload_from_token(&token[..encoded_len]);
+        let mut dec = Decoder::new(payload);
+        let map_len = dec.map().expect("map should decode").unwrap();
+        assert_eq!(map_len, claims.len() as u64);
+
+        // Verify nonce
+        assert_eq!(dec.i32().unwrap(), IatClaim::Nonce as i32);
+        assert_eq!(dec.bytes().unwrap(), nonce);
+
+        // ProfileDefinition is text
+        assert_eq!(dec.i32().unwrap(), IatClaim::ProfileDefinition as i32);
+        assert_eq!(dec.str().unwrap(), "tag:psacertified.org,2023:psa#tfm");
+
+        // ClientId is integer
+        assert_eq!(dec.i32().unwrap(), IatClaim::ClientId as i32);
+        assert_eq!(dec.i64().unwrap(), 1);
+
+        // SecurityLifecycle is unsigned integer
+        assert_eq!(dec.i32().unwrap(), IatClaim::SecurityLifecycle as i32);
+        assert_eq!(dec.u64().unwrap(), 12288);
+
+        // BootSeed is bytes
+        assert_eq!(dec.i32().unwrap(), IatClaim::BootSeed as i32);
+        assert_eq!(dec.bytes().unwrap(), boot_seed);
+
+        // Skip SwComponents decoding (already tested above)
+        assert_eq!(dec.i32().unwrap(), IatClaim::SwComponents as i32);
+        let arr_len = dec.array().unwrap().unwrap();
+        assert_eq!(arr_len, 1);
+        dec.map().unwrap(); // skip component map header
+        dec.u8().unwrap();
+        dec.bytes().unwrap();
+        dec.u8().unwrap();
+        dec.bytes().unwrap();
+
+        // CertificationReference is text
+        assert_eq!(dec.i32().unwrap(), IatClaim::CertificationReference as i32);
+        assert_eq!(dec.str().unwrap(), "");
+
+        // ImplementationId is bytes
+        assert_eq!(dec.i32().unwrap(), IatClaim::ImplementationId as i32);
+        assert_eq!(dec.bytes().unwrap(), impl_id);
+
+        // VerificationService is text
+        assert_eq!(dec.i32().unwrap(), IatClaim::VerificationService as i32);
+        assert_eq!(dec.str().unwrap(), "https://psa-verifier.org");
     }
 }

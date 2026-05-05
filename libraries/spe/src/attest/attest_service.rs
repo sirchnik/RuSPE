@@ -20,18 +20,18 @@ pub const PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE: usize = 0x250;
 pub const CERTIFICATION_REF_MAX_SIZE: usize = 19;
 
 pub trait AttestPlatform {
-    /// Get the security lifecycle of the device.
-    fn security_lifecycle(&self, buf: &mut [u8]) -> Result<(), StatusCode>;
-    /// Get the verification service indicator for initial attestation.
-    fn verification_service(&self, buf: &mut [u8]) -> Result<(), StatusCode>;
-    /// Get the name of the profile definition document for initial attestation.
-    fn profile_definition(&self, buf: &mut [u8]) -> Result<(), StatusCode>;
+    /// Get the security lifecycle of the device as a numeric lifecycle code.
+    fn security_lifecycle(&self) -> Result<u32, StatusCode>;
+    /// Get the verification service indicator (UTF-8 text). Returns number of bytes written.
+    fn verification_service(&self, buf: &mut [u8]) -> Result<usize, StatusCode>;
+    /// Get the name of the profile definition document (UTF-8 text). Returns number of bytes written.
+    fn profile_definition(&self, buf: &mut [u8]) -> Result<usize, StatusCode>;
     /// Generate or retrieve the 32-byte boot seed value used for initial attestation.
     fn boot_seed(&self, seed: &mut [u8; 32]) -> Result<(), StatusCode>;
     /// Get the implementation ID of the device.
     fn implementation_id(&self, buf: &mut [u8; 32]) -> Result<(), StatusCode>;
-    /// Get the hardware version of the device.
-    fn cert_ref(&self, buf: &mut [u8; CERTIFICATION_REF_MAX_SIZE]) -> Result<(), StatusCode>;
+    /// Get the hardware version (UTF-8 text, EAN-13 format). Returns number of bytes written.
+    fn cert_ref(&self, buf: &mut [u8; CERTIFICATION_REF_MAX_SIZE]) -> Result<usize, StatusCode>;
 }
 
 /// Upper bound on the number of claims (Nonce + caller-supplied) that can be
@@ -168,15 +168,32 @@ impl<P: AttestPlatform> Service for AttestService<P> {
                     let mut boot_seed = [0u8; 32];
                     self.platform.boot_seed(&mut boot_seed)?;
 
+                    let mut profile_buf = [0u8; 64];
+                    let profile_len = self.platform.profile_definition(&mut profile_buf)?;
+                    let profile_str = core::str::from_utf8(&profile_buf[..profile_len])
+                        .map_err(|_| StatusCode::InvalidArgument)?;
+
+                    let security_lifecycle = self.platform.security_lifecycle()?;
+
+                    let mut verification_buf = [0u8; 64];
+                    let verification_len =
+                        self.platform.verification_service(&mut verification_buf)?;
+                    let verification_str =
+                        core::str::from_utf8(&verification_buf[..verification_len])
+                            .map_err(|_| StatusCode::InvalidArgument)?;
+
+                    let mut cert_ref_buf = [0u8; CERTIFICATION_REF_MAX_SIZE];
+                    let cert_ref_len = self.platform.cert_ref(&mut cert_ref_buf)?;
+                    let cert_ref_str = core::str::from_utf8(&cert_ref_buf[..cert_ref_len])
+                        .map_err(|_| StatusCode::InvalidArgument)?;
+
+                    let mut impl_id = [0u8; 32];
+                    self.platform.implementation_id(&mut impl_id)?;
+
                     let additional_claims = [
                         AttestClaim {
                             key: IatClaim::ProfileDefinition,
-                            value: AttestClaimValue::Bytes(&{
-                                let mut buf = [0u8; 32];
-                                self.platform.profile_definition(&mut buf)?;
-                                //todo isn't this more than a claim? Do I need an if for the platform prof definition?
-                                buf
-                            }),
+                            value: AttestClaimValue::Text(profile_str),
                         },
                         AttestClaim {
                             key: IatClaim::ClientId,
@@ -184,11 +201,7 @@ impl<P: AttestPlatform> Service for AttestService<P> {
                         },
                         AttestClaim {
                             key: IatClaim::SecurityLifecycle,
-                            value: AttestClaimValue::Bytes(&{
-                                let mut buf = [0u8; 32];
-                                self.platform.security_lifecycle(&mut buf)?;
-                                buf
-                            }),
+                            value: AttestClaimValue::Unsigned(security_lifecycle as u64),
                         },
                         AttestClaim {
                             key: IatClaim::BootSeed,
@@ -204,27 +217,15 @@ impl<P: AttestPlatform> Service for AttestService<P> {
                         },
                         AttestClaim {
                             key: IatClaim::CertificationReference,
-                            value: AttestClaimValue::Bytes(&{
-                                let mut buf = [0u8; CERTIFICATION_REF_MAX_SIZE];
-                                self.platform.cert_ref(&mut buf)?;
-                                buf
-                            }),
+                            value: AttestClaimValue::Text(cert_ref_str),
                         },
                         AttestClaim {
                             key: IatClaim::ImplementationId,
-                            value: AttestClaimValue::Bytes(&{
-                                let mut buf = [0u8; 32];
-                                self.platform.implementation_id(&mut buf)?;
-                                buf
-                            }),
+                            value: AttestClaimValue::Bytes(&impl_id),
                         },
                         AttestClaim {
                             key: IatClaim::VerificationService,
-                            value: AttestClaimValue::Bytes(&{
-                                let mut buf = [0u8; 32];
-                                self.platform.verification_service(&mut buf)?;
-                                buf
-                            }),
+                            value: AttestClaimValue::Text(verification_str),
                         },
                     ];
 
