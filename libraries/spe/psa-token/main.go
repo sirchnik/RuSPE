@@ -18,12 +18,11 @@ func main() {
 	var tokenHex = flag.String("token-hex", "", "PSA token as full hex string (COSE_Sign1 bytes)")
 	flag.Parse()
 
-	// Load optional local constants from ./constants.local
-	locals := loadLocals("constants.local")
-	constants := loadLocals("constants")
+	locals := loadConstants("constants.local")
+	constants := loadConstants("constants")
 
 	if *tokenHex == "" {
-		println("Using hardcoded token hex from RuSPE (override with -token-hex or constants.local):")
+		fmt.Println("Using hardcoded token hex from RuSPE (override with -token-hex or constants.local):")
 		if v, ok := locals["TOKEN_RUSPE"]; ok && v != "" {
 			*tokenHex = v
 		} else {
@@ -33,8 +32,7 @@ func main() {
 	}
 
 	if *tokenHex == "tfm" {
-		// temporary hardcoded the token (TFM P2 test vector)
-		println("Using tfm token:")
+		fmt.Println("Using tfm token:")
 		if v, ok := constants["TOKEN_TFM"]; ok && v != "" {
 			*tokenHex = v
 		} else {
@@ -43,22 +41,17 @@ func main() {
 		}
 	}
 
-	// 1. Decode the hex string into raw bytes
 	coseBytes, err := decodeHexString(*tokenHex)
 	must("decode token hex", err)
 
-	// 2. Decode and validate the COSE_Sign1 message using psatoken library
 	ev, err := psatoken.DecodeAndValidateEvidenceFromCOSE(coseBytes)
 	must("decode and validate evidence from COSE", err)
 
-	// 3. Extract and display claims
 	fmt.Println("--- PSA Token Claims ---")
 	inspectClaims(ev.Claims)
 
-	// 4. (Optional) Verify signature if you have the public key
-	// Defaults for JWK values; may be overridden by constants.local
-	var jwkX = "Tl4iCZ47zrRbRG0TVf0dw7VFlHtv18HInYhnmMNybo8"
-	var jwkY = "gNcLhAslaqw0pi7eEEM2TwRAlfADR0uR4Bggkq-xPy4"
+	jwkX := "Tl4iCZ47zrRbRG0TVf0dw7VFlHtv18HInYhnmMNybo8"
+	jwkY := "gNcLhAslaqw0pi7eEEM2TwRAlfADR0uR4Bggkq-xPy4"
 
 	if v, ok := locals["JWK_X"]; ok && v != "" {
 		jwkX = v
@@ -70,9 +63,9 @@ func main() {
 	pubKey, err := ecdsaPublicKeyFromJWK_P256(jwkX, jwkY)
 	if err == nil {
 		if err := ev.Verify(pubKey); err != nil {
-			fmt.Printf("Signature verification failed: %v\n", err)
+			fmt.Printf("\033[31m✗ Signature verification failed:\033[0m %v\n", err)
 		} else {
-			fmt.Println("Signature verification: OK")
+			fmt.Printf("\033[32m✓ Signature verification: OK\033[0m\n")
 		}
 	}
 }
@@ -157,8 +150,6 @@ func inspectClaims(c psatoken.IClaims) {
 	}
 }
 
-// ... (Rest of your helper functions: decodeHexString, ecdsaPublicKeyFromJWK_P256, must)
-
 func decodeHexString(s string) ([]byte, error) {
 	s = strings.TrimSpace(s)
 	s = strings.TrimPrefix(s, "0x")
@@ -188,8 +179,8 @@ func must(what string, err error) {
 	}
 }
 
-// loadLocals reads a simple key=value file and returns a map of values.
-func loadLocals(path string) map[string]string {
+// loadConstants reads a simple key=value file and returns a map of values.
+func loadConstants(path string) map[string]string {
 	m := make(map[string]string)
 	data, err := os.ReadFile(path)
 	if err != nil {
