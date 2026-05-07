@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Infineon Technologies AG 2026.
 
+use core::cell::Cell;
 use core::{fmt::Write, panic::PanicInfo};
 
 pub struct Writer {
@@ -9,7 +10,7 @@ pub struct Writer {
 }
 
 impl Writer {
-    pub fn set_serial(&self, scb: &'static psc3::scb::Scb) {
+    pub fn set_serial(&self, scb: &'static psc3::scb::Scb<'static>) {
         self.serial.set(Some(scb));
     }
 }
@@ -17,6 +18,7 @@ impl Writer {
 impl core::fmt::Write for Writer {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         self.serial
+            .get()
             .map(|serial| serial.transmit_uart_sync(s.as_bytes()));
         Ok(())
     }
