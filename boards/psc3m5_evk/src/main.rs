@@ -12,9 +12,9 @@ use core::ptr::addr_of_mut;
 
 use psc3::chip::{Psc3, Psc3DefaultPeripherals};
 use psc3::tcpwm::Tcpwm0;
-use psc3::{chip_init, gpio};
 #[allow(unused)]
 use psc3::{BASE_VECTORS, IRQS};
+use psc3::{chip_init, gpio};
 
 use kernel::static_init;
 
@@ -28,7 +28,7 @@ mod io;
 kernel::stack_size! {0x1000}
 
 // These symbols are defined in the linker script.
-extern "C" {
+unsafe extern "C" {
     /// Beginning of the ROM region containing app images.
     static _sapps: u8;
     /// End of the ROM region containing app images.
@@ -42,7 +42,7 @@ extern "C" {
 }
 
 /// Main function called after RAM initialized.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe fn main() {
     cortexm33::support::dmb();
     // set vector-table when coming from secure world

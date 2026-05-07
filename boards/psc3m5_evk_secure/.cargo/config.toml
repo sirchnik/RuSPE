@@ -11,8 +11,6 @@ include = [
 target = "thumbv8m.main-none-eabi"
 rustflags = [
   # # todo required for build_scripts but should work without / does work inside the tock repo
-  "-C",
-  "embed-bitcode=yes",
   # Output secure veneer library
   "-C",
   "link-arg=--cmse-implib",
