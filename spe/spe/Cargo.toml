@@ -8,12 +8,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-minicbor = {version="2.2.1", default-features = false}
-p256 = {version ="0.13.2", features = ["ecdsa","ecdh"], default-features = false }
-sha2 = { version = "0.11.0", default-features = false } 
+minicbor = { version = "2.2.1", default-features = false }
+p256 = { version = "0.13.2", features = [
+    "ecdsa",
+    "ecdh",
+], default-features = false }
+sha2 = { version = "0.11.0", default-features = false }
 signature = { version = "2.2.0", default-features = false }
-tock-cells = { path = "../tock-cells" }
-cortexm33 = { path = "../../arch/cortex-m33" }
+cortexm33 = { path = "../../tock/arch/cortex-m33" }
 psa_interface = { path = "../psa_interface" }
 
 [lints]

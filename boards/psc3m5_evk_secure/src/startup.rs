@@ -145,6 +145,7 @@ pub unsafe extern "C" fn unhandled_interrupt() {
 
     let mut interrupt_number: u32;
 
+    unsafe{
     // IPSR[8:0] holds the currently active interrupt
     asm!(
         "
@@ -153,6 +154,7 @@ pub unsafe extern "C" fn unhandled_interrupt() {
         out("r0") interrupt_number,
         options(nomem, nostack, preserves_flags),
     );
+}
 
     interrupt_number &= 0x1ff;
 

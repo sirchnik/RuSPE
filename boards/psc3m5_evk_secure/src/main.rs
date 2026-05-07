@@ -37,7 +37,7 @@ mod platform;
 mod security;
 mod startup;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe fn main() {
     icache::sys_init_enable_cache();
     chip_init::preinit_peripherals();
@@ -51,10 +51,12 @@ pub unsafe fn main() {
     scb0.set_standard_uart_mode();
     scb0.enable_scb();
 
+    unsafe{
     (*addr_of_mut!(io::WRITER)).set_serial(scb0);
 
     cortexm33::nvic::set_interrupt_non_secure(0, 140);
     cortexm33::nvic::enable_all();
+    }
 
     // useless. strangely only setting vector table in scb from ns works
     // mxcm33::set_ns_vector_table_base(security::NONSECURE_START_FLASH as u32);
@@ -117,7 +119,7 @@ pub unsafe fn main() {
     io::debugln(format_args!("Init SPE done, jumping to non-secure"));
 
     #[cfg(all(target_arch = "arm", target_os = "none"))]
-    {
+    unsafe {
         let [nonsecure_sp, nonsecure_reset] = security::NONSECURE_START_FLASH.read_volatile();
 
         // Set non-secure main stack pointer

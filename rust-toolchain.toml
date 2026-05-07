@@ -1,0 +1,15 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2023.
+
+[toolchain]
+channel = "nightly-2025-11-03"
+components = [
+    "miri",
+    "llvm-tools",
+    "rust-src",
+    "rustfmt",
+    "clippy",
+    "rust-analyzer",
+]
+targets = ["thumbv8m.main-none-eabi"]
