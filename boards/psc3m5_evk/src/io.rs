@@ -8,12 +8,9 @@ use core::fmt::Write;
 use core::panic::PanicInfo;
 use kernel::utilities::cells::OptionalCell;
 
-use psc3::gpio;
-use psc3::gpio::GpioPin;
 use psc3::scb::Scb;
 
-use kernel::debug::{self, IoWrite};
-use kernel::hil::led::LedHigh;
+use kernel::debug::IoWrite;
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {

@@ -68,6 +68,41 @@ impl From<StatusCode> for PsaStatus {
     }
 }
 
+impl TryFrom<PsaStatus> for StatusCode {
+    type Error = PsaStatus;
+
+    fn try_from(status: PsaStatus) -> Result<Self, Self::Error> {
+        match status {
+            0 => Ok(StatusCode::_Success),
+            -129 => Ok(StatusCode::ProgrammerError),
+            -130 => Ok(StatusCode::ConnectionRefused),
+            -131 => Ok(StatusCode::ConnectionBusy),
+            -132 => Ok(StatusCode::GenericError),
+            -133 => Ok(StatusCode::NotPermitted),
+            -134 => Ok(StatusCode::NotSupported),
+            -135 => Ok(StatusCode::InvalidArgument),
+            -136 => Ok(StatusCode::InvalidHandle),
+            -137 => Ok(StatusCode::BadState),
+            -138 => Ok(StatusCode::BufferTooSmall),
+            -139 => Ok(StatusCode::AlreadyExists),
+            -140 => Ok(StatusCode::DoesNotExist),
+            -141 => Ok(StatusCode::InsufficientMemory),
+            -142 => Ok(StatusCode::InsufficientStorage),
+            -143 => Ok(StatusCode::InsufficientData),
+            -144 => Ok(StatusCode::ServiceFailure),
+            -145 => Ok(StatusCode::CommunicationFailure),
+            -146 => Ok(StatusCode::StorageFailure),
+            -147 => Ok(StatusCode::HardwareFailure),
+            -149 => Ok(StatusCode::InvalidSignature),
+            -151 => Ok(StatusCode::CorruptionDetected),
+            -152 => Ok(StatusCode::DataCorrupt),
+            -153 => Ok(StatusCode::DataInvalid),
+            -248 => Ok(StatusCode::OperationIncomplete),
+            _ => Err(status),
+        }
+    }
+}
+
 /// Convert a PSA result to a [`PsaStatus`] integer for FFI/veneer return.
 ///
 /// `Ok(())` becomes `_Success` (0); errors become their PSA-defined

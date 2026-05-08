@@ -9,6 +9,7 @@ members = [
     "spe/psa_veneer_client",
     "spe/spe",
     "boards/psc3m5_evk",
+    "boards/psc3m5_evk_tock",
     "boards/psc3m5_evk_secure",
 ]
 exclude = ["tock"]
