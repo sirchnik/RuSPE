@@ -14,25 +14,42 @@ OR\
 OpenOCD from
 [ModusToolbox™ Programming Tools](https://softwaretools.infineon.com/tools/com.ifx.tb.tool.modustoolboxprogtools)
 
+Install the Python tooling from the repository root:
+
+```bash
+$ pip install -r requirements.txt
+$ rustup component add llvm-tools-preview
+$ cargo install cargo-binutils
+```
+
 ## Flashing the kernel
 
 The kernel can be programmed by going inside the board's directory and running:
 
 ```bash
-$ make flash # program for OpenOCD
+$ invoke flash
 ```
 
 ## Flashing an app
 
 Apps are built out-of-tree. Once an app is built, you must add the path to the
-generated TBF in the Makefile (APP variable), then run:
+generated TBF on the command line, then run:
 
 ```bash
-$ make flash APP=path/to/app.tbf # program for OpenOCD
+$ invoke flash --app path/to/app.tbf
 ```
 
 This will generate a new ELF file that can be deployed on the board via gdb and
 probe-rs.
+
+To validate the local toolchain before building, run:
+
+```bash
+$ invoke check-tools
+```
+
+The build tasks use `rust-objcopy` when available and otherwise fall back to
+Rust's bundled `llvm-objcopy` from `llvm-tools-preview`.
 
 ## Protection Contexts
 

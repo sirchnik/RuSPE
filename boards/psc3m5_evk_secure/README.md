@@ -21,8 +21,26 @@ non-secure world after initialization.
 2. Build and flash the secure world application:
 
    ```bash
-   make flash
+   invoke flash
    ```
 
    This will build the secure world application, merge it with the non-secure
    kernel, and flash the combined binary to the board.
+
+Install the Python tooling from the repository root before using the Invoke
+tasks:
+
+```bash
+pip install -r requirements.txt
+rustup component add llvm-tools-preview
+cargo install cargo-binutils
+```
+
+To validate the local toolchain before building, run:
+
+```bash
+invoke check-tools
+```
+
+The build tasks use `rust-objcopy` when available and otherwise fall back to
+Rust's bundled `llvm-objcopy` from `llvm-tools-preview`.
