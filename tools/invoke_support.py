@@ -2,16 +2,32 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from dataclasses import dataclass
+from functools import wraps
 from pathlib import Path
 from shutil import copy2, which
 
 from invoke.context import Context
-from invoke.exceptions import Failure, UnexpectedExit
+from invoke.exceptions import Exit, Failure, UnexpectedExit
 
 
 class BuildError(RuntimeError):
     """Raised when a build step cannot be completed."""
+
+
+def handle_build_errors(func):
+    """Decorator that catches BuildError and exits with a clean message."""
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except BuildError as exc:
+            print(f"\nerror: {exc}", file=sys.stderr)
+            raise Exit(code=1) from None
+
+    return wrapper
 
 
 @dataclass(frozen=True)
@@ -134,11 +150,12 @@ def resolve_objcopy(ctx: Context) -> Path | None:
     return None
 
 
-def cargo_build(ctx: Context, board: BoardConfig, debug: bool) -> None:
+def cargo_build(ctx: Context, board: BoardConfig, debug: bool) -> Path:
     command = ["cargo", "build"]
     if not debug:
         command.append("--release")
     run_command(ctx, command, cwd=board.board_dir)
+    return board.kernel_image(debug)
 
 
 def inject_app(ctx: Context, board: BoardConfig, debug: bool, app: str | None) -> Path:
@@ -188,44 +205,6 @@ def build_non_secure(
     return inject_app(ctx, board, debug, app)
 
 
-def flash_non_secure(
-    ctx: Context, board: BoardConfig, debug: bool, app: str | None
-) -> Path:
-    kernel_with_app = build_non_secure(ctx, board, debug, app)
-    run_command(
-        ctx,
-        ["probe-rs", "run", "--chip", board.chip, str(kernel_with_app)],
-        cwd=board.board_dir,
-    )
-    return kernel_with_app
-
-
-def program_non_secure(
-    ctx: Context, board: BoardConfig, debug: bool, app: str | None
-) -> Path:
-    kernel_with_app = build_non_secure(ctx, board, debug, app)
-    openocd = resolve_openocd()
-    if openocd is None:
-        raise BuildError(
-            "OpenOCD was not found. Set OPENOCD_ROOT or add openocd to PATH."
-        )
-    if board.openocd_tcl is None or not board.openocd_tcl.exists():
-        raise BuildError(f"OpenOCD configuration does not exist: {board.openocd_tcl}")
-
-    run_command(
-        ctx,
-        [
-            str(openocd),
-            "-f",
-            str(board.openocd_tcl),
-            "-c",
-            f"init; reset init; program {kernel_with_app}; reset; shutdown",
-        ],
-        cwd=board.board_dir,
-    )
-    return kernel_with_app
-
-
 def elf_to_hex(
     ctx: Context, input_image: Path, output_hex: Path, board_dir: Path
 ) -> Path:
@@ -264,30 +243,27 @@ def merge_hex_images(output_path: Path, input_paths: list[Path]) -> Path:
     return output_path
 
 
-def build_secure_non_secure_hex(
+def merge_secure_non_secure_hex(
     ctx: Context,
     secure_board: BoardConfig,
     non_secure_board: BoardConfig,
+    secure_elf: Path,
+    non_secure_elf: Path,
     debug: bool,
-    app: str | None,
 ) -> Path:
-    cargo_build(ctx, secure_board, debug)
-    non_secure_kernel = build_non_secure(ctx, non_secure_board, debug, app)
-
-    secure_image = secure_board.kernel_image(debug)
-    if not secure_image.exists():
-        raise BuildError(f"Secure image does not exist: {secure_image}")
+    if not secure_elf.exists():
+        raise BuildError(f"Secure image does not exist: {secure_elf}")
 
     target_root = secure_board.target_root(debug)
     secure_hex = elf_to_hex(
         ctx,
-        secure_image,
+        secure_elf,
         target_root / f"{secure_board.platform}.hex",
         secure_board.board_dir,
     )
     non_secure_hex = elf_to_hex(
         ctx,
-        non_secure_kernel,
+        non_secure_elf,
         target_root / f"{non_secure_board.platform}-app.hex",
         secure_board.board_dir,
     )
@@ -297,62 +273,41 @@ def build_secure_non_secure_hex(
     return merged_hex
 
 
-def flash_secure(
-    ctx: Context,
-    secure_board: BoardConfig,
-    non_secure_board: BoardConfig,
-    debug: bool,
-    app: str | None,
-) -> Path:
-    merged_hex = build_secure_non_secure_hex(
-        ctx, secure_board, non_secure_board, debug, app
-    )
+def flash_hex(ctx: Context, board: BoardConfig, hex_path: Path) -> Path:
     run_command(
         ctx,
         [
             "probe-rs",
             "download",
             "--chip",
-            secure_board.chip,
+            board.chip,
             "--binary-format",
             "hex",
-            str(merged_hex),
+            str(hex_path),
         ],
-        cwd=secure_board.board_dir,
+        cwd=board.board_dir,
     )
-    return merged_hex
+    return hex_path
 
 
-def program_secure(
-    ctx: Context,
-    secure_board: BoardConfig,
-    non_secure_board: BoardConfig,
-    debug: bool,
-    *,
-    app: str | None,
-) -> Path:
-    merged_hex = build_secure_non_secure_hex(
-        ctx, secure_board, non_secure_board, debug, app
-    )
+def program_hex(ctx: Context, board: BoardConfig, hex_path: Path) -> Path:
     openocd = resolve_openocd()
     if openocd is None:
         raise BuildError(
             "OpenOCD was not found. Set OPENOCD_ROOT or add openocd to PATH."
         )
-    if secure_board.openocd_tcl is None or not secure_board.openocd_tcl.exists():
-        raise BuildError(
-            f"OpenOCD configuration does not exist: {secure_board.openocd_tcl}"
-        )
+    if board.openocd_tcl is None or not board.openocd_tcl.exists():
+        raise BuildError(f"OpenOCD configuration does not exist: {board.openocd_tcl}")
 
     run_command(
         ctx,
         [
             str(openocd),
             "-f",
-            str(secure_board.openocd_tcl),
+            str(board.openocd_tcl),
             "-c",
-            f"init; reset init; program {merged_hex}; reset; shutdown",
+            f"init; reset init; program {hex_path}; reset; shutdown",
         ],
-        cwd=secure_board.board_dir,
+        cwd=board.board_dir,
     )
-    return merged_hex
+    return hex_path

@@ -574,6 +574,7 @@ name = "psa_tock_app"
 version = "0.1.0"
 dependencies = [
  "libtock",
+ "libtock_build_scripts",
 ]
 
 [[package]]

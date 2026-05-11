@@ -5,23 +5,26 @@ from pathlib import Path
 
 from invoke.tasks import task
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from boards.psc3m5_evk_secure import tasks as secure_tasks  # noqa: E402
 from tools.invoke_support import (  # noqa: E402
     BoardConfig,
-    build_secure_non_secure_hex,
-    flash_secure,
-    program_secure,
+    build_non_secure,
+    flash_hex,
+    handle_build_errors,
+    merge_secure_non_secure_hex,
+    program_hex,
 )
 
 
-BOARD_DIR = Path(__file__).resolve().parent
-NON_SECURE_DIR = BOARD_DIR.parent / "psc3m5_evk_test"
+NON_SECURE_DIR = Path(__file__).resolve().parent
+SECURE_BOARD_DIR = NON_SECURE_DIR.parent / "psc3m5_evk_secure"
 
 SECURE_BOARD = BoardConfig(
-    board_dir=BOARD_DIR,
+    board_dir=SECURE_BOARD_DIR,
     repo_root=REPO_ROOT,
     chip="PSC3M5FDS2AFQ1",
     openocd_tcl=NON_SECURE_DIR / "openocd.tcl",
@@ -38,31 +41,48 @@ DEBUG_HELP = "Build the debug profile instead of release."
 TOOLS = ["cargo", "objcopy", "probe-rs", "openocd"]
 
 
-@task(help={"debug": DEBUG_HELP})
-def build(ctx, debug=False):
-    """Build the secure image, merge it with the non-secure kernel, and write a HEX output."""
-
-    build_secure_non_secure_hex(
-        ctx, SECURE_BOARD, NON_SECURE_BOARD, bool(debug), app=None
+def _build_merged(ctx, debug: bool) -> Path:
+    secure_elf = secure_tasks.build(ctx, debug=debug)
+    non_secure_elf = build_non_secure(ctx, NON_SECURE_BOARD, debug, app=None)
+    return merge_secure_non_secure_hex(
+        ctx,
+        SECURE_BOARD,
+        NON_SECURE_BOARD,
+        secure_elf,
+        non_secure_elf,
+        debug,
     )
 
 
 @task(help={"debug": DEBUG_HELP})
-def flash(ctx, debug=False):
-    """Build, merge, and flash the secure and non-secure images with probe-rs."""
+@handle_build_errors
+def build(ctx, debug=False):
+    """Build the secure image, merge it with the non-secure kernel, and write a HEX output."""
 
-    flash_secure(ctx, SECURE_BOARD, NON_SECURE_BOARD, bool(debug), app=None)
+    return _build_merged(ctx, bool(debug))
 
 
 @task(help={"debug": DEBUG_HELP})
+@handle_build_errors
+def flash(ctx, debug=False):
+    """Build, merge, and flash the secure and non-secure images with probe-rs."""
+
+    merged = _build_merged(ctx, bool(debug))
+    return flash_hex(ctx, SECURE_BOARD, merged)
+
+
+@task(help={"debug": DEBUG_HELP})
+@handle_build_errors
 def program(ctx, debug=False):
     """Build, merge, and program the secure image with OpenOCD."""
 
-    program_secure(ctx, SECURE_BOARD, NON_SECURE_BOARD, bool(debug), app=None)
+    merged = _build_merged(ctx, bool(debug))
+    return program_hex(ctx, SECURE_BOARD, merged)
 
 
 @task(default=True, help={"debug": DEBUG_HELP})
+@handle_build_errors
 def install(ctx, debug=False):
     """Alias for flash."""
 
-    flash(ctx, debug=debug)
+    return flash(ctx, debug=debug)

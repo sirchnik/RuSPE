@@ -7,9 +7,8 @@ use core::fmt::Write;
 use libtock::buttons::{ButtonListener, Buttons};
 use libtock::console::Console;
 use libtock::leds::Leds;
-use libtock::runtime::{set_main, stack_size};
-use libtock_platform::{share, Syscalls};
-use libtock_runtime::TockSyscalls;
+use libtock::platform::{share, Syscalls};
+use libtock::runtime::{set_main, stack_size, TockSyscalls};
 
 set_main! {main}
 stack_size! {0x1000}
