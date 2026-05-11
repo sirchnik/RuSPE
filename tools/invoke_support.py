@@ -10,6 +10,7 @@ from shutil import copy2, which
 
 from invoke.context import Context
 from invoke.exceptions import Exit, Failure, UnexpectedExit
+from invoke.tasks import task
 
 
 class BuildError(RuntimeError):
@@ -28,6 +29,17 @@ def handle_build_errors(func):
             raise Exit(code=1) from None
 
     return wrapper
+
+
+def build_task(_func=None, **task_kwargs):
+    """Combine @task and @handle_build_errors into a single decorator."""
+
+    def decorator(func):
+        return task(**task_kwargs)(handle_build_errors(func))
+
+    if _func is not None:
+        return task(**task_kwargs)(handle_build_errors(_func))
+    return decorator
 
 
 @dataclass(frozen=True)
