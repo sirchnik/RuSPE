@@ -10,13 +10,13 @@
 
 use core::ptr::addr_of_mut;
 
+use helpers::static_init;
 use psc3::{chip_init, gpio, icache, peri_clk};
 use spe::{
     attest::attest_service::{self},
     crypto::crypto_service,
     psa::psa_api,
     spm::spm::{self},
-    static_init,
 };
 
 use crate::platform::{Psc3AttestPlatform, Psc3SecPlatform};

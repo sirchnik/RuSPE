@@ -242,15 +242,15 @@ pub unsafe fn main() {
         resources.printer.put(process_printer);
     });
 
-    let process_console = components::process_console::ProcessConsoleComponent::new(
-        board_kernel,
-        uart_mux,
-        mux_alarm,
-        process_printer,
-        Some(cortexm33::support::reset),
-    )
-    .finalize(components::process_console_component_static!(Tcpwm0));
-    let _ = process_console.start();
+    // let process_console = components::process_console::ProcessConsoleComponent::new(
+    //     board_kernel,
+    //     uart_mux,
+    //     mux_alarm,
+    //     process_printer,
+    //     Some(cortexm33::support::reset),
+    // )
+    // .finalize(components::process_console_component_static!(Tcpwm0));
+    // let _ = process_console.start();
 
     let led_pin = peripherals.gpio.get_pin(gpio::PsocPin::P8_4);
     led_pin.preconfigure(&GPIO_CONFIG);
@@ -334,6 +334,15 @@ pub unsafe fn main() {
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
+    #[cfg(feature = "non_secure_tz")]
+    let spe_client = static_init!(
+        crate::spe_adapter::SpeAdapter,
+        crate::spe_adapter::SpeAdapter::new(board_kernel.create_grant(
+            crate::spe_adapter::DRIVER_NUM,
+            &memory_allocation_capability,
+        ),)
+    );
+
     let psc3_platform = Psc3Plattform {
         ipc: kernel::ipc::IPC::new(
             board_kernel,
@@ -347,7 +356,7 @@ pub unsafe fn main() {
         led,
         button,
         #[cfg(feature = "non_secure_tz")]
-        spe_client: &crate::spe_adapter::SpeAdapter,
+        spe_client,
         gpio,
     };
 

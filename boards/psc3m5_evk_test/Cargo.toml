@@ -16,6 +16,7 @@ psc3 = { path = "../../tock/chips/psc3" }
 
 psa_veneer_client = { path = "../../spe/psa_veneer_client" }
 psa_interface = { path = "../../spe/psa_interface" }
+helpers = { path = "../../libraries/helpers" }
 
 [features]
 default = ["non_secure_tz"]

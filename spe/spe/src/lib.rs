@@ -13,7 +13,6 @@ mod libs;
 pub mod psa;
 pub mod service;
 pub mod spm;
-pub mod static_init;
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 pub mod veneers;
 

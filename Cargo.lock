@@ -250,6 +250,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "helpers"
+version = "0.1.0"
+
+[[package]]
 name = "hkdf"
 version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -598,6 +602,7 @@ name = "psc3m5_evk_secure"
 version = "0.1.0"
 dependencies = [
  "cortexm33",
+ "helpers",
  "psa_interface",
  "psc3",
  "spe",
@@ -609,6 +614,7 @@ name = "psc3m5_evk_test"
 version = "0.1.0"
 dependencies = [
  "cortexm33",
+ "helpers",
  "kernel",
  "psa_interface",
  "psa_veneer_client",
@@ -625,6 +631,7 @@ dependencies = [
  "capsules-system",
  "components",
  "cortexm33",
+ "enum_primitive",
  "kernel",
  "psa_interface",
  "psa_veneer_client",
@@ -705,6 +712,7 @@ name = "spe"
 version = "0.1.0"
 dependencies = [
  "cortexm33",
+ "helpers",
  "minicbor",
  "p256",
  "psa_interface",
