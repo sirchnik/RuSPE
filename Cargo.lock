@@ -339,18 +339,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "psc3m5_evk"
-version = "0.1.0"
-dependencies = [
- "cortexm33",
- "kernel",
- "psa_interface",
- "psa_veneer_client",
- "psc3",
- "tock_build_scripts",
-]
-
-[[package]]
 name = "psc3m5_evk_secure"
 version = "0.1.0"
 dependencies = [
@@ -358,6 +346,18 @@ dependencies = [
  "psa_interface",
  "psc3",
  "spe",
+ "tock_build_scripts",
+]
+
+[[package]]
+name = "psc3m5_evk_test"
+version = "0.1.0"
+dependencies = [
+ "cortexm33",
+ "kernel",
+ "psa_interface",
+ "psa_veneer_client",
+ "psc3",
  "tock_build_scripts",
 ]
 
