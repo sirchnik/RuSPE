@@ -37,13 +37,7 @@ def _tasks_payload() -> dict[str, object]:
     inv_executable = _inv_executable()
     if os.name == "nt":
         build_command = f'& "{inv_executable}" build --debug'
-        build_with_app_command = (
-            f"$app = "
-            "${{config:tock.app}}"
-            "; "
-            f'if ($app) {{ & "{inv_executable}" build --debug --app "$app" }} '
-            f'else {{ & "{inv_executable}" build --debug }}'
-        )
+        build_with_app_command = f'$app = \'${{config:tock.app}}\'; if ($app) {{ & "{inv_executable}" build --debug --app "$app" }} else {{ & "{inv_executable}" build --debug }}'
     else:
         build_command = f'"{inv_executable}" build --debug'
         build_with_app_command = (

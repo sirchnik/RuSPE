@@ -64,8 +64,13 @@ impl attest_service::AttestPlatform for Psc3AttestPlatform {
     }
 
     fn cert_ref(&self, buf: &mut [u8; CERTIFICATION_REF_MAX_SIZE]) -> Result<usize, StatusCode> {
-        // No certification reference provided; return empty string.
-        Ok(0)
+        let s = b"0123456789012-12345";
+        let len = cmp::min(buf.len(), s.len());
+        buf[..len].copy_from_slice(&s[..len]);
+        if len < buf.len() {
+            buf[len..].fill(0);
+        }
+        Ok(len)
     }
 }
 

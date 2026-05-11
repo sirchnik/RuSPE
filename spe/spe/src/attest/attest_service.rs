@@ -220,8 +220,8 @@ impl<P: AttestPlatform> Service for AttestService<P> {
                             key: IatClaim::SwComponents,
                             value: AttestClaimValue::SwComponents(&[SwComponent {
                                 measurement_type: None,
-                                measurement_value: &[3],
-                                signer_id: &[8],
+                                measurement_value: &[0x03; 32],
+                                signer_id: &[0x08; 32],
                             }]),
                         },
                         AttestClaim {
