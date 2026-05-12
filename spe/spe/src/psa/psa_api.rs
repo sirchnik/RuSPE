@@ -13,7 +13,6 @@ use crate::{
 use psa_interface::PsaApiCallInterface;
 use psa_interface::types::{CtrlParam, FFInVec, FFOutVec, ServiceHandle};
 
-
 static SPM: OnceLock<&'static dyn SpmCall> = OnceLock::new();
 
 fn get_spm() -> &'static dyn SpmCall {
@@ -56,13 +55,9 @@ impl PsaApiCallInterface for InternalPsaClient {
             out_vec.as_mut_ptr()
         };
 
-        crate::into_psa_status(unsafe { psa_call::psa_call(
-            handle,
-            ctrl_param,
-            in_vec_ptr,
-            out_vec_ptr,
-            get_spm(),
-        ) })
+        crate::into_psa_status(unsafe {
+            psa_call::psa_call(handle, ctrl_param, in_vec_ptr, out_vec_ptr, get_spm())
+        })
     }
 }
 

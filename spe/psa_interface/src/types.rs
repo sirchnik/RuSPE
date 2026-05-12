@@ -165,7 +165,10 @@ mod tests {
 
     #[test]
     fn service_handle_values() {
-        assert_eq!(ServiceHandle::InternalTrustedStorageService as u32, 0x40000102);
+        assert_eq!(
+            ServiceHandle::InternalTrustedStorageService as u32,
+            0x40000102
+        );
         assert_eq!(ServiceHandle::Crypto as u32, 0x40000100);
         assert_eq!(ServiceHandle::AttestationService as u32, 0x40000103);
     }

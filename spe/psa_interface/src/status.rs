@@ -156,7 +156,10 @@ mod tests {
 
         for &(code, expected) in cases {
             let psa: PsaStatus = code.into();
-            assert_eq!(psa, expected, "StatusCode::{code:?} should map to {expected}");
+            assert_eq!(
+                psa, expected,
+                "StatusCode::{code:?} should map to {expected}"
+            );
         }
     }
 

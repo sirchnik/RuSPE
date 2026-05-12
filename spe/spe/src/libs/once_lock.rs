@@ -107,18 +107,13 @@ impl<T> Drop for OnceLock<T> {
 mod tests {
     extern crate std;
     use super::*;
-    use std::sync::{
-        Arc,
-    };
     use core::sync::atomic::{AtomicUsize, Ordering as StdOrdering};
+    use std::sync::Arc;
 
     #[test]
     fn try_get_uninitialized_returns_err() {
         let lock = OnceLock::<u32>::new();
-        assert!(matches!(
-            lock.try_get(),
-            Err(OnceLockState::Uninitialized)
-        ));
+        assert!(matches!(lock.try_get(), Err(OnceLockState::Uninitialized)));
     }
 
     #[test]
