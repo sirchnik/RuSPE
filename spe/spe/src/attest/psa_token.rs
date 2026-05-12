@@ -1,9 +1,6 @@
-use crate::{
-    StatusCode,
-    libs::cose_sign1::{
-        CoseCrypto, CoseSign1, CoseSign1Error, RustCryptoHasher, Sign1Options, encode_payload_bstr,
-    },
-    psa::psa_api::InternalPsaClient,
+use crate::{StatusCode, psa::psa_api::InternalPsaClient};
+use cose::cose_sign1::{
+    CoseCrypto, CoseSign1, CoseSign1Error, RustCryptoHasher, Sign1Options, encode_payload_bstr,
 };
 use minicbor::{Encoder, encode::write::Cursor};
 use psa_interface::{psa_api::psa_sign_hash, types::PSA_ALG_ECDSA_SHA256};
