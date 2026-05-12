@@ -5,8 +5,8 @@ use enum_primitive::enum_from_primitive;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::{
-    grant::GrantKernelData,
     ErrorCode, ProcessId,
+    grant::GrantKernelData,
     syscall::{CommandReturn, SyscallDriver},
 };
 
@@ -34,6 +34,7 @@ pub(crate) struct App;
 enum_from_primitive! {
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Cmd {
+    Exists = 0,
     InitialAttestGetToken = 1,
 }
 }
@@ -139,7 +140,11 @@ impl SpeAdapter {
         if len == 0 { None } else { Some(len) }
     }
 
-    fn write_token_to_process(kernel_data: &GrantKernelData, token: &[u8], token_len: usize) -> usize {
+    fn write_token_to_process(
+        kernel_data: &GrantKernelData,
+        token: &[u8],
+        token_len: usize,
+    ) -> usize {
         kernel_data
             .get_readwrite_processbuffer(rw_allow::TOKEN)
             .and_then(|token_buf| {
@@ -209,6 +214,7 @@ impl SyscallDriver for SpeAdapter {
         };
 
         match cmd {
+            Cmd::Exists => CommandReturn::success(),
             Cmd::InitialAttestGetToken => self.do_initial_attest_get_token(process_id, arg1),
         }
     }

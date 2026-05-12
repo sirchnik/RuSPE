@@ -1,4 +1,4 @@
-module sirchnik.ruspe/psa-token
+module sirchnik.ruspe/client-tester
 
 go 1.26.2
 

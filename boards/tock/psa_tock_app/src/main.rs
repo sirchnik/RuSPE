@@ -16,7 +16,6 @@ stack_size! {0x1000}
 #[derive(Debug)]
 enum TokenError {
     ConsoleRead,
-    InvalidNonce,
     SpeDriverNotAvailable,
     TokenRequestFailed,
     WriteError,
@@ -68,27 +67,42 @@ fn parse_hex(hex_input: &[u8], output: &mut [u8]) -> usize {
 
 fn create_psa_token(writer: &mut impl Write) -> Result<(), TokenError> {
     let mut nonce_hex = [0u8; 64];
+    let mut nonce = [0u8; 32];
     let mut token = [0u8; 512];
 
-    writeln!(
-        writer,
-        "{{ \"type\": \"enter_nonce\", \"msg\": \"Please enter a hex-encoded nonce (up to 32 bytes):\" }}"
-    )
-    .map_err(|_| TokenError::WriteError)?;
-    let (len, stat) = Console::read(&mut nonce_hex);
-    if stat.is_err() {
-        return emit_json_error(writer, "console_read", TokenError::ConsoleRead);
+    loop {
+        writeln!(
+            writer,
+            "{{ \"type\": \"enter_nonce\", \"msg\": \"Please enter a hex-encoded nonce (up to 32 bytes):\" }}"
+        )
+        .map_err(|_| TokenError::WriteError)?;
+        let (len, stat) = Console::read(&mut nonce_hex);
+        if stat.is_err() {
+            return emit_json_error(writer, "console_read", TokenError::ConsoleRead);
+        }
+        if len != 64 {
+            writeln!(
+                writer,
+                "{{\"type\":\"error\",\"msg\":\"Nonce-Read Failed\"}}"
+            )
+            .map_err(|_| TokenError::WriteError)?;
+            continue;
+        }
+
+        // Parse hex string to binary
+        let parsed_len = parse_hex(&nonce_hex[..len], &mut nonce);
+        if parsed_len != 32 {
+            writeln!(
+                writer,
+                "{{\"type\":\"error\",\"msg\":\"Nonce-Parse Failed\"}}"
+            )
+            .map_err(|_| TokenError::WriteError)?;
+            continue;
+        }
+        break;
     }
 
-    // Parse hex string to binary
-    let mut nonce = [0u8; 32];
-    let hex_len = core::cmp::min(len as usize, nonce_hex.len());
-    let parsed_len = parse_hex(&nonce_hex[..hex_len], &mut nonce);
-    if parsed_len == 0 {
-        return emit_json_error(writer, "invalid_nonce", TokenError::InvalidNonce);
-    }
-
-    let challenge_len = core::cmp::min(parsed_len, nonce.len());
+    let challenge_len = 32;
 
     if SpeDriver::<TockSyscalls>::exists().is_err() {
         return emit_json_error(
