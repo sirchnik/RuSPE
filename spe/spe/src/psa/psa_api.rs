@@ -1,3 +1,5 @@
+//! Entry points for PSA API calls from NSPE and other partitions.
+
 use core::panic;
 
 use cortexm33::support;
@@ -11,7 +13,6 @@ use crate::{
 use psa_interface::PsaApiCallInterface;
 use psa_interface::types::{CtrlParam, FFInVec, FFOutVec, ServiceHandle};
 
-// Entry points for PSA API calls from NSPE and other partitions.
 
 static SPM: OnceLock<&'static dyn SpmCall> = OnceLock::new();
 

@@ -21,6 +21,16 @@ SETTINGS_JSON = VSCODE_DIR / "settings.json"
 
 PSC3_SVD_URL = "https://raw.githubusercontent.com/Infineon/mtb-pdl-cat1/refs/heads/master/devices/COMPONENT_CAT1B/svd/psc3.svd"
 
+# Crates that only compile for the embedded target, not on the host.
+_EMBEDDED_ONLY_CRATES = [
+    "psc3m5_evk_secure",
+    "psc3m5_evk_test",
+    "psc3m5_evk_tock",
+    "psa_tock_app",
+]
+
+_EXCLUDE_ARGS = " ".join(f"--exclude {c}" for c in _EMBEDDED_ONLY_CRATES)
+
 
 def _write_json(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -136,3 +146,56 @@ def vscode(ctx, force=False):
 
     _write_json(TASKS_JSON, _tasks_payload())
     _write_json(LAUNCH_JSON, _launch_payload())
+
+
+@task
+def install(ctx):
+    """Install the Rust toolchain and all required external tools."""
+    ctx.run("cargo install cargo-binutils --locked")
+    ctx.run("cargo install cargo-llvm-cov --locked")
+    ctx.run("cargo install elf2tab --locked")
+
+
+@task
+def clippy(ctx):
+    """Run cargo clippy on all host-compilable crates."""
+    ctx.run(f"cargo clippy --workspace {_EXCLUDE_ARGS} -- -D warnings")
+
+
+@task
+def test(ctx):
+    """Run cargo test on all host-compilable crates."""
+    ctx.run(f"cargo test --workspace {_EXCLUDE_ARGS}")
+
+
+@task
+def miri(ctx):
+    """Run cargo miri test on all host-compilable crates."""
+    ctx.run(f"cargo miri test --workspace {_EXCLUDE_ARGS}")
+
+
+@task
+def coverage(ctx, html=False):
+    """Run tests with coverage via cargo-llvm-cov. Pass --html for an HTML report."""
+    if html:
+        ctx.run(f"cargo llvm-cov --workspace {_EXCLUDE_ARGS} --html")
+    else:
+        ctx.run(
+            f"cargo llvm-cov --workspace {_EXCLUDE_ARGS} --lcov --output-path target/llvm-cov/lcov.info"
+        )
+
+
+@task
+def fmt(ctx, check=False):
+    """Run cargo fmt. Pass --check to verify formatting without changes."""
+    check_flag = "--check" if check else ""
+    ctx.run(f"cargo fmt --all {check_flag}".strip())
+
+
+@task
+def ci(ctx):
+    """Run all CI checks: fmt --check, clippy, test, miri."""
+    fmt(ctx, check=True)
+    clippy(ctx)
+    test(ctx)
+    miri(ctx)
