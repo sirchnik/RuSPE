@@ -6,8 +6,6 @@ use cortexm33::sau;
 use psc3::ppc;
 use psc3::ppc::PpcRegion;
 
-pub(crate) const NONSECURE_START_FLASH: *const [u32; 2] = 0x2201_4000 as *const [u32; 2];
-
 const NONSECURE_PRIV: &[PpcRegion] = &[
     PpcRegion::ProtPeri0Main,
     PpcRegion::ProtPeri0Gr0Group,

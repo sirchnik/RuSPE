@@ -77,3 +77,79 @@ pub fn psa_sign_hash<T: PsaApiCallInterface>(
         Err(status)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::sync::atomic::{AtomicIsize, Ordering};
+
+    static MOCK_RETURN_STATUS: AtomicIsize = AtomicIsize::new(0);
+    static MOCK_OUT_LEN: AtomicIsize = AtomicIsize::new(0);
+
+    struct MockPsaClient;
+
+    impl PsaApiCallInterface for MockPsaClient {
+        fn psa_framework_version() -> u32 {
+            0x0102
+        }
+
+        fn psa_version(_service_id: u32) -> u32 {
+            1
+        }
+
+        fn psa_call(
+            _handle: types::ServiceHandle,
+            _ctrl_param: types::CtrlParam,
+            _in_vec: &[types::FFInVec],
+            out_vec: &mut [types::FFOutVec],
+        ) -> types::PsaStatus {
+            let status = MOCK_RETURN_STATUS.load(Ordering::Relaxed);
+            if status == 0 {
+                let out_len = MOCK_OUT_LEN.load(Ordering::Relaxed) as usize;
+                if !out_vec.is_empty() {
+                    out_vec[0].len = out_len;
+                }
+            }
+            status
+        }
+    }
+
+    #[test]
+    fn initial_attest_get_token_success() {
+        MOCK_RETURN_STATUS.store(0, Ordering::Relaxed);
+        let challenge = [0u8; 32];
+        let mut token = [0u8; 256];
+        let result = initial_attest_get_token::<MockPsaClient>(&challenge, &mut token);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn initial_attest_get_token_error() {
+        MOCK_RETURN_STATUS.store(-132, Ordering::Relaxed); // GenericError
+        let challenge = [0u8; 32];
+        let mut token = [0u8; 256];
+        let result = initial_attest_get_token::<MockPsaClient>(&challenge, &mut token);
+        assert_eq!(result, Err(-132));
+    }
+
+    #[test]
+    fn psa_sign_hash_success() {
+        MOCK_RETURN_STATUS.store(0, Ordering::Relaxed);
+        MOCK_OUT_LEN.store(64, Ordering::Relaxed);
+        let hash = [0u8; 32];
+        let mut sig = [0u8; 64];
+        let result =
+            psa_sign_hash::<MockPsaClient>(1, types::PSA_ALG_ECDSA_SHA256, &hash, &mut sig);
+        assert_eq!(result, Ok(64));
+    }
+
+    #[test]
+    fn psa_sign_hash_error() {
+        MOCK_RETURN_STATUS.store(-134, Ordering::Relaxed); // NotSupported
+        let hash = [0u8; 32];
+        let mut sig = [0u8; 64];
+        let result =
+            psa_sign_hash::<MockPsaClient>(1, types::PSA_ALG_ECDSA_SHA256, &hash, &mut sig);
+        assert_eq!(result, Err(-134));
+    }
+}
