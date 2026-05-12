@@ -89,9 +89,9 @@ fn encode_sw_components(
     Ok(())
 }
 
-fn encode_claim_value<'a>(
+fn encode_claim_value(
     enc: &mut Encoder<Cursor<&mut [u8]>>,
-    value: AttestClaimValue<'a>,
+    value: AttestClaimValue<'_>,
 ) -> Result<(), StatusCode> {
     match value {
         AttestClaimValue::Bytes(bytes) => {

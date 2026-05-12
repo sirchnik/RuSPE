@@ -148,7 +148,7 @@ pub fn psa_call_from_slices(
     })
 }
 
-pub fn psa_call(
+pub unsafe fn psa_call(
     handle: ServiceHandle,
     ctrl_param: CtrlParam,
     in_vec: *const FFInVec,

@@ -11,7 +11,7 @@ use crate::{
 use psa_interface::PsaApiCallInterface;
 use psa_interface::types::{CtrlParam, FFInVec, FFOutVec, ServiceHandle};
 
-///! Entry points for PSA API calls from NSPE and other partitions.
+// Entry points for PSA API calls from NSPE and other partitions.
 
 static SPM: OnceLock<&'static dyn SpmCall> = OnceLock::new();
 
@@ -55,17 +55,17 @@ impl PsaApiCallInterface for InternalPsaClient {
             out_vec.as_mut_ptr()
         };
 
-        crate::into_psa_status(psa_call::psa_call(
+        crate::into_psa_status(unsafe { psa_call::psa_call(
             handle,
             ctrl_param,
             in_vec_ptr,
             out_vec_ptr,
             get_spm(),
-        ))
+        ) })
     }
 }
 
-pub fn psa_call(
+pub unsafe fn psa_call(
     handle: ServiceHandle,
     ctrl_param: CtrlParam,
     in_vec: *const FFInVec,
@@ -79,11 +79,9 @@ pub fn psa_call(
 
     let spm = get_spm();
 
-    let result = psa_call::psa_call(handle, ctrl_param, in_vec, out_vec, spm);
-
     // check comp changed during exe
 
-    result
+    unsafe { psa_call::psa_call(handle, ctrl_param, in_vec, out_vec, spm) }
 }
 
 pub fn psa_map_invec<R>(

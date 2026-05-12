@@ -51,7 +51,7 @@ impl CryptoService {
             return Err(StatusCode::ProgrammerError);
         }
         let mut iov = TfmCryptoPackIovec::for_sign_hash(0, 0);
-        let dst = &mut iov as *mut TfmCryptoPackIovec as *mut u8;
+        let dst = core::ptr::from_mut::<TfmCryptoPackIovec>(&mut iov).cast::<u8>();
         for (i, &b) in buf.iter().enumerate() {
             // `dst` points to stack memory of exactly size_of::<TfmCryptoPackIovec>().
             // `i` is bounded by `buf.len()` which we checked equals that size.
@@ -73,7 +73,7 @@ impl Service for CryptoService {
         // TF-M layout: invec[0] = TfmCryptoPackIovec, invec[1] = hash,
         //              outvec[0] = signature buffer.
         let iov =
-            psa_api::psa_map_invec(msg.handle, 0, |iov_bytes| Self::parse_pack_iovec(iov_bytes))?;
+            psa_api::psa_map_invec(msg.handle, 0, Self::parse_pack_iovec)?;
 
         if iov.function_id != TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID {
             return Err(psa_interface::status::StatusCode::NotSupported);

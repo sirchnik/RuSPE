@@ -133,6 +133,7 @@ large-enum-variant = "allow"
 
 # CARGO
 cargo = { level = "deny", priority = -1 }
+multiple_crate_versions = "allow"
 
 # Tock includes over 100 crates, and it is just too pedantic to expect each one
 # to have full and correct metadata.

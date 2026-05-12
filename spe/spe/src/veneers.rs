@@ -1,3 +1,4 @@
+#![feature(abi_cmse_nonsecure_call, cmse_nonsecure_entry)]
 //! Veneer function stubs translated from TFM veneer C header.
 // These are placeholders for secure function entry points.
 
@@ -36,7 +37,8 @@ pub extern "cmse-nonsecure-entry" fn psa_call_veneer(
     in_vec: *const FFInVec,
     out_vec: *mut FFOutVec,
 ) -> PsaStatus {
-    into_psa_status(psa_api::psa_call(handle, ctrl_param, in_vec, out_vec))
+    // Safety: The caller (NSPE) provides valid pointers per the PSA FF-M ABI contract.
+    into_psa_status(unsafe { psa_api::psa_call(handle, ctrl_param, in_vec, out_vec) })
 }
 
 // /// Close connection to secure function referenced by a connection handle.
