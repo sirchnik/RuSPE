@@ -3,8 +3,8 @@
 // Copyright Infineon Technologies AG 2026.
 
 use cortexm33::sau;
-use psc3::ppc;
-use psc3::ppc::PpcRegion;
+use tock_psc3::ppc;
+use tock_psc3::ppc::PpcRegion;
 
 const NONSECURE_PRIV: &[PpcRegion] = &[
     PpcRegion::ProtPeri0Main,
@@ -231,7 +231,16 @@ const NONSECURE_PRIV: &[PpcRegion] = &[
     PpcRegion::ProtMcpass,
 ];
 
-fn configure_sau() -> Result<(), sau::SauError> {
+pub fn configure_security() {
+    ppc::set_viloation_response(ppc::PPC_CTL::RESP_CFG::BUS_ERROR);
+
+    for region in NONSECURE_PRIV.iter().copied() {
+        ppc::set_trustzone_access(region, true, true, true);
+        ppc::set_protection_context(region, 0xFF);
+    }
+
+    ppc::lock_protection_contexts();
+
     let mut sau = sau::new();
 
     sau.set_region(
@@ -241,7 +250,8 @@ fn configure_sau() -> Result<(), sau::SauError> {
             limit_address: 0x2203_FFFF,
             attribute: sau::SauRegionAttribute::NonSecure,
         },
-    )?;
+    )
+    .unwrap();
 
     sau.set_region(
         1,
@@ -250,7 +260,8 @@ fn configure_sau() -> Result<(), sau::SauError> {
             limit_address: 0x3201_3FFF,
             attribute: sau::SauRegionAttribute::NonSecureCallable,
         },
-    )?;
+    )
+    .unwrap();
 
     sau.set_region(
         2,
@@ -259,7 +270,8 @@ fn configure_sau() -> Result<(), sau::SauError> {
             limit_address: 0x2400_EFFF,
             attribute: sau::SauRegionAttribute::NonSecure,
         },
-    )?;
+    )
+    .unwrap();
 
     sau.set_region(
         3,
@@ -268,7 +280,8 @@ fn configure_sau() -> Result<(), sau::SauError> {
             limit_address: 0x2400_FFFF,
             attribute: sau::SauRegionAttribute::NonSecure,
         },
-    )?;
+    )
+    .unwrap();
 
     sau.set_region(
         4,
@@ -277,7 +290,8 @@ fn configure_sau() -> Result<(), sau::SauError> {
             limit_address: 0x4FFF_FFFF,
             attribute: sau::SauRegionAttribute::NonSecure,
         },
-    )?;
+    )
+    .unwrap();
 
     sau.set_region(
         5,
@@ -286,7 +300,8 @@ fn configure_sau() -> Result<(), sau::SauError> {
             limit_address: 0x5202_637F,
             attribute: sau::SauRegionAttribute::Secure,
         },
-    )?;
+    )
+    .unwrap();
 
     sau.set_region(
         6,
@@ -295,26 +310,8 @@ fn configure_sau() -> Result<(), sau::SauError> {
             limit_address: 0x5282_0FDF,
             attribute: sau::SauRegionAttribute::Secure,
         },
-    )?;
+    )
+    .unwrap();
 
     sau.enable();
-
-    Ok(())
-}
-
-fn configure_ppc() {
-    ppc::set_viloation_response(ppc::PPC_CTL::RESP_CFG::BUS_ERROR);
-
-    for region in NONSECURE_PRIV.iter().copied() {
-        ppc::set_trustzone_access(region, true, true, true);
-        ppc::set_protection_context(region, 0xFF);
-    }
-
-    ppc::lock_protection_contexts();
-}
-
-pub fn configure_security() {
-    configure_ppc();
-
-    configure_sau().unwrap();
 }

@@ -4,13 +4,14 @@
 
 use core::cell::Cell;
 use core::{fmt::Write, panic::PanicInfo};
+use tock_psc3::scb;
 
 pub struct Writer {
-    serial: Cell<Option<&'static psc3::scb::Scb<'static>>>,
+    serial: Cell<Option<&'static scb::Scb<'static>>>,
 }
 
 impl Writer {
-    pub fn set_serial(&self, scb: &'static psc3::scb::Scb<'static>) {
+    pub fn set_serial(&self, scb: &'static scb::Scb<'static>) {
         self.serial.set(Some(scb));
     }
 }

@@ -11,15 +11,15 @@
 use core::ptr::addr_of_mut;
 
 use helpers::static_init;
-use psc3::{chip_init, gpio, icache, peri_clk};
 use spe::{
     attest::attest_service::{self},
     crypto::crypto_service,
     psa::psa_api,
     spm::spm::{self},
 };
+use tock_psc3::{chip, chip_init, gpio, icache, peri_clk, scb};
 
-use crate::platform::{Psc3AttestPlatform, Psc3SecPlatform};
+use ruspe_psc3::{Psc3AttestPlatform, Psc3SecPlatform, configure_security};
 
 unsafe extern "Rust" {
     static __veneer_base: ();
@@ -33,8 +33,6 @@ unsafe extern "C" {
 }
 
 mod io;
-mod platform;
-mod security;
 mod startup;
 
 #[unsafe(no_mangle)]
@@ -44,9 +42,9 @@ pub unsafe fn main() {
     chip_init::init_system();
     peri_clk::enable_scb0();
 
-    psc3::chip::init_gpio_pins();
+    chip::init_gpio_pins();
 
-    let scb0 = unsafe { static_init!(psc3::scb::Scb, psc3::scb::Scb::new_scb0()) };
+    let scb0 = unsafe { static_init!(scb::Scb, scb::Scb::new_scb0()) };
 
     scb0.set_standard_uart_mode();
     scb0.enable_scb();
@@ -98,7 +96,7 @@ pub unsafe fn main() {
     let led_pin = gpio.get_pin(gpio::PsocPin::P8_4);
     led_pin.preconfigure(&GPIO_CONFIG);
 
-    security::configure_security();
+    configure_security();
 
     let sec_platform = unsafe {
         static_init!(

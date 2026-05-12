@@ -5,6 +5,7 @@ authors = ["Niklas Sirch"]
 
 [workspace]
 members = [
+    "chips/infineon",
     "libraries/helpers",
     "libraries/cose",
     "spe/psa_interface",
