@@ -20,6 +20,7 @@ SETTINGS_TEMPLATE_JSON = VSCODE_DIR / "settings.template.json"
 SETTINGS_JSON = VSCODE_DIR / "settings.json"
 
 PSC3_SVD_URL = "https://raw.githubusercontent.com/Infineon/mtb-pdl-cat1/refs/heads/master/devices/COMPONENT_CAT1B/svd/psc3.svd"
+TASKS_FILE_NAME = "tasks.py"
 
 # Crates that only compile for the embedded target, not on the host.
 _EMBEDDED_ONLY_CRATES = [
@@ -30,6 +31,17 @@ _EMBEDDED_ONLY_CRATES = [
 ]
 
 _EXCLUDE_ARGS = " ".join(f"--exclude {c}" for c in _EMBEDDED_ONLY_CRATES)
+
+
+def _build_task_directories() -> list[Path]:
+    excluded_dirs = {".git", ".venv", "target", "tock"}
+    task_files = sorted(
+        path
+        for path in REPO_ROOT.rglob(TASKS_FILE_NAME)
+        if path != REPO_ROOT / TASKS_FILE_NAME
+        and not excluded_dirs.intersection(path.relative_to(REPO_ROOT).parts)
+    )
+    return [path.parent for path in task_files]
 
 
 def _write_json(path: Path, payload: object) -> None:
@@ -157,6 +169,22 @@ def install(ctx):
 
 
 @task
+def build(ctx, debug=False):
+    """Run `inv build` for every nested Invoke task file in the repository."""
+
+    build_dirs = _build_task_directories()
+    if not build_dirs:
+        raise FileNotFoundError(f"No nested {TASKS_FILE_NAME} files found under {REPO_ROOT}")
+
+    debug_arg = " --debug" if debug else ""
+    for build_dir in build_dirs:
+        relative_dir = build_dir.relative_to(REPO_ROOT)
+        print(f"Building {relative_dir}")
+        with ctx.cd(str(build_dir)):
+            ctx.run(f"inv build{debug_arg}", echo=True)
+
+
+@task
 def clippy(ctx):
     """Run cargo clippy on all host-compilable crates."""
     ctx.run(f"cargo clippy --workspace {_EXCLUDE_ARGS} -- -D warnings")
@@ -194,8 +222,9 @@ def fmt(ctx, check=False):
 
 @task
 def ci(ctx):
-    """Run all CI checks: fmt --check, clippy, test, miri."""
+    """Run the main CI checks: fmt --check, clippy, build, test, miri."""
     fmt(ctx, check=True)
     clippy(ctx)
+    build(ctx)
     test(ctx)
     miri(ctx)

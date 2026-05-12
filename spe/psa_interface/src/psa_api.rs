@@ -81,10 +81,30 @@ pub fn psa_sign_hash<T: PsaApiCallInterface>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::sync::atomic::{AtomicIsize, Ordering};
+    use core::hint::spin_loop;
+    use core::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
 
+    static TEST_LOCK: AtomicBool = AtomicBool::new(false);
     static MOCK_RETURN_STATUS: AtomicIsize = AtomicIsize::new(0);
     static MOCK_OUT_LEN: AtomicIsize = AtomicIsize::new(0);
+
+    struct TestGuard;
+
+    impl Drop for TestGuard {
+        fn drop(&mut self) {
+            TEST_LOCK.store(false, Ordering::Release);
+        }
+    }
+
+    fn acquire_test_guard() -> TestGuard {
+        while TEST_LOCK
+            .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
+            .is_err()
+        {
+            spin_loop();
+        }
+        TestGuard
+    }
 
     struct MockPsaClient;
 
@@ -116,6 +136,7 @@ mod tests {
 
     #[test]
     fn initial_attest_get_token_success() {
+        let _guard = acquire_test_guard();
         MOCK_RETURN_STATUS.store(0, Ordering::Relaxed);
         let challenge = [0u8; 32];
         let mut token = [0u8; 256];
@@ -125,6 +146,7 @@ mod tests {
 
     #[test]
     fn initial_attest_get_token_error() {
+        let _guard = acquire_test_guard();
         MOCK_RETURN_STATUS.store(-132, Ordering::Relaxed); // GenericError
         let challenge = [0u8; 32];
         let mut token = [0u8; 256];
@@ -134,6 +156,7 @@ mod tests {
 
     #[test]
     fn psa_sign_hash_success() {
+        let _guard = acquire_test_guard();
         MOCK_RETURN_STATUS.store(0, Ordering::Relaxed);
         MOCK_OUT_LEN.store(64, Ordering::Relaxed);
         let hash = [0u8; 32];
@@ -145,6 +168,7 @@ mod tests {
 
     #[test]
     fn psa_sign_hash_error() {
+        let _guard = acquire_test_guard();
         MOCK_RETURN_STATUS.store(-134, Ordering::Relaxed); // NotSupported
         let hash = [0u8; 32];
         let mut sig = [0u8; 64];

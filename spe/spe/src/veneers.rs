@@ -1,4 +1,3 @@
-#![feature(abi_cmse_nonsecure_call, cmse_nonsecure_entry)]
 //! Veneer function stubs translated from TFM veneer C header.
 // These are placeholders for secure function entry points.
 
