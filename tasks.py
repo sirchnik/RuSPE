@@ -8,6 +8,8 @@ from shutil import copy2
 
 from invoke.tasks import task
 
+from tools.invoke_support import resolve_openocd
+
 
 REPO_ROOT = Path(__file__).resolve().parent
 VSCODE_DIR = REPO_ROOT / ".vscode"
@@ -98,6 +100,7 @@ def _launch_payload() -> dict[str, object]:
     psc3m5_base_conf = {
         "type": "cortex-debug",
         "servertype": "openocd",
+        "serverpath": str(resolve_openocd(version="infineon")),
         "request": "launch",
         "cwd": "${workspaceFolder}",
         "openOCDLaunchCommands": ["init; reset init;"],
