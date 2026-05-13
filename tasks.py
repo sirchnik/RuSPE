@@ -68,26 +68,27 @@ def _tasks_payload() -> dict[str, object]:
             f'else "{inv_executable}" build --debug; fi'
         )
 
+    common_task = {
+        "type": "shell",
+        "args": [],
+        "presentation": {"reveal": "silent"},
+        "group": "build",
+    }
+
     return {
         "version": "2.0.0",
         "tasks": [
             {
+                **common_task,
                 "label": "build.psc3m5_evk_test",
-                "command": build_command,
-                "type": "shell",
-                "args": [],
                 "options": {"cwd": "${workspaceFolder}/boards/psc3m5_evk_test"},
-                "presentation": {"reveal": "silent"},
-                "group": "build",
+                "command": build_command,
             },
             {
+                **common_task,
                 "label": "build.psc3m5_evk_tock",
-                "command": build_with_app_command,
-                "type": "shell",
-                "args": [],
                 "options": {"cwd": "${workspaceFolder}/boards/tock/psc3m5_evk_tock"},
-                "presentation": {"reveal": "silent"},
-                "group": "build",
+                "command": build_with_app_command,
             },
         ],
     }
@@ -174,7 +175,9 @@ def build(ctx, debug=False):
 
     build_dirs = _build_task_directories()
     if not build_dirs:
-        raise FileNotFoundError(f"No nested {TASKS_FILE_NAME} files found under {REPO_ROOT}")
+        raise FileNotFoundError(
+            f"No nested {TASKS_FILE_NAME} files found under {REPO_ROOT}"
+        )
 
     debug_arg = " --debug" if debug else ""
     for build_dir in build_dirs:
