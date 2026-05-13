@@ -1,5 +1,6 @@
 #![no_std]
 
+mod cmse;
 pub mod platform;
 pub mod security;
 
