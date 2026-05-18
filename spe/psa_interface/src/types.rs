@@ -1,3 +1,5 @@
+use bytemuck::{Pod, Zeroable};
+
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub enum ServiceHandle {
@@ -112,7 +114,7 @@ pub type PsaAlgorithm = u32;
 pub const PSA_ALG_ECDSA_SHA256: PsaAlgorithm = 0x0600_0609;
 
 /// Packed AEAD nonce input, matches TF-M `struct tfm_crypto_aead_pack_input`.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
 #[repr(C)]
 pub struct TfmCryptoAeadPackInput {
     pub nonce: [u8; 16],
@@ -122,7 +124,7 @@ pub struct TfmCryptoAeadPackInput {
 /// Non-pointer parameters packed into `invec[0]` for every TF-M crypto call.
 ///
 /// Binary-compatible with TF-M `struct tfm_crypto_pack_iovec`.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
 #[repr(C)]
 pub struct TfmCryptoPackIovec {
     pub key_id: PsaKeyId,
@@ -133,6 +135,7 @@ pub struct TfmCryptoPackIovec {
     pub aead_in: TfmCryptoAeadPackInput,
     pub function_id: u16,
     pub step: u16,
+    _reserved: [u8; 4],
     pub capacity: u64,
 }
 
@@ -149,6 +152,7 @@ impl TfmCryptoPackIovec {
                 nonce: [0; 16],
                 nonce_length: 0,
             },
+            _reserved: [0; 4],
             function_id: TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID,
             step: 0,
             capacity: 0,
