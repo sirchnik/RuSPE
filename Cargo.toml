@@ -8,9 +8,11 @@ members = [
     "chips/infineon",
     "libraries/helpers",
     "libraries/cose",
+    "libraries/cortex_m",
     "spe/psa_interface",
     "spe/psa_veneer_client",
     "spe/spe",
+    "spe/spe_services",
     "boards/psc3m5_evk_secure",
     "boards/psc3m5_evk_test",
     "boards/tock/psc3m5_evk_tock",
@@ -35,6 +37,10 @@ lto = true
 opt-level = "z"
 debug = true
 codegen-units = 1
+
+[workspace.lints.rust]
+# Unsupported for thumbv8m
+asm_sub_register = "allow"
 
 [workspace.lints.clippy]
 # RESTRICTION LINTS

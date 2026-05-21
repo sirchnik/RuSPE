@@ -8,8 +8,6 @@
 )]
 #![no_std]
 
-pub mod attest;
-pub mod crypto;
 pub mod hil;
 pub mod internal_trusted_storage;
 mod libs;

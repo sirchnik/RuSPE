@@ -89,7 +89,14 @@ fn prepare_invec(
     let base = connection.invec_base[index];
 
     validate_pointer_range(base, in_len, "input vector");
-    validate_real_permission(spm, base, in_len, "input vector", false, connection.msg.caller);
+    validate_real_permission(
+        spm,
+        base,
+        in_len,
+        "input vector",
+        false,
+        connection.msg.caller,
+    );
 
     connection.invec_mapped[index] = true;
 
@@ -270,7 +277,10 @@ mod tests {
     extern crate std;
 
     use super::*;
-    use crate::{psa::psa_call::{CallerAttributes, PsaMsg}, spm::spm::SpmError};
+    use crate::{
+        psa::psa_call::{CallerAttributes, PsaMsg},
+        spm::spm::SpmError,
+    };
     use core::{cell::RefCell, ptr};
 
     struct TestSpm {

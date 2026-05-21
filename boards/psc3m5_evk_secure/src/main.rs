@@ -12,14 +12,13 @@ use core::ptr::addr_of_mut;
 
 use helpers::static_init;
 use spe::{
-    attest::attest_service::{self},
-    crypto::crypto_service,
     psa::psa_api,
     spm::spm::{self},
 };
+use spe_services::{attest::attest_service, crypto::crypto_service};
 use tock_psc3::{chip, chip_init, gpio, icache, peri_clk, scb};
 
-use ruspe_psc3::{Psc3AttestPlatform, Psc3SecPlatform, configure_security};
+use ruspe_psc3::{Psc3SecPlatform, configure_security, services::attest::Psc3AttestPlatform};
 
 unsafe extern "Rust" {
     static __veneer_base: ();
