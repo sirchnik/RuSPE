@@ -3,7 +3,7 @@
 # Copyright Infineon Technologies AG 2026.
 
 [toolchain]
-channel = "nightly-2025-11-03"
+channel = "nightly-2026-04-21"
 components = [
     "miri",
     "llvm-tools",

@@ -4,7 +4,7 @@
 
 #![cfg_attr(
     all(target_arch = "arm", target_os = "none"),
-    feature(abi_cmse_nonsecure_call, cmse_nonsecure_entry)
+    feature(cmse_nonsecure_entry)
 )]
 #![no_std]
 
