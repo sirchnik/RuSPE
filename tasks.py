@@ -6,9 +6,7 @@ import urllib.request
 from pathlib import Path
 from shutil import copy2
 
-from invoke.tasks import task
-
-from tools.invoke_support import resolve_openocd
+from tools.invoke_support import resolve_openocd, build_task, run_command
 
 
 REPO_ROOT = Path(__file__).resolve().parent
@@ -25,22 +23,25 @@ PSC3_SVD_URL = "https://raw.githubusercontent.com/Infineon/mtb-pdl-cat1/refs/hea
 TASKS_FILE_NAME = "tasks.py"
 
 # Crates that only compile for the embedded target, not on the host.
-_EMBEDDED_ONLY_CRATES = [
+_BIN_CRATES = [
     "psc3m5_evk_secure",
     "psc3m5_evk_test",
     "psc3m5_evk_tock",
     "psa_tock_app",
 ]
 
-_EXCLUDE_ARGS = " ".join(f"--exclude {c}" for c in _EMBEDDED_ONLY_CRATES)
+
+def _build_exclude_args(exclude_list: list[str]) -> str:
+    return " ".join(f"--exclude {c}" for c in exclude_list)
 
 
 def _build_task_directories() -> list[Path]:
-    excluded_dirs = {".git", ".venv", "target", "tock"}
+    excluded_dirs = {".git", ".venv", "target"}
     task_files = sorted(
         path
         for path in REPO_ROOT.rglob(TASKS_FILE_NAME)
         if path != REPO_ROOT / TASKS_FILE_NAME
+        and path.relative_to(REPO_ROOT).parts[0] != "tock"
         and not excluded_dirs.intersection(path.relative_to(REPO_ROOT).parts)
     )
     return [path.parent for path in task_files]
@@ -141,7 +142,7 @@ def _download(url: str, destination: Path) -> None:
         destination.write_bytes(response.read())
 
 
-@task(default=True)
+@build_task(default=True)
 def vscode(ctx, force=False):
     """Set up the VS Code workspace files."""
 
@@ -164,15 +165,15 @@ def vscode(ctx, force=False):
     _write_json(LAUNCH_JSON, _launch_payload())
 
 
-@task
+@build_task
 def install(ctx):
     """Install the Rust toolchain and all required external tools."""
-    ctx.run("cargo install cargo-binutils --locked")
-    ctx.run("cargo install cargo-llvm-cov --locked")
-    ctx.run("cargo install elf2tab --locked")
+    run_command(["cargo", "install", "cargo-binutils", "--locked"])
+    run_command(["cargo", "install", "cargo-llvm-cov", "--locked"])
+    run_command(["cargo", "install", "elf2tab", "--locked"])
 
 
-@task
+@build_task
 def build(ctx, debug=False):
     """Run `inv build` for every nested Invoke task file in the repository."""
 
@@ -186,47 +187,50 @@ def build(ctx, debug=False):
     for build_dir in build_dirs:
         relative_dir = build_dir.relative_to(REPO_ROOT)
         print(f"Building {relative_dir}")
-        with ctx.cd(str(build_dir)):
-            ctx.run(f"inv build{debug_arg}", echo=True)
+        run_command(f"inv build{debug_arg}", cwd=str(build_dir))
 
 
-@task
+@build_task
 def clippy(ctx):
     """Run cargo clippy on all host-compilable crates."""
-    ctx.run(f"cargo clippy --workspace {_EXCLUDE_ARGS} -- -D warnings")
+    run_command(
+        f"cargo clippy --workspace {_build_exclude_args(_BIN_CRATES)} -- -D warnings"
+    )
 
 
-@task
+@build_task
 def test(ctx):
     """Run cargo test on all host-compilable crates."""
-    ctx.run(f"cargo test --workspace {_EXCLUDE_ARGS}")
+    run_command(f"cargo test --workspace {_build_exclude_args(_BIN_CRATES)}")
 
 
-@task
+@build_task
 def miri(ctx):
     """Run cargo miri test on all host-compilable crates."""
-    ctx.run(f"cargo miri test --workspace {_EXCLUDE_ARGS}")
+    run_command(f"cargo miri test --workspace {_build_exclude_args(_BIN_CRATES)}")
 
 
-@task
+@build_task
 def coverage(ctx, html=False):
     """Run tests with coverage via cargo-llvm-cov. Pass --html for an HTML report."""
     if html:
-        ctx.run(f"cargo llvm-cov --workspace {_EXCLUDE_ARGS} --html")
+        run_command(
+            f"cargo llvm-cov --workspace {_build_exclude_args(_BIN_CRATES)} --html"
+        )
     else:
-        ctx.run(
-            f"cargo llvm-cov --workspace {_EXCLUDE_ARGS} --lcov --output-path target/llvm-cov/lcov.info"
+        run_command(
+            f"cargo llvm-cov --workspace {_build_exclude_args(_BIN_CRATES)} --lcov --output-path target/llvm-cov/lcov.info",
         )
 
 
-@task
+@build_task
 def fmt(ctx, check=False):
     """Run cargo fmt. Pass --check to verify formatting without changes."""
     check_flag = "--check" if check else ""
-    ctx.run(f"cargo fmt --all {check_flag}".strip())
+    run_command(f"cargo fmt --all {check_flag}".strip())
 
 
-@task
+@build_task
 def ci(ctx):
     """Run the main CI checks: fmt --check, clippy, build, test, miri."""
     fmt(ctx, check=True)
