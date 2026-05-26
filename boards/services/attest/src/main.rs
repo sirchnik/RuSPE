@@ -1,26 +1,20 @@
 #![no_std]
 #![no_main]
 
-use psa_interface::types::ServiceHandle;
 use ruspe_psc3::services::attest::{InitialAttestation, Psc3AttestPlatform};
 use spe::{
-    psa::psa_call::{CallerAttributes, PsaMsg},
+    psa::psa_call::PsaMsg,
     service::Service,
+    spm::FlashProcessVectors,
+    into_psa_status,
 };
 
 static SERVICE: InitialAttestation = InitialAttestation::new(Psc3AttestPlatform);
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn call() {
-    SERVICE
-        .call(PsaMsg {
-            handle: ServiceHandle::Crypto,
-            msg_type: 1,
-            caller: CallerAttributes::NS_UNPRIVILEGED,
-            in_size: [Some(0), None, None, None],
-            out_size: [Some(0), None, None, None],
-        })
-        .unwrap();
+pub unsafe extern "C" fn call(msg: *const PsaMsg) -> psa_interface::types::PsaStatus {
+    let msg = unsafe { &*msg };
+    into_psa_status(SERVICE.call(*msg))
 }
 
 // External linker symbols for memory initialization
@@ -93,7 +87,7 @@ pub unsafe extern "C" fn init() {
 )]
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
-pub static BASE_VECTORS: [unsafe extern "C" fn(); 2] = [init, call];
+pub static BASE_VECTORS: FlashProcessVectors = FlashProcessVectors { init, call };
 
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {

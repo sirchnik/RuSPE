@@ -27,6 +27,7 @@ TASKS_FILE_NAME = "tasks.py"
 # Crates that only compile for the embedded target, not on the host.
 _BIN_CRATES = [
     "psc3m5_evk_secure",
+    "psc3m5_evk_secure_ipc",
     "psc3m5_evk_test",
     "psc3m5_evk_tock",
     "psa_tock_app",
@@ -95,6 +96,12 @@ def _tasks_payload() -> dict[str, object]:
                 "options": {"cwd": "${workspaceFolder}/boards/tock/psc3m5_evk_tock"},
                 "command": build_with_app_command,
             },
+            {
+                **common_task,
+                "label": "build.psc3m5_evk_secure_ipc",
+                "options": {"cwd": "${workspaceFolder}/boards/psc3m5_evk_secure_ipc"},
+                "command": build_command,
+            },
         ],
     }
 
@@ -134,6 +141,16 @@ def _launch_payload() -> dict[str, object]:
                 ],
                 "preLaunchTask": "build.psc3m5_evk_tock",
             },
+            {
+                **psc3m5_base_conf,
+                "name": "PSC3-IPC",
+                "executable": "target/thumbv8m.main-none-eabi/debug/psc3m5_evk_secure_ipc_merged.hex",
+                "preLaunchCommands": [
+                    "add-symbol-file target/thumbv8m.main-none-eabi/debug/psc3m5_evk_secure_ipc",
+                    "add-symbol-file target/thumbv8m.main-none-eabi/debug/psc3m5_evk_attest",
+                ],
+                "preLaunchTask": "build.psc3m5_evk_secure_ipc",
+            }
         ],
     }
 

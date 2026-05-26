@@ -756,6 +756,7 @@ name = "spe"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "cortexm",
  "cortexm33",
  "cose",
  "helpers",

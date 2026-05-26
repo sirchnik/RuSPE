@@ -13,10 +13,11 @@ use core::ptr::addr_of_mut;
 use helpers::static_init;
 use spe::{
     psa::psa_api,
-    spm::{self, EmbeddedProcess, SpmPlatform},
+    spm::{self, FlashProcess, FlashProcessVectors, SpmPlatform},
 };
 use tock_psc3::{chip, chip_init, gpio, icache, peri_clk, scb};
 
+use psa_interface::types::ServiceHandle;
 use ruspe_psc3::configure_security;
 
 unsafe extern "Rust" {
@@ -148,14 +149,20 @@ pub unsafe fn main() {
 
     configure_security();
 
-    // Services are injected later as separate service binaries.
-    let processes: [EmbeddedProcess; 0] = [];
+    // Attest service binary is placed in its dedicated secure flash slot.
+    // Its vector table (FlashProcessVectors) is at the start of its ROM region.
+    const ATTEST_VECTORS: *const FlashProcessVectors = 0x3201_0000 as *const FlashProcessVectors;
+
+    let processes: [FlashProcess; 1] = [FlashProcess::new(
+        ServiceHandle::AttestationService,
+        ATTEST_VECTORS,
+    )];
 
     let platform = unsafe { static_init!(Psc3IpcPlatform, Psc3IpcPlatform) };
 
     let spm = unsafe {
         static_init!(
-            spm::SpmIpc<Psc3IpcPlatform, 0, EmbeddedProcess>,
+            spm::SpmIpc<Psc3IpcPlatform, 1, FlashProcess>,
             spm::SpmIpc::new(platform, processes)
         )
     };

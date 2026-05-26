@@ -15,15 +15,11 @@ unsafe extern "C" {
     static _erelocate: *const u32;
 }
 
-#[cfg_attr(
-    all(target_arch = "arm", target_os = "none"),
-    unsafe(link_section = ".stack_buffer")
-)]
+#[unsafe(link_section = ".stack_buffer")]
 #[unsafe(no_mangle)]
 static mut STACK_MEMORY: [u8; 0x3200] = [0; 0x3200];
 
 /// Initializes RAM and jumps to main. This is the entry point of the secure firmware.
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn sec_initialize_ram_jump_to_main() {
@@ -79,11 +75,8 @@ pub unsafe extern "C" fn sec_initialize_ram_jump_to_main() {
     );
 }
 
-#[cfg_attr(
-    all(target_arch = "arm", target_os = "none"),
-    unsafe(link_section = ".vectors")
-)]
-#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
+#[unsafe(link_section = ".vectors")]
+#[used]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     _estack,
     sec_initialize_ram_jump_to_main,
@@ -103,33 +96,55 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     unhandled_interrupt, // SysTick
 ];
 
-#[cfg_attr(
-    all(target_arch = "arm", target_os = "none"),
-    unsafe(link_section = ".irqs")
-)]
-#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
+#[unsafe(link_section = ".irqs")]
+#[used]
 pub static IRQS: [unsafe extern "C" fn(); 140] = [unhandled_interrupt; 140];
 
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 pub unsafe extern "C" fn svc_handler() {
     use core::arch::naked_asm;
     naked_asm!(
         "
-    movs r0, #0
-    msr control, r0
-    isb
-    bx lr
+    tst lr, #4
+    ite eq
+    mrseq r0, msp
+    mrsne r0, psp
+    b {svc_handler_rust}
         "
+        ,
+        svc_handler_rust = sym svc_handler_rust,
     );
 }
 
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
-pub unsafe extern "C" fn svc_handler() {
-    unimplemented!()
+unsafe extern "C" fn svc_handler_rust(frame: *mut spe::psa::psa_svc_api::SvcStackFrame) {
+    use core::{arch::asm, ptr};
+
+    let frame = unsafe { &mut *frame };
+    let pc = frame.pc as *const u16;
+    let svc_instr = unsafe { ptr::read(pc.offset(-1)) };
+    let svc_num = (svc_instr & 0xff) as u8;
+
+    if svc_num == spe::psa::psa_svc_api::SVC_ELEVATE {
+        unsafe {
+            asm!(
+                "movs {tmp}, #0",
+                "msr control, {tmp}",
+                "isb",
+                tmp = out(reg) _,
+                options(nomem, nostack),
+            );
+        }
+        return;
+    }
+
+    if spe::psa::psa_svc_api::handle_svc(svc_num, frame) {
+        return;
+    }
+
+    panic!("Unhandled SVC {}", svc_num);
 }
 
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+
 #[unsafe(naked)]
 pub unsafe extern "C" fn hard_fault_handler() {
     use core::arch::naked_asm;
@@ -161,7 +176,6 @@ pub unsafe extern "C" fn hard_fault_handler_real(interrupt_number: u32, stack_ov
     );
 }
 
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn unhandled_interrupt() {
     use core::arch::asm;
 
@@ -171,9 +185,9 @@ pub unsafe extern "C" fn unhandled_interrupt() {
         // IPSR[8:0] holds the currently active interrupt
         asm!(
             "
-    mrs r0, ipsr
+    mrs {interrupt_number}, ipsr
         ",
-            out("r0") interrupt_number,
+            interrupt_number = out(reg) interrupt_number,
             options(nomem, nostack, preserves_flags),
         );
     }
@@ -181,19 +195,4 @@ pub unsafe extern "C" fn unhandled_interrupt() {
     interrupt_number &= 0x1ff;
 
     panic!("Unhandled Interrupt. ISR {} is active.", interrupt_number);
-}
-
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
-pub unsafe extern "C" fn unhandled_interrupt() {
-    unimplemented!()
-}
-
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
-pub unsafe extern "C" fn hard_fault_handler() {
-    unimplemented!()
-}
-
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
-pub unsafe extern "C" fn sec_initialize_ram_jump_to_main() {
-    unimplemented!()
 }

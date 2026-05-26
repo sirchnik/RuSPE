@@ -1,0 +1,17 @@
+[project]
+name = "RuSPE"
+description = "RuSPE Python dependencies."
+version = "0.0.1"
+
+requires-python = ">=3.10"
+
+dependencies = [
+    "invoke==3.0.3", # command support
+    "intelhex==2.3.0", # merging hex files like SPE and NSPE
+]
+
+[tool.ruff]
+ignore = [
+    # module level import not at top of file
+    "E402", # used in tasks.py after setting up sys.path to relative root
+]
