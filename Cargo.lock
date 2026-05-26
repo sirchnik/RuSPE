@@ -641,6 +641,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "psc3m5_evk_secure_ipc"
+version = "0.1.0"
+dependencies = [
+ "cortex_m",
+ "cortexm33",
+ "helpers",
+ "psa_interface",
+ "psc3 0.1.0",
+ "psc3 0.2.3-dev",
+ "spe",
+ "spe_services",
+ "tock_build_scripts",
+]
+
+[[package]]
 name = "psc3m5_evk_test"
 version = "0.1.0"
 dependencies = [

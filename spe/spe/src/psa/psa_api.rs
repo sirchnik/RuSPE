@@ -9,7 +9,7 @@ use crate::{
     libs::once_lock::OnceLock,
     psa::psa_call::CallerAttributes,
     psa::{psa_call, psa_iovec_api},
-    spm::spm::SpmCall,
+    spm::SpmCall,
 };
 use psa_interface::PsaApiCallInterface;
 use psa_interface::types::{CtrlParam, FFInVec, FFOutVec, ServiceHandle};

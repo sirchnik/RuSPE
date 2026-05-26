@@ -1,6 +1,7 @@
 use crate::{
     libs::mutex::Mutex,
     psa::psa_call::{CallerAttributes, PsaMsg},
+    spm::call_unprivileged,
 };
 
 const MAX_CONNECTIONS: usize = 4;
@@ -36,7 +37,7 @@ pub enum SpmError {
     CorruptedConnectionStack,
 }
 
-struct ConnectionArray {
+pub(crate) struct ConnectionArray {
     connections: [Option<Connection>; MAX_CONNECTIONS],
     top_connection: usize,
 }
@@ -49,7 +50,7 @@ impl ConnectionArray {
         }
     }
 
-    fn add_connection(&mut self, connection: Connection) -> Result<(), SpmError> {
+    pub(crate) fn add_connection(&mut self, connection: Connection) -> Result<(), SpmError> {
         if self.top_connection >= MAX_CONNECTIONS {
             return Err(SpmError::ConnectionStackFull);
         }
@@ -60,7 +61,7 @@ impl ConnectionArray {
         Ok(())
     }
 
-    fn take_active_connection(&mut self) -> Result<(usize, Connection), SpmError> {
+    pub(crate) fn take_active_connection(&mut self) -> Result<(usize, Connection), SpmError> {
         if self.top_connection == 0 {
             return Err(SpmError::NoActiveConnection);
         }
@@ -73,7 +74,7 @@ impl ConnectionArray {
         Ok((index, connection))
     }
 
-    fn restore_active_connection(
+    pub(crate) fn restore_active_connection(
         &mut self,
         index: usize,
         connection: Connection,
@@ -112,12 +113,14 @@ pub trait SpmCall: Sync {
     ) -> bool;
 }
 
-pub struct Spm<P: SpmPlatform + 'static> {
+pub struct SpmFn<P: SpmPlatform + 'static> {
     connections: Mutex<ConnectionArray>,
     platform: &'static P,
 }
 
-impl<P: SpmPlatform + 'static> Spm<P> {
+// call_unprivileged is provided by the spm module to keep the policy in one place.
+
+impl<P: SpmPlatform + 'static> SpmFn<P> {
     pub const fn new(platform: &'static P) -> Self {
         Self {
             connections: Mutex::new(ConnectionArray::new()),
@@ -139,7 +142,11 @@ impl<P: SpmPlatform + 'static> Spm<P> {
         if self.add_connection(connection).is_err() {
             panic!("SPM connection stack exhausted");
         }
-        self.platform.call(connection.msg)
+        let mut result = Ok(());
+        call_unprivileged(|| {
+            result = self.platform.call(connection.msg);
+        });
+        result
     }
 
     // Can be called by multiple threads. Multiple threads need access to different connections.
@@ -170,10 +177,10 @@ impl<P: SpmPlatform + 'static> Spm<P> {
     }
 }
 
-impl<P: SpmPlatform + 'static> SpmCall for Spm<P> {
+impl<P: SpmPlatform + 'static> SpmCall for SpmFn<P> {
     /// Forwards the call to the platform's call method, while managing the connection stack.
     fn call(&self, connection: Connection) -> Result<(), crate::StatusCode> {
-        Spm::call(self, connection)
+        SpmFn::call(self, connection)
     }
 
     fn with_active_connection(&self, f: &mut dyn FnMut(&mut Connection)) -> Result<(), SpmError> {

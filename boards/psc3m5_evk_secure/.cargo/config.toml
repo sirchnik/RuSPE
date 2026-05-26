@@ -17,6 +17,3 @@ rustflags = [
   "-C",
   "link-arg=--out-implib=target/thumbv8m.main-none-eabi/psc3m5_secure-veneers.o",
 ]
-
-[unstable]
-config-include = true

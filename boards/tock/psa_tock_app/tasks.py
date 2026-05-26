@@ -10,9 +10,8 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tools.invoke_support import (  # noqa: E402
+from tools.build.invoke_support import (  # noqa: E402
     BuildError,
-    _command_path,
     build_task,
     run_command,
 )
@@ -54,10 +53,6 @@ class AppConfig:
         }
 
 
-def resolve_elf2tab() -> Path | None:
-    return _command_path("elf2tab")
-
-
 def cargo_build_app(ctx: Context, app: AppConfig, debug: bool) -> Path:
     command = ["cargo", "build"]
     if not debug:
@@ -71,17 +66,11 @@ def elf_to_tbf(ctx: Context, app: AppConfig, debug: bool) -> Path:
     if not elf.exists():
         raise BuildError(f"App ELF does not exist: {elf}")
 
-    elf2tab = resolve_elf2tab()
-    if elf2tab is None:
-        raise BuildError(
-            "Required tool not found: elf2tab. Install with 'cargo install elf2tab'."
-        )
-
     tbf = app.tbf_image(debug)
     tab = tbf.with_suffix(".tab")
     run_command(
         [
-            str(elf2tab),
+            "elf2tab",
             "--kernel-major",
             "2",
             "--kernel-minor",
@@ -121,7 +110,7 @@ DEBUG_HELP = "Build the debug profile instead of release."
 
 
 @build_task(default=True, help={"debug": DEBUG_HELP})
-def build(ctx, debug=False):
+def build(ctx: Context, debug=False):
     """Build the Tock userland app and convert it to TBF."""
 
     return elf_to_tbf(ctx, APP, bool(debug))
