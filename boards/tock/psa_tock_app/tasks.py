@@ -10,10 +10,11 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tools.build.invoke_support import (  # noqa: E402
+from tools.build.invoke_support import (
     BuildError,
     build_task,
     run_command,
+    resolve_cmd,
 )
 
 
@@ -68,9 +69,12 @@ def elf_to_tbf(ctx: Context, app: AppConfig, debug: bool) -> Path:
 
     tbf = app.tbf_image(debug)
     tab = tbf.with_suffix(".tab")
+    elf2tab = resolve_cmd("elf2tab")
+    if elf2tab is None:
+        raise BuildError("elf2tab tool not found in PATH")
     run_command(
         [
-            "elf2tab",
+            str(elf2tab),
             "--kernel-major",
             "2",
             "--kernel-minor",
