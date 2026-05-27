@@ -63,14 +63,7 @@ pub unsafe extern "C" fn init() {
         // Initialize stack pointer
         ldr sp, ={stack_top}
 
-        // Switch to privileged mode (clear nPRIV bit)
-        mrs r0, control         // read CONTROL register
-        bic r0, r0, #1          // clear bit 0 (nPRIV)
-        msr control, r0         // write back CONTROL
-        dsb                     // data synchronization barrier
-        isb                     // instruction synchronization barrier
-
-        svc #0                  // supervisor call
+        bx lr
         ",
         szero = sym _szero,
         ezero = sym _ezero,
@@ -81,13 +74,28 @@ pub unsafe extern "C" fn init() {
     );
 }
 
+/// Minimal thunk placed in service flash. When the service function returns,
+/// it branches here via LR. The `svc #0` traps back to the SPM's SVC handler
+/// which re-elevates to privileged mode and returns to the original caller.
+#[unsafe(naked)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn svc_return() {
+    use core::arch::naked_asm;
+    naked_asm!("svc #0");
+}
+
 #[cfg_attr(
     all(target_arch = "arm", target_os = "none"),
     unsafe(link_section = ".vectors")
 )]
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
-pub static BASE_VECTORS: FlashProcessVectors = FlashProcessVectors { init, call };
+pub static BASE_VECTORS: FlashProcessVectors = FlashProcessVectors {
+    init,
+    call,
+    svc_return,
+    stack_top: unsafe { &_stack_top as *const _ as *const u8 },
+};
 
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {

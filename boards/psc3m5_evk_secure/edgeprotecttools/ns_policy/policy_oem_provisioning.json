@@ -231,7 +231,7 @@
                         }
                     },
                     {
-                        "description": "Secure Memory",
+                        "description": "Shared Memory",
                         "offset": "60 KB",
                         "size": "4 KB",
                         "attr": {

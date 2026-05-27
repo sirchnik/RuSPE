@@ -105,37 +105,62 @@ pub unsafe extern "C" fn svc_handler() {
     use core::arch::naked_asm;
     naked_asm!(
         "
+    // Determine which stack the exception frame is on (EXC_RETURN bit 2).
     tst lr, #4
     ite eq
     mrseq r0, msp
     mrsne r0, psp
+
+    // Extract SVC number from the instruction preceding stacked PC.
+    ldr r1, [r0, #24]          // r1 = stacked PC
+    ldrh r1, [r1, #-2]         // r1 = SVC instruction halfword
+    uxtb r1, r1                // r1 = SVC number
+
+    // --- SVC_CALL_UNPRIV (5): switch to unprivileged Thread + PSP ----------
+    cmp r1, #5
+    beq 200f
+
+    // --- SVC_ELEVATE (0): return to privileged Thread + MSP ----------------
+    cmp r1, #0
+    beq 201f
+
+    // --- All other SVCs: delegate to Rust handler --------------------------
     b {svc_handler_rust}
-        "
-        ,
+
+200: // svc_call_unpriv
+    // The caller prepared PSP with a fake exception frame before issuing this
+    // SVC. We just flip CONTROL and EXC_RETURN to return via PSP unprivileged.
+    mov r0, #1
+    msr CONTROL, r0             // nPRIV=1 (Thread unprivileged)
+    isb
+    orr lr, lr, #4              // EXC_RETURN bit2=1 → unstack from PSP
+    bx lr                       // exception return → service runs
+
+201: // svc_elevate
+    // Service finished: PSP frame has return value in R0.
+    // Copy it to the orphaned MSP frame so the original caller gets it.
+    ldr r2, [r0, #0]           // r2 = PSP_frame.R0 (service return value)
+    mrs r1, msp                // r1 = MSP (orphaned frame from SVC_CALL_UNPRIV)
+    str r2, [r1, #0]          // MSP_frame.R0 = return value
+
+    // Restore privileged Thread mode using MSP.
+    mov r0, #0
+    msr CONTROL, r0            // nPRIV=0, SPSEL=0
+    isb
+    bic lr, lr, #4             // EXC_RETURN bit2=0 → unstack from MSP
+    bx lr                      // exception return → back in privileged caller
+        ",
         svc_handler_rust = sym svc_handler_rust,
     );
 }
 
 unsafe extern "C" fn svc_handler_rust(frame: *mut spe::psa::psa_svc_api::SvcStackFrame) {
-    use core::{arch::asm, ptr};
+    use core::ptr;
 
     let frame = unsafe { &mut *frame };
     let pc = frame.pc as *const u16;
     let svc_instr = unsafe { ptr::read(pc.offset(-1)) };
     let svc_num = (svc_instr & 0xff) as u8;
-
-    if svc_num == spe::psa::psa_svc_api::SVC_ELEVATE {
-        unsafe {
-            asm!(
-                "movs {tmp}, #0",
-                "msr control, {tmp}",
-                "isb",
-                tmp = out(reg) _,
-                options(nomem, nostack),
-            );
-        }
-        return;
-    }
 
     if spe::psa::psa_svc_api::handle_svc(svc_num, frame) {
         return;

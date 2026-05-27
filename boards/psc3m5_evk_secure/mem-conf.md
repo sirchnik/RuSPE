@@ -10,7 +10,7 @@ Notes:
 - Address ranges are shown as `[start, end)` (end address is exclusive).
 - `Secure (S)` is accessible only from secure world.
 - `Non-Secure (NS)` is used by the non-secure Tock kernel/application.
-- `Shared Memory (SHM)` is intentionally accessible from both worlds.
+- `Shared Memory (SHM)` is intentionally accessible from both worlds (unused).
 - `Non-Secure Callable (NSC)` is the secure gateway region for veneers.
 
 ### SRAM
@@ -18,22 +18,22 @@ Notes:
 `0x3` and `0x2` in the address indicate secure and non-secure memory, respectively.
 These address spaces share the **same** physical SRAM though.
 
-| Region                      |  Size |       Configuration |
-| --------------------------- | ----: | ------------------: |
-| `0x3400_0000`-`0x3400_4000` | 16 KB |          Secure (S) |
-| `0x2400_4000`-`0x2400_F000` | 44 KB |     Non-Secure (NS) |
-| `0x2400_F000`-`0x2401_0000` |  4 KB | Shared Memory (SHM) |
+| Region                      |  Size |                Configuration |
+| --------------------------- | ----: | ---------------------------: |
+| `0x3400_0000`-`0x3400_4000` | 16 KB |                   Secure (S) |
+| `0x2400_4000`-`0x2400_F000` | 44 KB |              Non-Secure (NS) |
+| `0x2400_F000`-`0x2401_0000` |  4 KB | Shared Memory (SHM) (unused) |
 
 ### Flash
 
 `0x3` and `0x2` in the address indicate secure and non-secure memory, respectively.
 These address spaces share the **same** physical Flash though.
 
-| Region                      |      Size |             Configuration |
-| --------------------------- | --------: | ------------------------: |
-| `0x3200_0000`-`0x3201_3F00` |   79,75 KB |                Secure (S) |
-| `0x3201_3F00`-`0x3201_4000` |     256 B | Non-Secure Callable (NSC) |
-| `0x2201_4000`-`0x2204_0000` |    176 KB |           Non-Secure (NS) |
+| Region                      |     Size |             Configuration |
+| --------------------------- | -------: | ------------------------: |
+| `0x3200_0000`-`0x3201_3F00` | 79,75 KB |                Secure (S) |
+| `0x3201_3F00`-`0x3201_4000` |    256 B | Non-Secure Callable (NSC) |
+| `0x2201_4000`-`0x2204_0000` |   176 KB |           Non-Secure (NS) |
 
 ## Implementation
 

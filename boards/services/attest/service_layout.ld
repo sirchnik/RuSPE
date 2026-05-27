@@ -22,14 +22,6 @@ SECTIONS {
     /* Sections located in RAM at runtime.
      */
 
-    /* Reserve space for the stack.
-     */
-    .stack (NOLOAD) : {
-        KEEP(*(.stack_buffer))
-        . = ALIGN(16);
-        _stack_top = .;
-    } > RAM AT > ROM
-
     /* Read-write data section. This is deployed as part of ROM but is copied
      * into RAM at runtime.
      */
@@ -55,6 +47,10 @@ SECTIONS {
         *(.sbss .bss.*)
         _ezero = .;
     } > RAM AT > ROM
+
+    . = ORIGIN(RAM) + LENGTH(RAM);
+    _stack_top = .;
+    ASSERT(_ezero <= _stack_top - 32, "attest RAM leaves no room for PSP frame")
 
     _etext = LOADADDR(.data);  /* Start of .data in ROM */
 
