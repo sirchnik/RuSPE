@@ -8,6 +8,53 @@ use crate::{
 use crate::psa::psa_call::CallerAttributes;
 use psa_interface::types::ServiceHandle;
 
+fn copy_invec_into(
+    connection: &mut Connection,
+    index: usize,
+    in_len: usize,
+    base: *const u8,
+    buffer: &mut [u8],
+) -> Result<usize, StatusCode> {
+    if in_len > buffer.len() {
+        mark_invec_unmapped(connection, index);
+        return Err(StatusCode::BufferTooSmall);
+    }
+
+    if in_len != 0 {
+        let invec = unsafe { slice::from_raw_parts(base, in_len) };
+        buffer[..in_len].copy_from_slice(invec);
+    }
+
+    mark_invec_unmapped(connection, index);
+    Ok(in_len)
+}
+
+fn copy_outvec_from(
+    connection: &mut Connection,
+    index: usize,
+    out_len: usize,
+    base: *mut u8,
+    buffer: &[u8],
+) -> Result<usize, StatusCode> {
+    if out_len < buffer.len() {
+        if out_len != 0 {
+            unsafe { slice::from_raw_parts_mut(base, out_len) }.fill(0);
+        }
+        commit_outvec_write(connection, index, out_len, 0);
+        return Err(StatusCode::BufferTooSmall);
+    }
+
+    if !buffer.is_empty() {
+        let outvec = unsafe { slice::from_raw_parts_mut(base, out_len) };
+        outvec[..buffer.len()].copy_from_slice(buffer);
+    }
+
+    // TODO: Decide whether service-side copy APIs should support TF-M-style
+    // partial reads/writes or keep the current strict full-fit behavior.
+    commit_outvec_write(connection, index, out_len, buffer.len());
+    Ok(buffer.len())
+}
+
 fn validate_pointer_range(base: *const u8, len: usize, vector_kind: &str) {
     if len == 0 {
         return;
@@ -272,6 +319,30 @@ pub fn psa_map_invec_outvec<R>(
         mark_invec_unmapped(connection, in_index);
 
         result
+    })
+}
+
+pub fn psa_read(
+    spm: &dyn SpmCall,
+    msg_handle: ServiceHandle,
+    invec_idx: u32,
+    buffer: &mut [u8],
+) -> Result<usize, StatusCode> {
+    with_connection_for_handle(spm, msg_handle, |connection| {
+        let (index, in_len, base) = prepare_invec(spm, connection, invec_idx);
+        copy_invec_into(connection, index, in_len, base, buffer)
+    })
+}
+
+pub fn psa_write(
+    spm: &dyn SpmCall,
+    msg_handle: ServiceHandle,
+    outvec_idx: u32,
+    buffer: &[u8],
+) -> Result<usize, StatusCode> {
+    with_connection_for_handle(spm, msg_handle, |connection| {
+        let (index, out_len, base) = prepare_outvec(spm, connection, outvec_idx);
+        copy_outvec_from(connection, index, out_len, base, buffer)
     })
 }
 
@@ -553,5 +624,66 @@ mod tests {
         );
 
         let _ = psa_map_outvec(&spm, ServiceHandle::Crypto, 0, |_| ((), 0));
+    }
+
+    #[test]
+    fn psa_read_copies_full_input_vector() {
+        let input = [1u8, 2, 3, 4];
+        let mut output = [0u8; 4];
+        let spm = make_test_spm(
+            make_connection(input.as_ptr(), input.len(), ptr::null_mut(), 0),
+            true,
+            true,
+        );
+
+        let read_len = psa_read(&spm, ServiceHandle::Crypto, 0, &mut output).unwrap();
+
+        assert_eq!(read_len, input.len());
+        assert_eq!(output, input);
+
+        let connection = spm.connection.borrow();
+        assert!(connection.invec_unmapped[0]);
+    }
+
+    #[test]
+    fn psa_write_copies_output_and_commits_length() {
+        let input = [9u8, 8, 7];
+        let mut output = [0u8; 4];
+        let spm = make_test_spm(
+            make_connection(ptr::null(), 0, output.as_mut_ptr(), output.len()),
+            true,
+            true,
+        );
+
+        let written_len = psa_write(&spm, ServiceHandle::Crypto, 0, &input).unwrap();
+
+        assert_eq!(written_len, input.len());
+        assert_eq!(&output[..input.len()], &input);
+
+        let connection = spm.connection.borrow();
+        assert_eq!(connection.outvec_written[0], input.len());
+        assert_eq!(connection.msg.out_size[0], Some(input.len()));
+        assert!(connection.outvec_unmapped[0]);
+    }
+
+    #[test]
+    fn psa_write_rejects_oversize_buffer_and_commits_zero_length() {
+        let input = [1u8, 2, 3];
+        let mut output = [0xAAu8; 2];
+        let spm = make_test_spm(
+            make_connection(ptr::null(), 0, output.as_mut_ptr(), output.len()),
+            true,
+            true,
+        );
+
+        let err = psa_write(&spm, ServiceHandle::Crypto, 0, &input).unwrap_err();
+
+        assert_eq!(err, StatusCode::BufferTooSmall);
+        assert_eq!(output, [0u8; 2]);
+
+        let connection = spm.connection.borrow();
+        assert_eq!(connection.outvec_written[0], 0);
+        assert_eq!(connection.msg.out_size[0], Some(0));
+        assert!(connection.outvec_unmapped[0]);
     }
 }

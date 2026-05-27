@@ -17,6 +17,17 @@ unsafe extern "C" {
 
 use crate::arch_v7m;
 
+unsafe extern "C" fn svc_handler_dispatch(
+    frame: *mut spe::psa::psa_svc_api::SvcStackFrame,
+    svc_num: u32,
+) {
+    if unsafe { spe::psa::psa_svc_api::handle_svc(svc_num as u8, &mut *frame) } {
+        return;
+    }
+
+    unsafe { arch_v7m::svc_handler_arm_v7m() };
+}
+
 #[unsafe(link_section = ".stack_buffer")]
 #[unsafe(no_mangle)]
 static mut STACK_MEMORY: [u8; 0x3200] = [0; 0x3200];
@@ -126,8 +137,8 @@ pub unsafe extern "C" fn svc_handler() {
     cmp r1, #0
     beq 201f
 
-    // --- All other SVCs: delegate to upstream handler ---------------------
-    b {svc_handler_v7m}
+    // --- PSA SVCs and any fallback handling --------------------------------
+    b {svc_handler_dispatch}
 
 200: // svc_call_unpriv
     // The caller prepared PSP with a fake exception frame before issuing this
@@ -152,7 +163,7 @@ pub unsafe extern "C" fn svc_handler() {
     bic lr, lr, #4             // EXC_RETURN bit2=0 → unstack from MSP
     bx lr                      // exception return → back in privileged caller
         ",
-        svc_handler_v7m = sym arch_v7m::svc_handler_arm_v7m,
+        svc_handler_dispatch = sym svc_handler_dispatch,
     );
 }
 
