@@ -11,6 +11,7 @@
 use core::ptr::addr_of_mut;
 
 use helpers::static_init;
+use kernel::platform::mpu::{MPU as MpuTrait, Permissions};
 use spe::{
     psa::psa_api,
     spm::{self, FlashProcess, FlashProcessVectors, SpmPlatform},
@@ -31,6 +32,7 @@ unsafe extern "C" {
     static _sstack: u8;
 }
 
+mod arch_v7m;
 mod io;
 mod startup;
 
@@ -87,6 +89,39 @@ impl SpmPlatform for Psc3IpcPlatform {
             false
         }
     }
+}
+
+unsafe fn configure_secure_mpu() {
+    let mpu = unsafe { cortexm33::mpu::new::<8>() };
+    let mut config = mpu.new_config().expect("MPU config slots exhausted");
+
+    let service_rom_start = 0x3201_0000 as *const u8;
+    let service_rom_size = 0x3F00;
+    let service_ram_start = 0x3400_3A00 as *const u8;
+    let service_ram_size = 0x0600;
+
+    mpu.allocate_region(
+        service_rom_start,
+        service_rom_size,
+        service_rom_size,
+        Permissions::ReadExecuteOnly,
+        &mut config,
+    )
+    .expect("MPU ROM region allocation failed");
+
+    mpu.allocate_region(
+        service_ram_start,
+        service_ram_size,
+        service_ram_size,
+        Permissions::ReadWriteOnly,
+        &mut config,
+    )
+    .expect("MPU RAM region allocation failed");
+
+    unsafe {
+        mpu.configure_mpu(&config);
+    }
+    mpu.enable_app_mpu();
 }
 
 #[unsafe(no_mangle)]
@@ -148,6 +183,9 @@ pub unsafe fn main() {
     led_pin.preconfigure(&GPIO_CONFIG);
 
     configure_security();
+    unsafe {
+        configure_secure_mpu();
+    }
 
     // Attest service binary is placed in its dedicated secure flash slot.
     // Its vector table (FlashProcessVectors) is at the start of its ROM region.

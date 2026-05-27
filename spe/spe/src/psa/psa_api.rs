@@ -21,10 +21,6 @@ fn get_spm() -> &'static dyn SpmCall {
         .expect("SPM must be initialized with set_spm() before PSA API use")
 }
 
-pub(crate) fn try_get_spm() -> Option<&'static dyn SpmCall> {
-    SPM.try_get().copied().ok()
-}
-
 pub fn set_spm(spm: &'static dyn SpmCall) {
     if SPM.try_set(spm).is_err() {
         panic!("SPM already initialized");
@@ -105,11 +101,8 @@ pub fn psa_map_invec<R>(
     invec_idx: u32,
     f: impl FnOnce(&[u8]) -> R,
 ) -> R {
-    if let Some(spm) = try_get_spm() {
-        psa_iovec_api::psa_map_invec(spm, msg_handle, invec_idx, f)
-    } else {
-        crate::psa::psa_svc_api::psa_map_invec(msg_handle, invec_idx, f)
-    }
+    let spm = get_spm();
+    psa_iovec_api::psa_map_invec(spm, msg_handle, invec_idx, f)
 }
 
 pub fn psa_map_outvec<R>(
@@ -117,11 +110,8 @@ pub fn psa_map_outvec<R>(
     outvec_idx: u32,
     f: impl FnOnce(&mut [u8]) -> (R, usize),
 ) -> R {
-    if let Some(spm) = try_get_spm() {
-        psa_iovec_api::psa_map_outvec(spm, msg_handle, outvec_idx, f)
-    } else {
-        crate::psa::psa_svc_api::psa_map_outvec(msg_handle, outvec_idx, f)
-    }
+    let spm = get_spm();
+    psa_iovec_api::psa_map_outvec(spm, msg_handle, outvec_idx, f)
 }
 
 pub fn psa_map_invec_outvec<R>(
@@ -130,9 +120,6 @@ pub fn psa_map_invec_outvec<R>(
     outvec_idx: u32,
     f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize),
 ) -> R {
-    if let Some(spm) = try_get_spm() {
-        psa_iovec_api::psa_map_invec_outvec(spm, msg_handle, invec_idx, outvec_idx, f)
-    } else {
-        crate::psa::psa_svc_api::psa_map_invec_outvec(msg_handle, invec_idx, outvec_idx, f)
-    }
+    let spm = get_spm();
+    psa_iovec_api::psa_map_invec_outvec(spm, msg_handle, invec_idx, outvec_idx, f)
 }

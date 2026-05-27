@@ -18,6 +18,8 @@ spe = { path = "../../spe/spe" }
 spe_services = { path = "../../spe/spe_services" }
 psa_interface = { path = "../../spe/psa_interface" }
 helpers = { path = "../../libraries/helpers" }
+cortexm = { version = "0.2.3-dev", path = "../../tock/arch/cortex-m" }
+kernel = { path = "../../tock/kernel" }
 
 [build-dependencies]
 tock_build_scripts = { path = "../../tock/boards/build_scripts" }
