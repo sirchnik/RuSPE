@@ -28,6 +28,7 @@ pub(crate) const SVC_CALL_UNPRIV: u8 = 5;
 /// - `fn_ptr` must point to valid code in unprivileged-accessible memory.
 /// - `thunk` must point to an `svc #0` instruction in unprivileged-accessible
 ///   memory.
+/// - `stack_limit` must be the lowest permitted PSP value for the service.
 /// - `stack_top` must be an 8-byte aligned address at the top of RAM accessible
 ///   to unprivileged code (the service's stack).
 #[cfg(all(target_arch = "arm", target_os = "none"))]
@@ -35,13 +36,21 @@ pub(crate) unsafe fn svc_call_unpriv(
     fn_ptr: usize,
     arg: usize,
     thunk: usize,
+    stack_limit: usize,
     stack_top: usize,
 ) -> usize {
     use core::arch::asm;
 
     // Build a fake exception frame at (stack_top - 32).
     // Layout: [R0, R1, R2, R3, R12, LR, PC, xPSR]
-    let frame_base = (stack_top - 32) as *mut usize;
+    let frame_base_addr = stack_top
+        .checked_sub(8 * core::mem::size_of::<usize>())
+        .expect("service stack too small for exception frame");
+    assert!(
+        frame_base_addr >= stack_limit,
+        "service stack limit overlaps exception frame"
+    );
+    let frame_base = frame_base_addr as *mut usize;
     unsafe {
         frame_base.add(0).write_volatile(arg); // R0 = argument
         frame_base.add(1).write_volatile(0); // R1
@@ -53,10 +62,13 @@ pub(crate) unsafe fn svc_call_unpriv(
         frame_base.add(7).write_volatile(0x0100_0000); // xPSR (Thumb bit)
     }
 
-    // Point PSP at the fake frame.
+    // Point PSP at the fake frame and bound it with PSPLIM so stack growth
+    // faults before it can trample staged service arguments.
     unsafe {
         asm!(
+            "msr PSPLIM, {stack_limit}",
             "msr psp, {psp}",
+            stack_limit = in(reg) stack_limit,
             psp = in(reg) frame_base,
             options(nomem, nostack),
         );
@@ -78,6 +90,7 @@ pub(crate) unsafe fn svc_call_unpriv(
             options(nostack),
         );
     }
+
     ret
 }
 
@@ -86,6 +99,7 @@ pub(crate) unsafe fn svc_call_unpriv(
     _fn_ptr: usize,
     _arg: usize,
     _thunk: usize,
+    _stack_limit: usize,
     _stack_top: usize,
 ) -> usize {
     panic!("svc_call_unpriv is only available on ARM bare-metal targets")

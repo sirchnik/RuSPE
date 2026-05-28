@@ -48,9 +48,9 @@ SECTIONS {
         _ezero = .;
     } > RAM AT > ROM
 
-    . = ORIGIN(RAM) + LENGTH(RAM);
-    _stack_top = .;
-    ASSERT(_ezero <= _stack_top - 32, "attest RAM leaves no room for PSP frame")
+
+    _stack_limit = .;
+    _stack_top = ORIGIN(RAM) + LENGTH(RAM);
 
     _etext = LOADADDR(.data);  /* Start of .data in ROM */
 
@@ -58,5 +58,7 @@ SECTIONS {
     /DISCARD/ :
     {
       *(.ARM.exidx .eh_frame)
+      /* Tock injects a version number into the kernel by default. As we are using HAL from Tock these get here. */
+      *(.tock.attr .tock.attr.*)
     }
 }
