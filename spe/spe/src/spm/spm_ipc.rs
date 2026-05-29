@@ -255,7 +255,8 @@ impl<const N: usize> SpmIpcState<N> {
     }
 }
 
-pub struct SpmIpc<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess = FlashProcess> {
+pub struct SpmIpc<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess = FlashProcess>
+{
     state: Mutex<SpmIpcState<N>>,
     platform: &'static P,
     processes: [Proc; N],
@@ -304,7 +305,9 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
     }
 }
 
-impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmCall for SpmIpc<P, N, Proc> {
+impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmCall
+    for SpmIpc<P, N, Proc>
+{
     fn call(&self, connection: Connection) -> Result<(), crate::StatusCode> {
         let process_index = match self.find_process_index(connection.msg.handle) {
             Some(index) => index,
