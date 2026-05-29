@@ -14,6 +14,10 @@ pub unsafe extern "C" fn call(msg: *const PsaMsg) -> psa_interface::types::PsaSt
 
 // External linker symbols for memory initialization
 unsafe extern "C" {
+    static _rom_start: *const u32;
+    static _rom_limit: *const u32;
+    static _ram_start: *const u32;
+    static _ram_limit: *const u32;
     static _szero: *const u32;
     static _ezero: *const u32;
     static _sdata: *const u32;
@@ -89,6 +93,10 @@ pub unsafe extern "C" fn svc_return() {
 pub static BASE_VECTORS: FlashProcessVectors = FlashProcessVectors {
     init,
     call,
+    rom_start: unsafe { &_rom_start as *const _ as *const u8 },
+    rom_limit: unsafe { &_rom_limit as *const _ as *const u8 },
+    ram_start: unsafe { &_ram_start as *const _ as *const u8 },
+    ram_limit: unsafe { &_ram_limit as *const _ as *const u8 },
     svc_return,
     stack_limit: unsafe { &_stack_limit as *const _ as *const u8 },
     stack_top: unsafe { &_stack_top as *const _ as *const u8 },

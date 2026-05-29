@@ -1,5 +1,10 @@
 SECTIONS {
 
+    _rom_start = ORIGIN(ROM);
+    _rom_limit = ORIGIN(ROM) + LENGTH(ROM);
+    _ram_start = ORIGIN(RAM);
+    _ram_limit = ORIGIN(RAM) + LENGTH(RAM);
+
     /* Sections located in ROM at runtime.
      */
 
