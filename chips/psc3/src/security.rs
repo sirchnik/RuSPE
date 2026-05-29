@@ -232,8 +232,8 @@ const NONSECURE_PRIV: &[PpcRegion] = &[
 ];
 
 pub fn configure_security() {
-    // Sometimes while debugging no BUS_ERROR is generated and the debugger just hangs. T
-    ppc::set_viloation_response(ppc::PPC_CTL::RESP_CFG::BUS_ERROR);
+    // Sometimes while debugging no BUS_ERROR is generated and the debugger just hangs. Change to RZWI then.
+    ppc::set_viloation_response(ppc::PPC_CTL::RESP_CFG::RZWI);
 
     for region in NONSECURE_PRIV.iter().copied() {
         ppc::set_permissions(region, true, false, false);
@@ -242,10 +242,7 @@ pub fn configure_security() {
 
     // TODO should be inverted
     ppc::set_permissions(PpcRegion::ProtCryptoliteTrng, true, true, false);
-    ppc::set_permissions(PpcRegion::ProtEfuseCtl1, true, true, false);
-    ppc::set_permissions(PpcRegion::ProtEfuseCtl2, true, true, false);
     ppc::set_permissions(PpcRegion::ProtEfuseCtl3, true, true, false);
-    ppc::set_permissions(PpcRegion::ProtEfuseDataBoot1, true, true, false);
 
     ppc::lock_protection_contexts();
 

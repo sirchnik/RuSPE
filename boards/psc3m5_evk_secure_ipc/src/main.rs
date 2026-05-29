@@ -32,9 +32,10 @@ unsafe extern "C" {
     static _sstack: u8;
 }
 
-mod arch_v7m;
+mod faults;
 mod io;
 mod startup;
+mod svc;
 
 /// Minimal platform for the IPC model — only provides memory permission checks.
 /// Service dispatch is handled by the SpmIpc process table, not by this platform.
@@ -146,8 +147,8 @@ unsafe fn configure_process_mpu(vectors: &FlashProcessVectors) {
     )
     .expect("MPU CRYPTOLITE TRNG region allocation failed");
 
-    let efuse_ctl3_start = 0x4261_0000 as *const u8;
-    let efuse_ctl3_size = 0x1000; // size of efuse_ctl3 is only 0x4
+    let efuse_ctl3_start = 0x4261_0180 as *const u8;
+    let efuse_ctl3_size = 0x20; // size of efuse_ctl3 is only 0x4
 
     mpu.allocate_region(
         efuse_ctl3_start,
