@@ -150,7 +150,7 @@ def _launch_payload() -> dict[str, object]:
                     "add-symbol-file target/thumbv8m.main-none-eabi/debug/psc3m5_evk_attest",
                 ],
                 "preLaunchTask": "build.psc3m5_evk_secure_ipc",
-            }
+            },
         ],
     }
 
@@ -250,9 +250,18 @@ def fmt(ctx: Context, check=False):
 
 
 @build_task
+def check_spelling(ctx: Context):
+    """Run cspell"""
+    run_command(
+        "npx -y cspell lint --no-progress --show-suggestions -c cspell.config.yaml ."
+    )
+
+
+@build_task
 def ci(ctx):
     """Run the main CI checks: fmt --check, clippy, build, test, miri."""
     fmt(ctx, check=True)
+    check_spelling(ctx)
     clippy(ctx)
     build(ctx)
     test(ctx)
