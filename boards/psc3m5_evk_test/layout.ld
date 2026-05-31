@@ -13,7 +13,7 @@ MEMORY
 {
 	rom (rx)  : ORIGIN = 0x22014000, LENGTH = 0x1C000
 	prog (rx) : ORIGIN = 0x22030000, LENGTH = 0xC000 /* dynamically/after-compilation inserted apps */
-  	ram (rwx) : ORIGIN = 0x24004000, LENGTH = 0xB000
+  	ram (rwx) : ORIGIN = 0x24004800, LENGTH = 0x9000
 }
 
 PAGE_SIZE = 4K;

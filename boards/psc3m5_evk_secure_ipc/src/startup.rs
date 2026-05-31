@@ -19,7 +19,7 @@ use crate::{faults, svc};
 
 #[unsafe(link_section = ".stack_buffer")]
 #[unsafe(no_mangle)]
-static mut STACK_MEMORY: [u8; 0x3200] = [0; 0x3200];
+static mut STACK_MEMORY: [u8; 0x2B00] = [0; 0x2B00];
 
 /// Initializes RAM and jumps to main. This is the entry point of the secure firmware.
 #[unsafe(naked)]

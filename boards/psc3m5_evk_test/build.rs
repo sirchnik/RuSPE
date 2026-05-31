@@ -4,7 +4,7 @@
 
 use tock_build_scripts::default as tock_build;
 
-const LINKER_SCRIPT_NSEC: &str = "layout_non_secure.ld";
+const LINKER_SCRIPT_NSEC: &str = "layout.ld";
 const SECURE_VENEERS_OBJ: &str = "target/thumbv8m.main-none-eabi/psc3m5_secure-veneers.o";
 
 fn main() {
