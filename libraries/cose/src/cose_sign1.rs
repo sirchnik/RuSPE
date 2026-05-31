@@ -92,6 +92,7 @@ pub struct RustCryptoBackend<'a> {
     key: &'a [u8],
 }
 
+#[repr(align(32))]
 pub struct RustCryptoHasher(pub Sha256);
 
 impl CoseHasher for RustCryptoHasher {
