@@ -1,3 +1,9 @@
+/*
+ * SPDX-FileCopyrightText: Infineon Technologies AG
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
 SECTIONS {
 
     _rom_start = ORIGIN(ROM);

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: Infineon Technologies AG
+//
+// SPDX-License-Identifier: MIT
+
 //! An extremely simple libtock-rs example. Register button events.
 
 #![no_main]

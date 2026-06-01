@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: Infineon Technologies AG
+
+SPDX-License-Identifier: MIT
+-->
+
 # Memory Configuration for `psc3m5_evk` with Secure and Non-Secure Worlds
 
 This document summarizes the TrustZone memory split used by the

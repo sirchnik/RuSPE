@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: Infineon Technologies AG
+//
+// SPDX-License-Identifier: MIT
+
 /// Memory access behavior: determine which privilege execution mode is used
 /// and which Memory Protection Unit (MPU) is used.
 #[derive(PartialEq, Copy, Clone, Debug)]

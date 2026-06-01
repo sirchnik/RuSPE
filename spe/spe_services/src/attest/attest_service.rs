@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: Infineon Technologies AG
+//
+// SPDX-License-Identifier: MIT
+
 use crate::attest::psa_token::{
     AttestClaim, AttestClaimValue, IatClaim, SwComponent, compute_initial_attestation_token_size,
     encode_initial_attestation_token,

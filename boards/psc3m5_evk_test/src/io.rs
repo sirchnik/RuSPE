@@ -1,6 +1,6 @@
-// Licensed under the Apache License, Version 2.0 or the MIT License.
-// SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Infineon Technologies AG 2026.
+// SPDX-FileCopyrightText: Infineon Technologies AG
+//
+// SPDX-License-Identifier: MIT
 
 //! Board‑level I/O and panic infrastructure for the PSC3M5-EVK.
 

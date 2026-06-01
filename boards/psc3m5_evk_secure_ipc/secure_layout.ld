@@ -1,5 +1,8 @@
-/* Licensed under the Apache License, Version 2.0 or the MIT License. */
-/* SPDX-License-Identifier: Apache-2.0 OR MIT                         */
+/*
+ * SPDX-FileCopyrightText: Infineon Technologies AG
+ *
+ * SPDX-License-Identifier: MIT
+ */
 
 ENTRY(sec_initialize_ram_jump_to_main)
 

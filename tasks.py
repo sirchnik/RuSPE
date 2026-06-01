@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: Infineon Technologies AG
+#
+# SPDX-License-Identifier: MIT
+
 from __future__ import annotations
 
 import json
@@ -256,6 +260,16 @@ def check_spelling(ctx: Context):
     run_command(
         "npx -y cspell lint --no-progress --show-suggestions -c cspell.config.yaml ."
     )
+
+@build_task
+def reuse(ctx: Context):
+    """Run reuse linting"""
+    run_command("reuse lint")
+
+@build_task
+def reuse_annotate(ctx: Context, comment: str):
+    """Run reuse annotate to add missing SPDX headers"""
+    run_command(f'reuse annotate -l MIT -c "{comment}" --recursive . --skip-unrecognised --exclude-year --skip-existing"')
 
 
 @build_task

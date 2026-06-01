@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: Infineon Technologies AG
+
+SPDX-License-Identifier: MIT
+-->
+
 # Secure world application for PSOC Control C3M5 Evaluation Kit
 
 See the [PSC3M5_EVK README](../psc3m5_evk/README.md) for more information about

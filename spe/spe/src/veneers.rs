@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: Infineon Technologies AG
+//
+// SPDX-License-Identifier: MIT
+
 //! Veneer function stubs translated from TFM veneer C header.
 // These are placeholders for secure function entry points.
 

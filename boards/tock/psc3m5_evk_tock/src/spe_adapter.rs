@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: Infineon Technologies AG
+//
+// SPDX-License-Identifier: MIT
+
 use core::cmp;
 
 use enum_primitive::cast::FromPrimitive;

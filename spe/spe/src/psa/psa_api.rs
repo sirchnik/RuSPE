@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: Infineon Technologies AG
+//
+// SPDX-License-Identifier: MIT
+
 //! Entry points for PSA API calls from NSPE and other partitions.
 
 use core::panic;

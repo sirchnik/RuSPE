@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: Infineon Technologies AG
+//
+// SPDX-License-Identifier: MIT
+
 use bytemuck::{Pod, Zeroable};
 
 #[derive(Clone, Copy, Debug)]

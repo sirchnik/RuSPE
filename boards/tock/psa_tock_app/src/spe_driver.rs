@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: Infineon Technologies AG
+//
+// SPDX-License-Identifier: MIT
+
 use libtock::platform;
 use libtock::platform::AllowRo;
 use libtock::platform::allow_rw::AllowRw;

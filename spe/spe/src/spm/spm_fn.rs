@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: Infineon Technologies AG
+//
+// SPDX-License-Identifier: MIT
+
 use crate::{
     libs::mutex::Mutex,
     psa::psa_call::{CallerAttributes, PsaMsg},
