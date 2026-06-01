@@ -22,7 +22,7 @@ members = [
     "boards/psc3m5_evk_test",
     "boards/tock/psc3m5_evk_tock",
     "boards/tock/psa_tock_app",
-    "boards/services/attest",
+    "boards/services/*_srv"
 ]
 exclude = ["tock"]
 resolver = "3"

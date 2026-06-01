@@ -12,21 +12,24 @@ from invoke.context import Context
 
 from tools.build.invoke_support import BuildError, run_command
 
+@dataclass(frozen=True)
+class BaseServiceConfig:
+    flash_length: str
+    ram_length: str
 
 @dataclass(frozen=True)
-class ServiceConfig:
+class ServiceConfig(BaseServiceConfig):
     repo_root: Path
     service_dir: Path
-    flash_origin: str = "0x32010000"
-    flash_length: str = "0x3F00"
-    ram_origin: str = "0x34002F00"
-    ram_length: str = "0x1100"
+    handle_variant: str
+    flash_origin: str
+    ram_origin: str
 
     @property
     def service(self) -> str:
         return self.service_dir.name
 
-    def linker_env(self) -> dict[str, str]:
+    def _linker_env(self) -> dict[str, str]:
         """Return environment variables for linker script generation.
         
         Used by cargo build scripts (e.g. attest/build.rs) to generate
@@ -38,6 +41,12 @@ class ServiceConfig:
             "SERVICE_RAM_ORIGIN": self.ram_origin,
             "SERVICE_RAM_LENGTH": self.ram_length,
         }
+
+    def build_env(self) -> dict[str, str]:
+        """Return all build-time environment variables for IPC service wiring."""
+        env = self._linker_env()
+        env["SERVICE_HANDLE_VARIANT"] = self.handle_variant
+        return env
 
 
 def _cargo_package_name(crate_dir: Path) -> str:
@@ -106,7 +115,7 @@ def cargo_build_service(ctx: Context, service: ServiceConfig, debug: bool, env: 
     if not debug:
         command.append("--release")
     # Merge provided env with service linker env
-    merged_env = service.linker_env()
+    merged_env = service.build_env()
     if env:
         merged_env.update(env)
     run_command(command, cwd=service.service_dir, env=merged_env)

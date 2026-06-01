@@ -7,6 +7,13 @@
     },
     "rust-analyzer.server.extraEnv": {
         "RUSTUP_TOOLCHAIN": "nightly-2026-04-21",
+
+        "SERVICE_COUNT": "1",
+        "SERVICE_FLASH_ORIGIN_0": "0x32010000",
+        "SERVICE_RAM_ORIGIN_0": "0x34002F00",
+        "SERVICE_HANDLE_VARIANT_0": "psa_interface::types::ServiceHandle::AttestationService",
+        "OUT_DIR": "${workspaceFolder}/target/temp/",
+
         "LIBTOCK_LINKER_FLASH": "0x00000000",
         "LIBTOCK_LINKER_FLASH_LENGTH": "512K",
         "LIBTOCK_LINKER_RAM": "0x20000000",

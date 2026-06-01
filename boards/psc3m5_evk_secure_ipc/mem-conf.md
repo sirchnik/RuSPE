@@ -14,14 +14,15 @@ See also standard [secure board docs](../psc3m5_evk_secure/mem-conf.md) for gene
 ## Configuration
 
 **Service placement is configurable at build time** via Python configuration in [tasks.py](./tasks.py).
-The `ATTEST_SERVICE` ServiceConfig object controls the service flash origin, flash length, SRAM origin, and SRAM length.
-Both the attest service and secure IPC board are compiled from the same configuration, ensuring a coherent merged image.
+The selected service entry in `tools/build/service_catalog.py` controls the service handle and memory placement
+(flash origin/length and SRAM origin/length).
+Both the selected service crate and secure IPC board are compiled from the same configuration, ensuring a coherent merged image.
 
 Default values (current configuration):
 - Flash: `0x3201_0000` - `0x3201_3F00` (31.75 KB)
 - SRAM: `0x3400_2F00` - `0x3400_4000` (8.7 KB)
 
-To change service placement, update the `ATTEST_SERVICE` ServiceConfig in [tasks.py](./tasks.py) and rebuild.
+To change service placement or switch services, update `tools/build/service_catalog.py` and rebuild.
 
 ## Regions Overview
 
@@ -50,6 +51,6 @@ These files are relevant for the memory configuration:
 
 - `boards/psc3m5_evk_secure_ipc/layout.ld`: Top-level linker script for the secure IPC SPM image, secure privileged SRAM, and NSC veneer region
 - `boards/psc3m5_evk_secure_ipc/secure_layout.ld`: Section placement for the secure IPC SPM image
-- `boards/services/attest/layout.ld`: Memory-region definitions for the embedded attestation service image, which uses the lower half of the reserved secure-service SRAM window
+- `boards/services/*/layout.ld`: Memory-region definitions for each embedded service image
 - `boards/psc3m5_evk_test/layout.ld`: Non-secure linker layout for the companion non-secure image
 - `chips/psc3/src/security.rs`: SAU/PPC configuration defining the secure and non-secure split

@@ -6,7 +6,10 @@
 
 #![no_std]
 #![no_main]
-#![feature(abi_cmse_nonsecure_call)]
+#![cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    feature(abi_cmse_nonsecure_call)
+)]
 
 use core::ptr::addr_of_mut;
 
@@ -17,7 +20,6 @@ use spe::{
 };
 use tock_psc3::{chip, chip_init, gpio, icache, peri_clk, scb};
 
-use psa_interface::types::ServiceHandle;
 use ruspe_psc3::configure_security;
 
 unsafe extern "Rust" {
@@ -167,21 +169,24 @@ pub unsafe fn main() {
         NONSECURE_RAM_LIMIT,
     );
 
-    // Attest service binary is placed in its dedicated secure flash slot.
-    // Its vector table (FlashProcessVectors) is at the start of its ROM region.
-    // The service address is configured at build time from the secure IPC board configuration.
-    const ATTEST_VECTORS: *const FlashProcessVectors = service_config::ATTEST_SERVICE_ADDR as *const FlashProcessVectors;
+    // Service binaries are placed in dedicated secure flash slots.
+    // Vector tables (FlashProcessVectors) are at the start of each service's ROM region.
+    // Addresses and handles are generated at build time from board task settings.
 
-    let processes: [FlashProcess; 1] = [FlashProcess::new(
-        ServiceHandle::AttestationService,
-        ATTEST_VECTORS,
-    )];
+    // Load service configuration generated at build time and build the exact process table.
+    let processes: [FlashProcess; service_config::SERVICE_COUNT] =
+        core::array::from_fn(|i| {
+            FlashProcess::new(
+                service_config::SERVICE_HANDLES[i],
+                service_config::SERVICE_ADDRS[i] as *const FlashProcessVectors,
+            )
+        });
 
     let platform = unsafe { static_init!(Psc3IpcPlatform, Psc3IpcPlatform) };
 
     let spm = unsafe {
         static_init!(
-            spm::SpmIpc<Psc3IpcPlatform, 1, FlashProcess>,
+            spm::SpmIpc<Psc3IpcPlatform, { service_config::SERVICE_COUNT }, FlashProcess>,
             spm::SpmIpc::new(platform, processes)
         )
     };
