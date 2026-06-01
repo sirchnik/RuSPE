@@ -1,7 +1,6 @@
 use crate::{
     libs::mutex::Mutex,
     psa::psa_call::{CallerAttributes, PsaMsg},
-    spm::call_unprivileged,
 };
 
 const MAX_CONNECTIONS: usize = 4;
@@ -142,11 +141,7 @@ impl<P: SpmPlatform + 'static> SpmFn<P> {
         if self.add_connection(connection).is_err() {
             panic!("SPM connection stack exhausted");
         }
-        let mut result = Ok(());
-        call_unprivileged(|| {
-            result = self.platform.call(connection.msg);
-        });
-        result
+        self.platform.call(connection.msg)
     }
 
     // Can be called by multiple threads. Multiple threads need access to different connections.

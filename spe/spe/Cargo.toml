@@ -22,5 +22,8 @@ psa_interface = { path = "../psa_interface" }
 helpers = { path = "../../libraries/helpers" }
 cose = { path = "../../libraries/cose" }
 
+# For MPU
+kernel = { path = "../../tock/kernel" }
+
 [lints]
 workspace = true

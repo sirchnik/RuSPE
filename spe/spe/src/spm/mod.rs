@@ -6,7 +6,6 @@ pub use spm_ipc::{
     EmbeddedProcess, FlashProcess, FlashProcessVectors, IpcProcess, IpcProcessPlatform, SpmIpc,
 };
 
-pub(crate) const SVC_ELEVATE: u8 = 0;
 pub(crate) const SVC_CALL_UNPRIV: u8 = 5;
 
 /// Call a function in unprivileged Thread mode via SVC, using PSP.
@@ -105,10 +104,4 @@ pub(crate) unsafe fn svc_call_unpriv(
     _stack_top: usize,
 ) -> usize {
     panic!("svc_call_unpriv is only available on ARM bare-metal targets")
-}
-
-/// Legacy wrapper kept for the non-IPC `SpmFn` path where services are compiled
-/// into the SPM binary and cannot run unprivileged (same flash region).
-pub(crate) fn call_unprivileged(f: impl FnOnce()) {
-    f();
 }
