@@ -12,4 +12,4 @@ MEMORY
 	RAM (rwx) : ORIGIN = 0x34002F00, LENGTH = 0x1100
 }
 
-INCLUDE service_layout.ld
+INCLUDE ../service_layout.ld
