@@ -114,11 +114,11 @@ def _resolve_cargo_artifact(repo_root: Path, debug: bool, binary_name: str) -> P
     )
 
 
-def cargo_build(ctx: Context, board: BoardConfig, debug: bool) -> Path:
+def cargo_build(ctx: Context, board: BoardConfig, debug: bool, env: dict[str, str] | None = None) -> Path:
     command = ["cargo", "build"]
     if not debug:
         command.append("--release")
-    run_command(command, cwd=board.board_dir)
+    run_command(command, cwd=board.board_dir, env=env)
     binary_name = _cargo_package_name(board.board_dir)
     return _resolve_cargo_artifact(board.repo_root, debug, binary_name)
 
@@ -186,7 +186,7 @@ def elf_to_hex(
 
 def merge_hex_images(output_path: Path, input_paths: list[Path]) -> Path:
     try:
-        from intelhex import IntelHex
+        from intelhex import AddressOverlapError, IntelHex
     except ImportError as error:
         raise BuildError("Python module 'intelhex' is not installed.") from error
 
@@ -196,7 +196,13 @@ def merge_hex_images(output_path: Path, input_paths: list[Path]) -> Path:
     for image_path in input_paths:
         print_step(f"  - loading {image_path}")
         image = IntelHex(str(image_path))
-        merged.merge(image, overlap="ignore")
+        image.start_addr = None
+        try:
+            merged.merge(image, overlap="error")
+        except AddressOverlapError as error:
+            raise BuildError(
+                f"HEX image overlap detected while merging {image_path} into {output_path}: {error}"
+            ) from error
 
     merged.start_addr = None
     output_path.parent.mkdir(parents=True, exist_ok=True)
