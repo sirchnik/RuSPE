@@ -36,6 +36,11 @@ mod io;
 mod startup;
 mod svc;
 
+const NONSECURE_FLASH_START: u32 = 0x2201_8000;
+const NONSECURE_FLASH_LIMIT: u32 = 0x2203_FFFF;
+const NONSECURE_RAM_START: u32 = 0x2400_5100;
+const NONSECURE_RAM_LIMIT: u32 = 0x2400_EFFF;
+
 /// Minimal platform for the IPC model — only provides memory permission checks.
 /// Service dispatch is handled by the SpmIpc process table, not by this platform.
 pub struct Psc3IpcPlatform;
@@ -151,7 +156,12 @@ pub unsafe fn main() {
     let led_pin = gpio.get_pin(gpio::PsocPin::P8_4);
     led_pin.preconfigure(&GPIO_CONFIG);
 
-    configure_security();
+    configure_security(
+        NONSECURE_FLASH_START,
+        NONSECURE_FLASH_LIMIT,
+        NONSECURE_RAM_START,
+        NONSECURE_RAM_LIMIT,
+    );
 
     // Attest service binary is placed in its dedicated secure flash slot.
     // Its vector table (FlashProcessVectors) is at the start of its ROM region.
@@ -177,8 +187,8 @@ pub unsafe fn main() {
 
     #[cfg(all(target_arch = "arm", target_os = "none"))]
     unsafe {
-        const NONSECURE_START_FLASH: *const [u32; 2] = 0x2201_4000 as *const [u32; 2];
-        let [nonsecure_sp, nonsecure_reset] = NONSECURE_START_FLASH.read_volatile();
+        let nonsecure_start_flash = NONSECURE_FLASH_START as *const [u32; 2];
+        let [nonsecure_sp, nonsecure_reset] = nonsecure_start_flash.read_volatile();
 
         // Set non-secure main stack pointer
         core::arch::asm!(
