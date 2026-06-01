@@ -22,25 +22,38 @@ impl TestTarget {
     /// Creates a Test Target Response by executing the appropriate TT instruction variant.
     pub fn check(addr: *mut u32, access_type: AccessType) -> Self {
         let addr_val = addr as u32;
-        let bits: u32;
+        let bits: u32 = {
+            #[cfg(target_arch = "arm")]
+            {
+                let bits: u32;
 
-        // Manually performing inline assembly for TT instructions
-        unsafe {
-            match access_type {
-                AccessType::Current => {
-                    core::arch::asm!("tt {0}, {1}", out(reg) bits, in(reg) addr_val);
+                // Arm TT instructions are only available for supported Arm targets.
+                unsafe {
+                    match access_type {
+                        AccessType::Current => {
+                            core::arch::asm!("tt {0}, {1}", out(reg) bits, in(reg) addr_val);
+                        }
+                        AccessType::Unprivileged => {
+                            core::arch::asm!("ttt {0}, {1}", out(reg) bits, in(reg) addr_val);
+                        }
+                        AccessType::NonSecure => {
+                            core::arch::asm!("tta {0}, {1}", out(reg) bits, in(reg) addr_val);
+                        }
+                        AccessType::NonSecureUnprivileged => {
+                            core::arch::asm!("ttat {0}, {1}", out(reg) bits, in(reg) addr_val);
+                        }
+                    }
                 }
-                AccessType::Unprivileged => {
-                    core::arch::asm!("ttt {0}, {1}", out(reg) bits, in(reg) addr_val);
-                }
-                AccessType::NonSecure => {
-                    core::arch::asm!("tta {0}, {1}", out(reg) bits, in(reg) addr_val);
-                }
-                AccessType::NonSecureUnprivileged => {
-                    core::arch::asm!("ttat {0}, {1}", out(reg) bits, in(reg) addr_val);
-                }
+
+                bits
             }
-        }
+
+            #[cfg(not(target_arch = "arm"))]
+            {
+                let _ = (addr_val, access_type);
+                0
+            }
+        };
 
         TestTarget { bits, access_type }
     }

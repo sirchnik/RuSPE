@@ -31,6 +31,7 @@ _BIN_CRATES = [
     "psc3m5_evk_test",
     "psc3m5_evk_tock",
     "psa_tock_app",
+    "psc3m5_evk_attest",
 ]
 
 

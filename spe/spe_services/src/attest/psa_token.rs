@@ -204,7 +204,7 @@ mod tests {
     use super::{
         AttestClaim, AttestClaimValue, IatClaim, SwComponent, encode_payload, map_cose_error,
     };
-    use crate::StatusCode;
+    use super::StatusCode;
     use cose::cose_sign1::CoseSign1Error;
     use minicbor::Decoder;
 
