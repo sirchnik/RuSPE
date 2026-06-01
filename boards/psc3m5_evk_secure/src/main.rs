@@ -20,7 +20,7 @@ use tock_psc3::{chip, chip_init, gpio, icache, peri_clk, scb};
 
 use ruspe_psc3::{Psc3SecPlatform, configure_security, services::attest::Psc3AttestPlatform};
 
-const NONSECURE_FLASH_START: u32 = 0x2201_4000;
+const NONSECURE_FLASH_START: u32 = 0x2201_8000;
 const NONSECURE_FLASH_LIMIT: u32 = 0x2203_FFFF;
 const NONSECURE_RAM_START: u32 = 0x2400_4000;
 const NONSECURE_RAM_LIMIT: u32 = 0x2400_EFFF;
@@ -129,8 +129,8 @@ pub unsafe fn main() {
 
     #[cfg(all(target_arch = "arm", target_os = "none"))]
     unsafe {
-        const NONSECURE_START_FLASH: *const [u32; 2] = 0x2201_4000 as *const [u32; 2];
-        let [nonsecure_sp, nonsecure_reset] = NONSECURE_START_FLASH.read_volatile();
+        let nonsecure_start_flash = NONSECURE_FLASH_START as *const [u32; 2];
+        let [nonsecure_sp, nonsecure_reset] = nonsecure_start_flash.read_volatile();
 
         // Set non-secure main stack pointer
         core::arch::asm!(
