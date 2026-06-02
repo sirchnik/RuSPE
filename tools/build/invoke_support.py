@@ -45,8 +45,34 @@ def build_task(_func=None, **task_kwargs):
     return decorator
 
 
-def _format_command(command: list[str]) -> str:
-    return subprocess.list2cmdline(command)
+def _format_command(command: list[str], shorten_args: bool = True) -> str:
+    # If shortening is disabled, just format everything normally.
+    if not shorten_args:
+        return subprocess.list2cmdline(command)
+
+    # Find the last argument starting with '-'
+    last_flag_idx = -1
+    for idx, arg in enumerate(command):
+        if arg.startswith("-"):
+            last_flag_idx = idx
+
+    if last_flag_idx != -1:
+        if len(command) - (last_flag_idx + 1) > 1:
+            start_pos_idx = last_flag_idx + 2
+        else:
+            start_pos_idx = last_flag_idx + 1
+    else:
+        start_pos_idx = 1
+
+    trailing_args = command[start_pos_idx:]
+    if len(trailing_args) > 5:
+        kept_args = trailing_args[:5]
+        contracted_cmd = command[:start_pos_idx] + kept_args
+        cmd_text = subprocess.list2cmdline(contracted_cmd)
+        cmd_text += f"...({len(trailing_args)})"
+        return cmd_text
+    else:
+        return subprocess.list2cmdline(command)
 
 
 def print_step(message: str):
@@ -69,13 +95,17 @@ def run_command(
     env: dict[str, str] | None = None,
     in_stream: bool | None = None,
     verbose: bool | None = None,
-) -> None:
+    capture_output: bool = False,
+    shorten_args: bool = False,
+) -> subprocess.CompletedProcess[str]:
     """Run a command using subprocess (no Invoke context required).
 
     - `command` may be a list (preferred) or a shell string.
     - `cwd` may be a Path or string. If None current cwd is used.
     - `in_stream=False` will disable stdin (use DEVNULL).
     - `RUN_HANDLER_VERBOSE=0` in env disables the compact printout.
+    - `capture_output=True` captures stdout/stderr as strings in the returned object.
+    - `shorten_args=False` disables command argument contraction when printing.
     """
     # determine verbosity
     RUN_HANDLER_VERBOSE = os.environ.get("RUN_HANDLER_VERBOSE", "1") != "0"
@@ -91,7 +121,7 @@ def run_command(
             return True
 
     merged_env = _merge_env(env)
-    cmd_text = command if isinstance(command, str) else _format_command(command)
+    cmd_text = command if isinstance(command, str) else _format_command(command, shorten_args=shorten_args)
 
     if in_stream is None:
         in_stream = not _is_sandbox()
@@ -101,28 +131,32 @@ def run_command(
         if env:
             items = [f"{k}={v}" for k, v in list(env.items())[:4]]
             envs = (" ".join(items) + ("..." if len(env) > 4 else "")) + " "
-        compact = f"cd {cwd or Path.cwd()} && {envs}{cmd_text}"
+        compact = f"$ cd {cwd or Path.cwd()} && {envs}{cmd_text}"
         print_step(compact)
 
     stdin = None if in_stream else subprocess.DEVNULL
 
+    kwargs: dict[str, any] = {
+        "cwd": str(cwd) if cwd is not None else None,
+        "env": merged_env,
+        "check": True,
+        "stdin": stdin,
+    }
+    if capture_output:
+        kwargs["capture_output"] = True
+        kwargs["text"] = True
+
     try:
         if isinstance(command, str):
-            subprocess.run(
+            return subprocess.run(
                 command,
-                cwd=str(cwd) if cwd is not None else None,
-                env=merged_env,
                 shell=True,
-                check=True,
-                stdin=stdin,
+                **kwargs,
             )
         else:
-            subprocess.run(
+            return subprocess.run(
                 command,
-                cwd=str(cwd) if cwd is not None else None,
-                env=merged_env,
-                check=True,
-                stdin=stdin,
+                **kwargs,
             )
     except subprocess.CalledProcessError as error:
         raise BuildError(
