@@ -26,7 +26,7 @@ from tools.build.board import (
 )
 
 from boards.services.attest_srv.tasks import build as _attest_build_task
-# import boards.services.crypto.tasks as crypto
+from boards.services.crypto_srv.tasks import build as _crypto_build_task
 
 BOARD = BoardConfig(
     board_dir=Path(__file__).resolve().parent,
@@ -55,6 +55,8 @@ class ServiceBuilder(Protocol):
 
 build_attest = cast(ServiceBuilder, _attest_build_task.body)
 del _attest_build_task
+build_crypto = cast(ServiceBuilder, _crypto_build_task.body)
+del _crypto_build_task
 
 
 @dataclass(frozen=True)
@@ -65,6 +67,7 @@ class BuiltService:
 
 SERVICES: tuple[ServiceBuilder, ...] = (
     build_attest,
+    build_crypto,
 )
 
 
