@@ -4,12 +4,21 @@
 
 use crate::types;
 
+use crate::status::StatusCode;
 use crate::PsaApiCallInterface;
+
+fn status_from_raw(status: types::PsaStatus) -> Result<(), StatusCode> {
+    match StatusCode::try_from(status) {
+        Ok(StatusCode::_Success) => Ok(()),
+        Ok(status) => Err(status),
+        Err(_) => Err(StatusCode::CommunicationFailure),
+    }
+}
 
 pub fn initial_attest_get_token<T: PsaApiCallInterface>(
     challenge: &[u8],
     token_buf: &mut [u8],
-) -> Result<(), types::PsaStatus> {
+) -> Result<(), StatusCode> {
     let in_vec = [types::FFInVec {
         base: challenge.as_ptr(),
         len: challenge.len(),
@@ -33,7 +42,7 @@ pub fn initial_attest_get_token<T: PsaApiCallInterface>(
         &mut out_vec,
     );
 
-    if status == 0 { Ok(()) } else { Err(status) }
+    status_from_raw(status)
 }
 
 /// PSA Crypto `psa_sign_hash` — sign a pre-computed hash.
@@ -49,7 +58,7 @@ pub fn psa_sign_hash<T: PsaApiCallInterface>(
     alg: types::PsaAlgorithm,
     hash: &[u8],
     signature: &mut [u8],
-) -> Result<usize, types::PsaStatus> {
+) -> Result<usize, StatusCode> {
     let iov = types::TfmCryptoPackIovec::for_sign_hash(key, alg);
 
     let in_vec = [
@@ -75,10 +84,9 @@ pub fn psa_sign_hash<T: PsaApiCallInterface>(
         &mut out_vec,
     );
 
-    if status == 0 {
-        Ok(out_vec[0].len)
-    } else {
-        Err(status)
+    match status_from_raw(status) {
+        Ok(()) => Ok(out_vec[0].len),
+        Err(status) => Err(status),
     }
 }
 
@@ -155,7 +163,7 @@ mod tests {
         let challenge = [0u8; 32];
         let mut token = [0u8; 256];
         let result = initial_attest_get_token::<MockPsaClient>(&challenge, &mut token);
-        assert_eq!(result, Err(-132));
+        assert_eq!(result, Err(StatusCode::GenericError));
     }
 
     #[test]
@@ -178,6 +186,6 @@ mod tests {
         let mut sig = [0u8; 64];
         let result =
             psa_sign_hash::<MockPsaClient>(1, types::PSA_ALG_ECDSA_SHA256, &hash, &mut sig);
-        assert_eq!(result, Err(-134));
+        assert_eq!(result, Err(StatusCode::NotSupported));
     }
 }
