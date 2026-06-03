@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: MIT
 
 use cose::cose_sign1::{
-    CoseCrypto, CoseSign1, CoseSign1Error, RustCryptoHasher, Sign1Options, encode_payload_bstr,
+    CoseCrypto, CoseSign1, CoseSign1Error, RustCryptoHasher, Sign1Options,
+    encode_payload_bstr_in_place,
 };
 use minicbor::{Encoder, encode::write::Cursor};
 use psa_interface::status::StatusCode;
@@ -52,9 +53,6 @@ pub struct AttestClaim<'a> {
     pub key: IatClaim,
     pub value: AttestClaimValue<'a>,
 }
-
-const MAX_PAYLOAD_SIZE: usize = crate::attest::attest_service::PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE;
-const MAX_ENCODED_PAYLOAD_BSTR_SIZE: usize = MAX_PAYLOAD_SIZE + 9;
 
 fn map_cose_error(err: CoseSign1Error) -> StatusCode {
     match err {
@@ -179,17 +177,14 @@ pub fn encode_initial_attestation_token(
     token: &mut [u8],
     key_id: u32,
 ) -> Result<usize, StatusCode> {
-    let mut payload = [0u8; MAX_PAYLOAD_SIZE];
-    let payload_len = encode_payload(claims, &mut payload)?;
-
-    let mut payload_bstr = [0u8; MAX_ENCODED_PAYLOAD_BSTR_SIZE];
+    let payload_len = encode_payload(claims, token)?;
     let payload_bstr_len =
-        encode_payload_bstr(&payload[..payload_len], &mut payload_bstr).map_err(map_cose_error)?;
+        encode_payload_bstr_in_place(payload_len, token).map_err(map_cose_error)?;
 
     let signer = CoseSign1::new(PsaCryptoBackend::new(key_id), Sign1Options::default());
 
     let encoded = signer
-        .encode_from_payload_bstr(&payload_bstr[..payload_bstr_len], token)
+        .encode_from_payload_bstr_in_place(payload_bstr_len, token)
         .map_err(map_cose_error)?;
 
     Ok(encoded.encoded_len)
@@ -211,6 +206,7 @@ mod tests {
     };
     use cose::cose_sign1::CoseSign1Error;
     use minicbor::Decoder;
+    use psa_interface::status::StatusCode;
 
     // ── encode_payload: single-claim cases ──────────────────────────────
 

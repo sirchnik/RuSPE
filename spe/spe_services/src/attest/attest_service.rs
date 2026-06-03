@@ -70,14 +70,6 @@ impl<P: AttestPlatform> AttestService<P> {
             return Err(StatusCode::InvalidArgument);
         }
 
-        if token.is_empty() {
-            return Err(StatusCode::InvalidArgument);
-        }
-
-        if token.len() > PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE {
-            return Err(StatusCode::BufferTooSmall);
-        }
-
         let mut claims_buf = [AttestClaim {
             key: IatClaim::Nonce,
             value: AttestClaimValue::Bytes(&[]),
@@ -246,20 +238,13 @@ impl<P: AttestPlatform> Service for AttestService<P> {
                 &instance_id,
             );
 
-            let mut token = [0u8; PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE];
-            let written_len = psa_api::psa_map_invec(msg.handle, 0, |challenge| {
-                if !Self::challenge_size_is_supported(challenge.len()) {
-                    return Err(StatusCode::InvalidArgument);
-                }
-                self.initial_attest_get_token(challenge, &additional_claims, &mut token)
-            })?;
-            psa_api::psa_map_outvec(msg.handle, 0, |outvec| {
-                if outvec.len() < written_len {
-                    outvec.fill(0);
-                    (Err(StatusCode::BufferTooSmall), 0)
-                } else {
-                    outvec[..written_len].copy_from_slice(&token[..written_len]);
-                    (Ok(()), written_len)
+            psa_api::psa_map_invec_outvec(msg.handle, 0, 0, |challenge, outvec| {
+                match self.initial_attest_get_token(challenge, &additional_claims, outvec) {
+                    Ok(written_len) => (Ok(()), written_len),
+                    Err(e) => {
+                        outvec.fill(0);
+                        (Err(e), 0)
+                    }
                 }
             })?;
             Ok(())
