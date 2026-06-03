@@ -302,38 +302,6 @@ pub fn psa_map_invec_outvec<R>(
     result
 }
 
-pub fn psa_write(
-    msg_handle: ServiceHandle,
-    outvec_idx: u32,
-    buffer: &[u8],
-) -> Result<usize, StatusCode> {
-    let (status, base, len, _) =
-        unsafe { svc_call::<SVC_PSA_MAP_VEC>(msg_handle as usize, outvec_idx as usize, 1, 0) };
-    status_from_raw(status)?;
-
-    let (result, written_len) = if len < buffer.len() {
-        if len != 0 {
-            unsafe { slice::from_raw_parts_mut(base as *mut u8, len) }.fill(0);
-        }
-        (Err(StatusCode::BufferTooSmall), 0)
-    } else {
-        if !buffer.is_empty() {
-            let outvec = unsafe { slice::from_raw_parts_mut(base as *mut u8, len) };
-            outvec[..buffer.len()].copy_from_slice(buffer);
-        }
-        // TODO: Decide whether service-side copy APIs should support TF-M-style
-        // partial reads/writes or keep the current strict full-fit behavior.
-        (Ok(buffer.len()), buffer.len())
-    };
-
-    let (finish_status, _, _, _) = unsafe {
-        svc_call::<SVC_PSA_UNMAP_VEC>(msg_handle as usize, outvec_idx as usize, 1, written_len)
-    };
-    status_from_raw(finish_status)?;
-
-    result
-}
-
 #[cfg(test)]
 mod tests {
     extern crate std;
