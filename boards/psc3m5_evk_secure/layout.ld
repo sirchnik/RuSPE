@@ -11,7 +11,7 @@
 MEMORY
 {
 	rom (rx)  : ORIGIN = 0x32000000, LENGTH = 0x10000
-	nsc (rx)  : ORIGIN = 0x32017F00, LENGTH = 0x100
+	nsc (rx)  : ORIGIN = 0x32018800, LENGTH = 0x100
   	ram (rwx) : ORIGIN = 0x34000000, LENGTH = 0x2F00
 }
 

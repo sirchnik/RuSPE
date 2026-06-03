@@ -12,27 +12,6 @@ use crate::{
 use crate::psa::psa_call::CallerAttributes;
 use psa_interface::types::ServiceHandle;
 
-fn copy_invec_into(
-    connection: &mut Connection,
-    index: usize,
-    in_len: usize,
-    base: *const u8,
-    buffer: &mut [u8],
-) -> Result<usize, StatusCode> {
-    if in_len > buffer.len() {
-        mark_invec_unmapped(connection, index);
-        return Err(StatusCode::BufferTooSmall);
-    }
-
-    if in_len != 0 {
-        let invec = unsafe { slice::from_raw_parts(base, in_len) };
-        buffer[..in_len].copy_from_slice(invec);
-    }
-
-    mark_invec_unmapped(connection, index);
-    Ok(in_len)
-}
-
 fn copy_outvec_from(
     connection: &mut Connection,
     index: usize,
@@ -326,18 +305,6 @@ pub fn psa_map_invec_outvec<R>(
     })
 }
 
-pub fn psa_read(
-    spm: &dyn SpmCall,
-    msg_handle: ServiceHandle,
-    invec_idx: u32,
-    buffer: &mut [u8],
-) -> Result<usize, StatusCode> {
-    with_connection_for_handle(spm, msg_handle, |connection| {
-        let (index, in_len, base) = prepare_invec(spm, connection, invec_idx);
-        copy_invec_into(connection, index, in_len, base, buffer)
-    })
-}
-
 pub fn psa_write(
     spm: &dyn SpmCall,
     msg_handle: ServiceHandle,
@@ -628,25 +595,6 @@ mod tests {
         );
 
         let _ = psa_map_outvec(&spm, ServiceHandle::Crypto, 0, |_| ((), 0));
-    }
-
-    #[test]
-    fn psa_read_copies_full_input_vector() {
-        let input = [1u8, 2, 3, 4];
-        let mut output = [0u8; 4];
-        let spm = make_test_spm(
-            make_connection(input.as_ptr(), input.len(), ptr::null_mut(), 0),
-            true,
-            true,
-        );
-
-        let read_len = psa_read(&spm, ServiceHandle::Crypto, 0, &mut output).unwrap();
-
-        assert_eq!(read_len, input.len());
-        assert_eq!(output, input);
-
-        let connection = spm.connection.borrow();
-        assert!(connection.invec_unmapped[0]);
     }
 
     #[test]
