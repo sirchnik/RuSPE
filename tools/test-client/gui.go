@@ -40,6 +40,22 @@ func startGUI(cfg GUIConfig) {
 		http.NotFound(w, r)
 	})
 
+	http.HandleFunc("/api/switch-fake", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if cfg.TokenSrc == "tfm" {
+			cfg.TokenSrc = "tty"
+			fmt.Println("Debug: switching to tty")
+		} else {
+			cfg.TokenSrc = "tfm"
+			fmt.Println("Debug: switching to tfm fake data")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"state": cfg.TokenSrc})
+	})
+
 	http.HandleFunc("/api/token", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -68,8 +84,8 @@ func startGUI(cfg GUIConfig) {
 			tokenHex = cfg.TokenSrc
 		}
 
-		xCoord := "hfymlL5b64lewHwPcn8S--u7Av9MKSy8rUiCnahzd3A"
-		yCoord := "mGMp76ud1btPVE8SlFEf4-NUXQBPPp0Vxq6rsuw6VNw"
+		xCoord := defaultPubKeyX
+		yCoord := defaultPubKeyY
 		if cfg.TokenSrc == "tfm" {
 			xCoord = "Tl4iCZ47zrRbRG0TVf0dw7VFlHtv18HInYhnmMNybo8"
 			yCoord = "gNcLhAslaqw0pi7eEEM2TwRAlfADR0uR4Bggkq-xPy4"
@@ -80,6 +96,9 @@ func startGUI(cfg GUIConfig) {
 		if cfg.PubKeyY != "" {
 			yCoord = cfg.PubKeyY
 		}
+
+		fmt.Printf("Debug: GUI API Using Public Key X: %s\n", xCoord)
+		fmt.Printf("Debug: GUI API Using Public Key Y: %s\n", yCoord)
 
 		info := verifyTokenForGUI(tokenHex, xCoord, yCoord)
 		w.Header().Set("Content-Type", "application/json")

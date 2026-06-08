@@ -1,13 +1,13 @@
 :root {
-    --bg-color: #0f1115;
-    --card-bg: rgba(25, 28, 36, 0.6);
-    --text-primary: #e2e8f0;
-    --text-secondary: #94a3b8;
+    --bg-color: #f8fafc;
+    --card-bg: rgba(255, 255, 255, 0.7);
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
     --accent: #3b82f6;
-    --accent-glow: rgba(59, 130, 246, 0.5);
-    --success: #10b981;
-    --error: #ef4444;
-    --border: rgba(255, 255, 255, 0.1);
+    --accent-glow: rgba(59, 130, 246, 0.3);
+    --success: #059669;
+    --error: #dc2626;
+    --border: rgba(0, 0, 0, 0.08);
 }
 
 * {
@@ -40,12 +40,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #334155;
+    background: #cbd5e1;
     border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #475569;
+    background: #94a3b8;
 }
 
 .app-container {
@@ -91,26 +91,29 @@ header p {
     display: flex;
     width: 100%;
     max-width: 800px;
-    border: 4px solid #000;
+    border: 4px solid #cbd5e1;
+    border-radius: 12px;
+    overflow: hidden;
     margin: 0 auto;
-    font-family: serif; /* Diagram has a serif-like or simple font */
+    font-family: 'Inter', sans-serif;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
 }
 
 .rich-world {
     flex: 3; /* App1, App2, App3 -> 3 columns */
     display: flex;
     flex-direction: column;
-    background-color: #dfbaba; /* pinkish */
-    color: #000;
+    background-color: #fee2e2; /* light red/pink */
+    color: #1e293b;
 }
 
 .secure-world {
     flex: 2; /* Trusted App 1, Trusted App 2 -> 2 columns */
     display: flex;
     flex-direction: column;
-    background-color: #bcdbb6; /* greenish */
-    color: #000;
-    border-left: 4px solid #000;
+    background-color: #dcfce7; /* light green */
+    color: #1e293b;
+    border-left: 4px solid #cbd5e1;
 }
 
 .apps-row {
@@ -125,14 +128,14 @@ header p {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    border-bottom: 4px solid #000;
+    border-bottom: 4px solid #cbd5e1;
     padding: 10px;
     position: relative;
     transition: all 0.3s ease;
 }
 
 .node:not(:last-child) {
-    border-right: 4px solid #000;
+    border-right: 4px solid #cbd5e1;
 }
 
 .node span {
@@ -154,10 +157,25 @@ header p {
 
 /* Active animation state */
 .node.active {
-    box-shadow: inset 0 0 20px rgba(255, 255, 0, 0.8), 0 0 15px rgba(255,255,0,0.5);
-    background-color: rgba(255, 255, 0, 0.3);
+    box-shadow: inset 0 0 20px rgba(250, 204, 21, 0.4), 0 0 15px rgba(250, 204, 21, 0.3);
+    background-color: rgba(253, 224, 71, 0.5);
     transform: scale(1.02);
     z-index: 10;
+}
+
+/* Trail state */
+.node.trail {
+    background-color: rgba(59, 130, 246, 0.08);
+    box-shadow: inset 0 0 0 2px rgba(59, 130, 246, 0.5);
+}
+
+@keyframes dashAnim {
+    to {
+        stroke-dashoffset: -16;
+    }
+}
+.trail-line {
+    opacity: 0.8;
 }
 
 /* Controls */
@@ -243,10 +261,10 @@ header p {
 }
 
 .claim-item {
-    background: rgba(15, 23, 42, 0.6);
+    background: rgba(255, 255, 255, 0.7);
     padding: 1rem;
     border-radius: 8px;
-    border: 1px solid rgba(255,255,255,0.05);
+    border: 1px solid rgba(0,0,0,0.05);
 }
 
 .claim-label {
@@ -272,10 +290,10 @@ header p {
 }
 
 .sw-component {
-    background: rgba(15, 23, 42, 0.6);
+    background: rgba(255, 255, 255, 0.7);
     padding: 1rem;
     border-radius: 8px;
-    border: 1px solid rgba(255,255,255,0.05);
+    border: 1px solid rgba(0,0,0,0.05);
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 1rem;
@@ -292,3 +310,5 @@ header p {
     .path-h.flow-forward::after { animation: flowDataDown 0.5s linear forwards; }
     .path-h.flow-backward::after { animation: flowDataUp 0.5s linear forwards; }
 }
+
+
