@@ -40,10 +40,24 @@ func main() {
 	pubKeyX := flag.String("pub-key-x", "", "Public key X coordinate (base64url, no padding)")
 	pubKeyY := flag.String("pub-key-y", "", "Public key Y coordinate (base64url, no padding)")
 	genKey := flag.Bool("gen-key", false, "Generate a new P-256 key pair and exit")
+	gui := flag.Bool("gui", false, "Start the fancy GUI")
 	flag.Parse()
 
 	if *genKey {
 		genPrintKey()
+		return
+	}
+
+	if *gui {
+		cfg := GUIConfig{
+			TokenSrc: *tokenSrc,
+			TtyPath:  *ttyPath,
+			BaudRate: *baudRate,
+			Nonce:    *nonce,
+			PubKeyX:  *pubKeyX,
+			PubKeyY:  *pubKeyY,
+		}
+		startGUI(cfg)
 		return
 	}
 
