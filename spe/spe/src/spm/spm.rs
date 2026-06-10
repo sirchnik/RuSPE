@@ -1,4 +1,4 @@
-use crate::{libs::mutex::Mutex, psa::psa_call::PsaMsg};
+use crate::{libs::mutex::Mutex, psa::psa_call::{CallerAttributes, PsaMsg}};
 
 const MAX_CONNECTIONS: usize = 4;
 pub const PSA_MAX_IOVEC: usize = 4;
@@ -87,14 +87,26 @@ impl ConnectionArray {
 
 pub trait SpmPlatform: Sync {
     fn call(&self, msg: PsaMsg) -> Result<(), crate::StatusCode>;
-    fn has_permission_on_memory(&self, base: *const u8, len: usize, is_write: bool) -> bool;
+    fn has_permission_on_memory(
+        &self,
+        base: *const u8,
+        len: usize,
+        is_write: bool,
+        caller: CallerAttributes,
+    ) -> bool;
 }
 
 /// Object-safe trait for SPM operations, used for type-erased storage in statics.
 pub trait SpmCall: Sync {
     fn call(&self, connection: Connection) -> Result<(), crate::StatusCode>;
     fn with_active_connection(&self, f: &mut dyn FnMut(&mut Connection)) -> Result<(), SpmError>;
-    fn has_real_permission(&self, base: *const u8, len: usize, is_write: bool) -> bool;
+    fn has_real_permission(
+        &self,
+        base: *const u8,
+        len: usize,
+        is_write: bool,
+        caller: CallerAttributes,
+    ) -> bool;
 }
 
 pub struct Spm<P: SpmPlatform + 'static> {
@@ -166,7 +178,14 @@ impl<P: SpmPlatform + 'static> SpmCall for Spm<P> {
     }
 
     /// Checks if the platform's memory permissions allow access to the specified range.
-    fn has_real_permission(&self, base: *const u8, len: usize, is_write: bool) -> bool {
-        self.platform.has_permission_on_memory(base, len, is_write)
+    fn has_real_permission(
+        &self,
+        base: *const u8,
+        len: usize,
+        is_write: bool,
+        caller: CallerAttributes,
+    ) -> bool {
+        self.platform
+            .has_permission_on_memory(base, len, is_write, caller)
     }
 }

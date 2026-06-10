@@ -8,7 +8,7 @@ use psa_interface;
 use spe::{
     attest::attest_service::{self, CERTIFICATION_REF_MAX_SIZE},
     crypto::crypto_service,
-    psa::psa_call::PsaMsg,
+    psa::psa_call::{CallerAttributes, PsaMsg},
     service::Service,
     spm::spm::SpmPlatform,
 };
@@ -96,7 +96,13 @@ impl SpmPlatform for Psc3SecPlatform {
         }
     }
 
-    fn has_permission_on_memory(&self, base: *const u8, len: usize, is_write: bool) -> bool {
+    fn has_permission_on_memory(
+        &self,
+        base: *const u8,
+        len: usize,
+        is_write: bool,
+        caller: CallerAttributes,
+    ) -> bool {
         if len == 0 {
             return true;
         }
@@ -105,18 +111,35 @@ impl SpmPlatform for Psc3SecPlatform {
             return false;
         }
 
-        // We assume the caller is coming from Non-Secure state and we want to check
-        // if they have permission to access the memory range as Non-Secure.
-        // In PSA/SPE context, this usually means checking against the Non-Secure MPU/IDAU.
-        let access_type = crate::cmse::AccessType::NonSecure;
+        // Determine the TT instruction variant based on caller attributes:
+        // - NS + unprivileged → TTAT (NonSecureUnprivileged): checks NS MPU as unprivileged
+        // - NS + privileged   → TTA  (NonSecure): checks NS MPU as privileged
+        // - S  + unprivileged → TTT  (Unprivileged): checks current-security MPU as unprivileged
+        // - S  + privileged   → TT   (Current): checks current-security MPU as privileged
+        let access_type = match (caller.ns, caller.privileged) {
+            (true, false) => crate::cmse::AccessType::NonSecureUnprivileged,
+            (true, true) => crate::cmse::AccessType::NonSecure,
+            (false, false) => crate::cmse::AccessType::Unprivileged,
+            (false, true) => crate::cmse::AccessType::Current,
+        };
 
         if let Some(target) =
             crate::cmse::TestTarget::check_range(base as *mut u32, len, access_type)
         {
-            if is_write {
-                target.ns_read_and_writable()
+            if caller.ns {
+                // Non-Secure caller: check NS permission bits
+                if is_write {
+                    target.ns_read_and_writable()
+                } else {
+                    target.ns_readable()
+                }
             } else {
-                target.ns_readable()
+                // Secure caller (inter-partition): check current-state permission bits
+                if is_write {
+                    target.read_and_writable()
+                } else {
+                    target.readable()
+                }
             }
         } else {
             false

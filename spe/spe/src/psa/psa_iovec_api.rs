@@ -2,6 +2,7 @@ use core::{panic, slice};
 
 use crate::spm::spm::{Connection, PSA_MAX_IOVEC, SpmCall, SpmError};
 
+use crate::psa::psa_call::CallerAttributes;
 use psa_interface::types::ServiceHandle;
 
 fn validate_pointer_range(base: *const u8, len: usize, vector_kind: &str) {
@@ -24,12 +25,13 @@ fn validate_real_permission(
     len: usize,
     vector_kind: &str,
     is_write: bool,
+    caller: CallerAttributes,
 ) {
     if len == 0 {
         return;
     }
 
-    if !spm.has_real_permission(base, len, is_write) {
+    if !spm.has_real_permission(base, len, is_write, caller) {
         panic!(
             "{} is not permitted by real memory access control",
             vector_kind
@@ -87,7 +89,7 @@ fn prepare_invec(
     let base = connection.invec_base[index];
 
     validate_pointer_range(base, in_len, "input vector");
-    validate_real_permission(spm, base, in_len, "input vector", false);
+    validate_real_permission(spm, base, in_len, "input vector", false, connection.msg.caller);
 
     connection.invec_mapped[index] = true;
 
@@ -125,7 +127,14 @@ fn prepare_outvec(
     let base = connection.outvec_base[index];
 
     validate_pointer_range(base.cast_const(), out_len, "output vector");
-    validate_real_permission(spm, base.cast_const(), out_len, "output vector", true);
+    validate_real_permission(
+        spm,
+        base.cast_const(),
+        out_len,
+        "output vector",
+        true,
+        connection.msg.caller,
+    );
 
     connection.outvec_mapped[index] = true;
 
@@ -261,7 +270,7 @@ mod tests {
     extern crate std;
 
     use super::*;
-    use crate::{psa::psa_call::PsaMsg, spm::spm::SpmError};
+    use crate::{psa::psa_call::{CallerAttributes, PsaMsg}, spm::spm::SpmError};
     use core::{cell::RefCell, ptr};
 
     struct TestSpm {
@@ -287,7 +296,13 @@ mod tests {
             Ok(())
         }
 
-        fn has_real_permission(&self, _base: *const u8, _len: usize, is_write: bool) -> bool {
+        fn has_real_permission(
+            &self,
+            _base: *const u8,
+            _len: usize,
+            is_write: bool,
+            _caller: CallerAttributes,
+        ) -> bool {
             if is_write {
                 self.allow_write
             } else {
@@ -306,6 +321,7 @@ mod tests {
             msg: PsaMsg {
                 handle: ServiceHandle::Crypto,
                 msg_type: 1,
+                caller: CallerAttributes::NS_UNPRIVILEGED,
                 in_size: [Some(in_len), None, None, None],
                 out_size: [Some(out_len), None, None, None],
             },

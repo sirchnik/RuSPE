@@ -7,20 +7,50 @@ use psa_interface::types::{CtrlParam, FFInVec, FFOutVec, ServiceHandle};
 
 const PSA_MAX_IOVEC: usize = 4;
 
+/// Encodes the caller's security attributes for memory permission checks.
+/// Mirrors TFM's `boundary` concept (HANDLE_ATTR_NS_MASK / HANDLE_ATTR_PRIV_MASK).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CallerAttributes {
+    /// Caller is from the Non-Secure world.
+    pub ns: bool,
+    /// Caller is privileged (handler mode or nPRIV=0).
+    pub privileged: bool,
+}
+
+impl CallerAttributes {
+    pub const NS_UNPRIVILEGED: Self = Self {
+        ns: true,
+        privileged: false,
+    };
+    pub const NS_PRIVILEGED: Self = Self {
+        ns: true,
+        privileged: true,
+    };
+    pub const SECURE_UNPRIVILEGED: Self = Self {
+        ns: false,
+        privileged: false,
+    };
+    pub const SECURE_PRIVILEGED: Self = Self {
+        ns: false,
+        privileged: true,
+    };
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct PsaMsg {
     pub handle: ServiceHandle,
     pub msg_type: i32,
-    // client_id: u32, // TODO: Do I need this?
+    pub caller: CallerAttributes,
     pub in_size: [Option<usize>; PSA_MAX_IOVEC],
     pub out_size: [Option<usize>; PSA_MAX_IOVEC],
 }
 
 impl PsaMsg {
-    const fn new(handle: ServiceHandle, msg_type: i32) -> Self {
+    const fn new(handle: ServiceHandle, msg_type: i32, caller: CallerAttributes) -> Self {
         Self {
             handle,
             msg_type,
+            caller,
             in_size: [None; PSA_MAX_IOVEC],
             out_size: [None; PSA_MAX_IOVEC],
         }
@@ -107,6 +137,7 @@ pub fn psa_call_from_slices(
     ctrl_param: CtrlParam,
     in_vecs: &[FFInVec],
     out_vecs: &mut [FFOutVec],
+    caller: CallerAttributes,
 ) -> Result<Connection, StatusCode> {
     let (msg_type, ivec_num, ovec_num) = validate_call_params(ctrl_param)?;
 
@@ -116,7 +147,7 @@ pub fn psa_call_from_slices(
 
     validate_invec_payload_nonoverlap(in_vecs)?;
 
-    let mut msg = PsaMsg::new(handle, msg_type);
+    let mut msg = PsaMsg::new(handle, msg_type, caller);
     let _ = (msg.handle, msg.msg_type);
     let mut invec_base: [*const u8; PSA_MAX_IOVEC] = [ptr::null(); PSA_MAX_IOVEC];
     let mut invec_accessed = [0; PSA_MAX_IOVEC];
@@ -154,6 +185,7 @@ pub unsafe fn psa_call(
     in_vec: *const FFInVec,
     out_vec: *mut FFOutVec,
     spm: &dyn SpmCall,
+    caller: CallerAttributes,
 ) -> Result<(), StatusCode> {
     let (_msg_type, ivec_num, ovec_num) = validate_call_params(ctrl_param)?;
 
@@ -180,7 +212,7 @@ pub unsafe fn psa_call(
         unsafe { slice::from_raw_parts_mut(out_vec, ovec_num) }
     };
 
-    let connection = psa_call_from_slices(handle, ctrl_param, in_vecs, out_vecs)?;
+    let connection = psa_call_from_slices(handle, ctrl_param, in_vecs, out_vecs, caller)?;
 
     spm.call(connection)
 }

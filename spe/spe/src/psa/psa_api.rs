@@ -8,6 +8,7 @@ use crate::{
     StatusCode,
     libs::once_lock::OnceLock,
     psa::{psa_call, psa_iovec_api},
+    psa::psa_call::CallerAttributes,
     spm::spm::SpmCall,
 };
 use psa_interface::PsaApiCallInterface;
@@ -56,7 +57,14 @@ impl PsaApiCallInterface for InternalPsaClient {
         };
 
         crate::into_psa_status(unsafe {
-            psa_call::psa_call(handle, ctrl_param, in_vec_ptr, out_vec_ptr, get_spm())
+            psa_call::psa_call(
+                handle,
+                ctrl_param,
+                in_vec_ptr,
+                out_vec_ptr,
+                get_spm(),
+                CallerAttributes::SECURE_PRIVILEGED,
+            )
         })
     }
 }
@@ -77,7 +85,15 @@ pub unsafe fn psa_call(
 
     // check comp changed during exe
 
-    unsafe { psa_call::psa_call(handle, ctrl_param, in_vec, out_vec, spm) }
+    // NS veneer entry: caller is Non-Secure.
+    // Privilege is determined by reading CONTROL_NS.nPRIV at runtime.
+    let privileged = !support::is_ns_unprivileged();
+    let caller = CallerAttributes {
+        ns: true,
+        privileged,
+    };
+
+    unsafe { psa_call::psa_call(handle, ctrl_param, in_vec, out_vec, spm, caller) }
 }
 
 pub fn psa_map_invec<R>(
