@@ -11,7 +11,7 @@
 pub mod hil;
 pub mod internal_trusted_storage;
 mod libs;
-pub mod mpu;
+
 pub mod psa;
 pub mod service;
 pub mod spm;

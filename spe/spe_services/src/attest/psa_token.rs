@@ -662,14 +662,16 @@ mod tests {
 
     #[test]
     fn test_compute_initial_attestation_token_size_matches_actual() {
-        use cose::cose_sign1::{CoseSign1, RustCryptoBackend, Sign1Options, encode_payload_bstr_in_place};
         use super::compute_initial_attestation_token_size;
+        use cose::cose_sign1::{
+            CoseSign1, RustCryptoBackend, Sign1Options, encode_payload_bstr_in_place,
+        };
 
         // Dummy EC2KpD private key for testing
         const TEST_PRIVATE_KEY: &[u8] = &[
-            0x3d, 0x42, 0x9a, 0x83, 0xef, 0xe3, 0x87, 0x10, 0xab, 0x9a, 0xb4, 0xc0, 0x2c, 0xcb, 0xbe,
-            0x0b, 0x87, 0xab, 0x69, 0x36, 0xdd, 0xf4, 0x14, 0x57, 0xea, 0x30, 0xf9, 0x6c, 0xa6, 0xf2,
-            0xcd, 0xee,
+            0x3d, 0x42, 0x9a, 0x83, 0xef, 0xe3, 0x87, 0x10, 0xab, 0x9a, 0xb4, 0xc0, 0x2c, 0xcb,
+            0xbe, 0x0b, 0x87, 0xab, 0x69, 0x36, 0xdd, 0xf4, 0x14, 0x57, 0xea, 0x30, 0xf9, 0x6c,
+            0xa6, 0xf2, 0xcd, 0xee,
         ];
 
         let nonce = [0x11; 32];
@@ -729,7 +731,9 @@ mod tests {
 
         let backend = RustCryptoBackend::new(TEST_PRIVATE_KEY);
         let signer = CoseSign1::new(backend, Sign1Options::default());
-        let encoded = signer.encode_from_payload_bstr_in_place(payload_bstr_len, &mut out).unwrap();
+        let encoded = signer
+            .encode_from_payload_bstr_in_place(payload_bstr_len, &mut out)
+            .unwrap();
 
         assert_eq!(
             predicted_size, encoded.encoded_len,

@@ -10,7 +10,6 @@ use crate::{
 const MAX_CONNECTIONS: usize = 4;
 pub const PSA_MAX_IOVEC: usize = 4;
 
-#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct Connection {
     pub msg: PsaMsg,
@@ -22,6 +21,8 @@ pub struct Connection {
     pub outvec_written: [usize; PSA_MAX_IOVEC],
     pub outvec_mapped: [bool; PSA_MAX_IOVEC],
     pub outvec_unmapped: [bool; PSA_MAX_IOVEC],
+    #[cfg(all(target_arch = "arm", target_os = "none"))]
+    pub mapped_regions: [Option<(bool, u32, usize, usize)>; PSA_MAX_IOVEC],
 }
 
 // # Safety
@@ -36,6 +37,7 @@ unsafe impl Send for Connection {}
 pub enum SpmError {
     MutexBusy,
     ConnectionStackFull,
+    EmptyConnectionStack,
     NoActiveConnection,
     CorruptedConnectionStack,
 }
@@ -48,7 +50,7 @@ pub(crate) struct ConnectionArray {
 impl ConnectionArray {
     pub const fn new() -> Self {
         Self {
-            connections: [None; MAX_CONNECTIONS],
+            connections: [const { None }; MAX_CONNECTIONS],
             top_connection: 0,
         }
     }
@@ -90,6 +92,24 @@ impl ConnectionArray {
 
         Ok(())
     }
+
+    pub(crate) fn pop_connection(&mut self) {
+        if self.top_connection > 0 {
+            self.top_connection -= 1;
+            self.connections[self.top_connection] = None;
+        }
+    }
+
+    pub(crate) fn peek_active_connection(&self) -> Result<&Connection, SpmError> {
+        if self.top_connection == 0 {
+            return Err(SpmError::EmptyConnectionStack);
+        }
+        let index = self.top_connection - 1;
+        match &self.connections[index] {
+            Some(conn) => Ok(conn),
+            None => Err(SpmError::CorruptedConnectionStack),
+        }
+    }
 }
 
 pub trait SpmPlatform: Sync {
@@ -114,6 +134,8 @@ pub trait SpmCall: Sync {
         is_write: bool,
         caller: CallerAttributes,
     ) -> bool;
+    fn map_vec(&self, is_outvec: bool, vec_idx: u32, base: *const u8, size: usize);
+    fn unmap_vec(&self, is_outvec: bool, vec_idx: u32);
 }
 
 pub struct SpmFn<P: SpmPlatform + 'static> {
@@ -142,10 +164,15 @@ impl<P: SpmPlatform + 'static> SpmFn<P> {
     }
 
     pub fn call(&self, connection: Connection) -> Result<(), crate::StatusCode> {
+        let msg = connection.msg;
         if self.add_connection(connection).is_err() {
             panic!("SPM connection stack exhausted");
         }
-        self.platform.call(connection.msg)
+        let result = self.platform.call(msg);
+        self.connections
+            .try_lock(|connections| connections.pop_connection())
+            .unwrap();
+        result
     }
 
     // Can be called by multiple threads. Multiple threads need access to different connections.
@@ -197,4 +224,7 @@ impl<P: SpmPlatform + 'static> SpmCall for SpmFn<P> {
         self.platform
             .has_permission_on_memory(base, len, is_write, caller)
     }
+
+    fn map_vec(&self, _is_outvec: bool, _vec_idx: u32, _base: *const u8, _size: usize) {}
+    fn unmap_vec(&self, _is_outvec: bool, _vec_idx: u32) {}
 }

@@ -100,9 +100,7 @@ fn handle_svc_with_spm(
             };
             match result {
                 Ok(raw) => {
-                    unsafe {
-                        crate::mpu::mpu_map_vec(is_outvec, frame.r1 as u32, raw.base, raw.len);
-                    }
+                    spm.map_vec(is_outvec, frame.r1 as u32, raw.base, raw.len);
                     set_raw_vec(frame, raw)
                 }
                 Err(status) => set_error(frame, status),
@@ -117,9 +115,7 @@ fn handle_svc_with_spm(
             };
             match result {
                 Ok(()) => {
-                    unsafe {
-                        crate::mpu::mpu_unmap_vec(is_outvec, frame.r1 as u32);
-                    }
+                    spm.unmap_vec(is_outvec, frame.r1 as u32);
                     set_success(frame)
                 }
                 Err(status) => set_error(frame, status),
@@ -423,6 +419,9 @@ mod tests {
         ) -> bool {
             true
         }
+
+        fn map_vec(&self, _is_outvec: bool, _vec_idx: u32, _base: *const u8, _size: usize) {}
+        fn unmap_vec(&self, _is_outvec: bool, _vec_idx: u32) {}
     }
 
     static TEST_SPM: TestSpm = TestSpm::new();
@@ -453,6 +452,8 @@ mod tests {
             outvec_written: [0; crate::spm::PSA_MAX_IOVEC],
             outvec_mapped: [false; crate::spm::PSA_MAX_IOVEC],
             outvec_unmapped: [false; crate::spm::PSA_MAX_IOVEC],
+            #[cfg(all(target_arch = "arm", target_os = "none"))]
+            mapped_regions: [None; crate::spm::PSA_MAX_IOVEC],
         }
     }
 

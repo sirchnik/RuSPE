@@ -35,6 +35,9 @@ pub use spm_ipc::{
 /// - `stack_top` must be an 8-byte aligned address at the top of RAM accessible
 ///   to unprivileged code (the service's stack).
 #[cfg(all(target_arch = "arm", target_os = "none"))]
+use crate::psa::psa_svc_api::SVC_CALL_UNPRIV;
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 pub(crate) unsafe fn svc_call_unpriv(
     fn_ptr: usize,
     arg: usize,

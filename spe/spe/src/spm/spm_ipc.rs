@@ -54,12 +54,13 @@ pub trait IpcProcessPlatform: SpmPlatform {
 /// in the unprivileged execution context provided by the SPM.
 pub unsafe trait IpcProcess: Sync {
     fn handle(&self) -> ServiceHandle;
+    fn get_vectors(&self) -> Option<*const FlashProcessVectors>;
 
     /// One-time initialization, called before the first `call()`.
     ///
     /// # Safety
     /// For flash processes, the entry point vectors must be valid.
-    unsafe fn init(&self, platform: &dyn IpcProcessPlatform);
+    unsafe fn init(&self, platform: &dyn IpcProcessPlatform, spm: &dyn SpmCall);
 
     /// Dispatch a service call. The connection is already on the SPM stack.
     ///
@@ -68,6 +69,7 @@ pub unsafe trait IpcProcess: Sync {
     unsafe fn call(
         &self,
         platform: &dyn IpcProcessPlatform,
+        spm: &dyn SpmCall,
         msg: PsaMsg,
     ) -> Result<(), crate::StatusCode>;
 }
@@ -149,11 +151,12 @@ unsafe impl IpcProcess for FlashProcess {
         self.handle
     }
 
-    unsafe fn init(&self, _platform: &dyn IpcProcessPlatform) {
+    fn get_vectors(&self) -> Option<*const FlashProcessVectors> {
+        Some(self.vectors)
+    }
+
+    unsafe fn init(&self, _platform: &dyn IpcProcessPlatform, _spm: &dyn SpmCall) {
         let vectors = unsafe { &*self.vectors };
-        unsafe {
-            crate::mpu::configure_process_mpu(vectors);
-        }
         unsafe {
             svc_call_unpriv(
                 vectors.init as usize,
@@ -168,12 +171,10 @@ unsafe impl IpcProcess for FlashProcess {
     unsafe fn call(
         &self,
         _platform: &dyn IpcProcessPlatform,
+        _spm: &dyn SpmCall,
         msg: PsaMsg,
     ) -> Result<(), crate::StatusCode> {
         let vectors = unsafe { &*self.vectors };
-        unsafe {
-            crate::mpu::configure_process_mpu(vectors);
-        }
         let (staged_msg, stack_top) = Self::stage_msg_mailbox(vectors, msg);
         let status = unsafe {
             svc_call_unpriv(
@@ -219,13 +220,18 @@ unsafe impl IpcProcess for EmbeddedProcess {
         self.handle
     }
 
-    unsafe fn init(&self, _platform: &dyn IpcProcessPlatform) {
+    fn get_vectors(&self) -> Option<*const FlashProcessVectors> {
+        None
+    }
+
+    unsafe fn init(&self, _platform: &dyn IpcProcessPlatform, _spm: &dyn SpmCall) {
         // Embedded services are fully initialized at construction time.
     }
 
     unsafe fn call(
         &self,
         _platform: &dyn IpcProcessPlatform,
+        _spm: &dyn SpmCall,
         msg: PsaMsg,
     ) -> Result<(), crate::StatusCode> {
         self.service.call(msg)
@@ -311,6 +317,102 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
         }
         Ok(result)
     }
+
+    #[cfg(all(target_arch = "arm", target_os = "none"))]
+    fn apply_mpu_config(&self, process_index: usize) {
+        use cortexm33::mpu;
+        use kernel::platform::mpu::{MPU as MpuTrait, Permissions};
+
+        let vectors_ptr = self.processes[process_index].get_vectors();
+        let Some(vectors_ptr) = vectors_ptr else {
+            return;
+        };
+        let vectors = unsafe { &*vectors_ptr };
+
+        let mpu = unsafe { mpu::new::<8>() };
+
+        let mut config = mpu.new_config().expect("MPU config slots exhausted");
+
+        let service_rom_start = vectors.rom_start;
+        let service_rom_size = (vectors.rom_limit as usize)
+            .checked_sub(vectors.rom_start as usize)
+            .unwrap();
+        let service_ram_start = vectors.ram_start;
+        let service_ram_size = (vectors.ram_limit as usize)
+            .checked_sub(vectors.ram_start as usize)
+            .unwrap();
+        let cryptolite_trng_start = 0x4223_0000 as *const u8;
+        let cryptolite_trng_size = 0x200;
+        let efuse_ctl3_start = 0x4261_0180 as *const u8;
+        let efuse_ctl3_size = 0x20;
+
+        mpu.allocate_region(
+            service_rom_start,
+            service_rom_size,
+            service_rom_size,
+            Permissions::ReadExecuteOnly,
+            &mut config,
+        )
+        .unwrap();
+        mpu.allocate_region(
+            service_ram_start,
+            service_ram_size,
+            service_ram_size,
+            Permissions::ReadWriteOnly,
+            &mut config,
+        )
+        .unwrap();
+        mpu.allocate_region(
+            cryptolite_trng_start,
+            cryptolite_trng_size,
+            cryptolite_trng_size,
+            Permissions::ReadWriteOnly,
+            &mut config,
+        )
+        .unwrap();
+        mpu.allocate_region(
+            efuse_ctl3_start,
+            efuse_ctl3_size,
+            efuse_ctl3_size,
+            Permissions::ReadOnly,
+            &mut config,
+        )
+        .unwrap();
+
+        self.state
+            .try_lock(|state| {
+                if let Ok(conn) = state.connections.peek_active_connection() {
+                    if self.find_process_index(conn.msg.handle) == Some(process_index) {
+                        for slot in conn.mapped_regions.iter() {
+                            if let Some((is_outvec, _vec_idx, base_addr, size)) = slot {
+                                let permissions = if *is_outvec {
+                                    Permissions::ReadWriteOnly
+                                } else {
+                                    Permissions::ReadOnly
+                                };
+                                mpu.allocate_region(
+                                    *base_addr as *const u8,
+                                    *size,
+                                    *size,
+                                    permissions,
+                                    &mut config,
+                                )
+                                .unwrap();
+                            }
+                        }
+                    }
+                }
+            })
+            .unwrap();
+
+        unsafe {
+            mpu.configure_mpu(&config);
+        }
+        mpu.enable_app_mpu();
+    }
+
+    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
+    fn apply_mpu_config(&self, _process_index: usize) {}
 }
 
 impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmCall
@@ -333,15 +435,42 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmCall
             Err(()) => panic!("SPM connection stack busy"),
         };
 
+        self.apply_mpu_config(process_index);
+
         if should_init {
             // # Safety:
             // Process init is safe per the IpcProcess safety contract.
-            unsafe { self.processes[process_index].init(self.platform) };
+            unsafe { self.processes[process_index].init(self.platform, self) };
         }
 
         // # Safety:
         // Process call is safe per the IpcProcess safety contract.
-        unsafe { self.processes[process_index].call(self.platform, msg) }
+        let result = unsafe { self.processes[process_index].call(self.platform, self, msg) };
+
+        // Restore MPU of previous process, if any
+        let prev_process_index = self
+            .state
+            .try_lock(|state| {
+                state.connections.pop_connection();
+                match state.connections.take_active_connection() {
+                    Ok((idx, conn)) => {
+                        let process_index = self.find_process_index(conn.msg.handle).unwrap();
+                        state
+                            .connections
+                            .restore_active_connection(idx, conn)
+                            .unwrap();
+                        Some(process_index)
+                    }
+                    Err(_) => None,
+                }
+            })
+            .unwrap();
+
+        if let Some(prev) = prev_process_index {
+            self.apply_mpu_config(prev);
+        }
+
+        result
     }
 
     fn with_active_connection(&self, f: &mut dyn FnMut(&mut Connection)) -> Result<(), SpmError> {
@@ -358,4 +487,70 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmCall
         self.platform
             .has_permission_on_memory(base, len, is_write, caller)
     }
+
+    #[cfg(all(target_arch = "arm", target_os = "none"))]
+    fn map_vec(&self, is_outvec: bool, vec_idx: u32, base: *const u8, size: usize) {
+        if size == 0 {
+            return;
+        }
+
+        let mut process_index = 0;
+        self.state
+            .try_lock(|state| {
+                let (conn_idx, mut conn) = state.connections.take_active_connection().unwrap();
+                process_index = self.find_process_index(conn.msg.handle).unwrap();
+
+                let base_addr = base as usize;
+                let aligned_base = base_addr & !0x1F;
+                let aligned_end = (base_addr + size + 0x1F) & !0x1F;
+                let aligned_size = aligned_end - aligned_base;
+
+                for slot in conn.mapped_regions.iter_mut() {
+                    if slot.is_none() {
+                        *slot = Some((is_outvec, vec_idx, aligned_base, aligned_size));
+                        break;
+                    }
+                }
+
+                state
+                    .connections
+                    .restore_active_connection(conn_idx, conn)
+                    .unwrap();
+            })
+            .unwrap();
+
+        self.apply_mpu_config(process_index);
+    }
+
+    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
+    fn map_vec(&self, _is_outvec: bool, _vec_idx: u32, _base: *const u8, _size: usize) {}
+
+    #[cfg(all(target_arch = "arm", target_os = "none"))]
+    fn unmap_vec(&self, is_outvec: bool, vec_idx: u32) {
+        let mut process_index = 0;
+        self.state
+            .try_lock(|state| {
+                let (conn_idx, mut conn) = state.connections.take_active_connection().unwrap();
+                process_index = self.find_process_index(conn.msg.handle).unwrap();
+
+                for slot in conn.mapped_regions.iter_mut() {
+                    if let Some((mapped_is_outvec, mapped_vec_idx, _, _)) = *slot {
+                        if mapped_is_outvec == is_outvec && mapped_vec_idx == vec_idx {
+                            *slot = None;
+                            break;
+                        }
+                    }
+                }
+                state
+                    .connections
+                    .restore_active_connection(conn_idx, conn)
+                    .unwrap();
+            })
+            .unwrap();
+
+        self.apply_mpu_config(process_index);
+    }
+
+    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
+    fn unmap_vec(&self, _is_outvec: bool, _vec_idx: u32) {}
 }
