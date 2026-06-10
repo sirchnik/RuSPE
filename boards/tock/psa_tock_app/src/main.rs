@@ -16,6 +16,7 @@ stack_size! {0x1000}
 #[derive(Debug)]
 enum TokenError {
     ConsoleRead,
+    InvalidNonce,
     SpeDriverNotAvailable,
     TokenRequestFailed,
     WriteError,
@@ -69,51 +70,79 @@ fn create_psa_token(writer: &mut impl Write) -> Result<(), TokenError> {
     let mut nonce_hex = [0u8; 64];
     let mut token = [0u8; 512];
 
-    write!(writer, "\nEnter nonce in hex (up to 64 chars): ")
-        .map_err(|_| TokenError::WriteError)?;
+    writeln!(
+        writer,
+        "{{ \"type\": \"enter_nonce\", \"msg\": \"Please enter a hex-encoded nonce (up to 32 bytes):\" }}"
+    )
+    .map_err(|_| TokenError::WriteError)?;
     let (len, stat) = Console::read(&mut nonce_hex);
     if stat.is_err() {
-        writeln!(writer, "Error reading from console: {:?}", stat)
-            .map_err(|_| TokenError::WriteError)?;
-        return Err(TokenError::ConsoleRead);
+        return emit_json_error(writer, "console_read", TokenError::ConsoleRead);
     }
 
     // Parse hex string to binary
     let mut nonce = [0u8; 32];
     let hex_len = core::cmp::min(len as usize, nonce_hex.len());
     let parsed_len = parse_hex(&nonce_hex[..hex_len], &mut nonce);
+    if parsed_len == 0 {
+        return emit_json_error(writer, "invalid_nonce", TokenError::InvalidNonce);
+    }
 
     let challenge_len = core::cmp::min(parsed_len, nonce.len());
-    writeln!(writer, "Read {} nonce bytes", challenge_len).map_err(|_| TokenError::WriteError)?;
 
-    SpeDriver::<TockSyscalls>::exists().map_err(|e| {
-        let _ = writeln!(writer, "SPE driver not available: {:?}", e);
-        TokenError::SpeDriverNotAvailable
-    })?;
+    if SpeDriver::<TockSyscalls>::exists().is_err() {
+        return emit_json_error(
+            writer,
+            "spe_driver_not_available",
+            TokenError::SpeDriverNotAvailable,
+        );
+    }
 
-    let token_len = SpeDriver::<TockSyscalls>::initial_attest_get_token_sync(
+    let token_len = match SpeDriver::<TockSyscalls>::initial_attest_get_token_sync(
         &nonce[..challenge_len],
         &mut token,
-    )
-    .map_err(|e| {
-        let _ = writeln!(writer, "SPE token request failed: {:?}", e);
-        TokenError::TokenRequestFailed
-    })?;
+    ) {
+        Ok(token_len) => token_len,
+        Err(_) => {
+            return emit_json_error(
+                writer,
+                "token_request_failed",
+                TokenError::TokenRequestFailed,
+            );
+        }
+    };
 
-    writeln!(writer, "Token len: {}", token_len).map_err(|_| TokenError::WriteError)?;
-    writeln!(writer, "Token:").map_err(|_| TokenError::WriteError)?;
-    for b in token[..token_len].iter() {
-        write!(writer, "{:02x}", b).map_err(|_| TokenError::WriteError)?;
-    }
-    Ok(())
+    emit_json_ok(writer, &token[..token_len], token_len)
 }
 
 fn main() {
     let mut writer = Console::writer();
 
     loop {
-        if let Err(e) = create_psa_token(&mut writer) {
-            let _ = writeln!(writer, "Token creation failed: {:?}", e);
-        }
+        let _ = create_psa_token(&mut writer);
     }
+}
+
+fn emit_json_error(
+    writer: &mut impl Write,
+    error: &'static str,
+    token_error: TokenError,
+) -> Result<(), TokenError> {
+    writeln!(writer, "{{\"type\":\"error\",\"msg\":\"{}\"}}", error)
+        .map_err(|_| TokenError::WriteError)?;
+    Err(token_error)
+}
+
+fn emit_json_ok(writer: &mut impl Write, token: &[u8], token_len: usize) -> Result<(), TokenError> {
+    write!(
+        writer,
+        "{{\"type\":\"token_response\",\"token_len\":{},\"token\":\"",
+        token_len
+    )
+    .map_err(|_| TokenError::WriteError)?;
+    for b in token.iter() {
+        write!(writer, "{:02x}", b).map_err(|_| TokenError::WriteError)?;
+    }
+    writeln!(writer, "\"}}").map_err(|_| TokenError::WriteError)?;
+    Ok(())
 }
