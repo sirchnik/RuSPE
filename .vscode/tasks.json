@@ -4,9 +4,12 @@
         {
             "label": "build.psc3m5_evk",
             // edit "tock.app" in ~/.config/Code/User/settings.json
-            "command": "APP=${config:tock.app} DEBUG=1 make debug -C ${workspaceRoot}/boards/psc3m5_evk_secure",
+            "command": "$app = '${config:tock.app}'; if ($app) { inv build --debug --app \"$app\" } else { inv build --debug }",
             "type": "shell",
             "args": [],
+            "options": {
+                "cwd": "${workspaceRoot}/boards/psc3m5_evk_secure"
+            },
             "presentation": {
                 "reveal": "silent" // only show on errors
             },
