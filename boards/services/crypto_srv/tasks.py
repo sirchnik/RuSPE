@@ -24,11 +24,11 @@ BuildEnv = dict[str, str]
 SERVICE_CONF = ServiceConfig(
     repo_root=REPO_ROOT,
     service_dir=SERVICE_DIR,
-    handle_variant="psa_interface::types::ServiceHandle::AttestationService",
-    flash_origin="0x32010000",
-    flash_length="0x2F00",
-    ram_origin="0x34002F00",
-    ram_length="0x1100",
+    handle_variant="psa_interface::types::ServiceHandle::Crypto",
+    flash_origin="0x32012F00",
+    flash_length="0x5000",
+    ram_origin="0x34004000",
+    ram_length="0x900",
 )
 
 
