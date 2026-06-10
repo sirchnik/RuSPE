@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Infineon Technologies AG 2026.
 
+#![cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    feature(abi_cmse_nonsecure_call, cmse_nonsecure_entry)
+)]
 #![no_std]
 
 pub mod attest;

@@ -122,7 +122,8 @@ pub unsafe fn main() {
 
     #[cfg(all(target_arch = "arm", target_os = "none"))]
     unsafe {
-        let [nonsecure_sp, nonsecure_reset] = security::NONSECURE_START_FLASH.read_volatile();
+        const NONSECURE_START_FLASH: *const [u32; 2] = 0x2201_4000 as *const [u32; 2];
+        let [nonsecure_sp, nonsecure_reset] = NONSECURE_START_FLASH.read_volatile();
 
         // Set non-secure main stack pointer
         core::arch::asm!(
