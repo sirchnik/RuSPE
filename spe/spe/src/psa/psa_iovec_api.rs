@@ -30,7 +30,10 @@ fn validate_real_permission(
     }
 
     if !spm.has_real_permission(base, len, is_write) {
-        panic!("{} is not permitted by real memory access control", vector_kind);
+        panic!(
+            "{} is not permitted by real memory access control",
+            vector_kind
+        );
     }
 }
 
@@ -275,7 +278,10 @@ mod tests {
             Ok(())
         }
 
-        fn with_active_connection(&self, f: &mut dyn FnMut(&mut Connection)) -> Result<(), SpmError> {
+        fn with_active_connection(
+            &self,
+            f: &mut dyn FnMut(&mut Connection),
+        ) -> Result<(), SpmError> {
             let mut connection = self.connection.borrow_mut();
             f(&mut connection);
             Ok(())
@@ -290,7 +296,12 @@ mod tests {
         }
     }
 
-    fn make_connection(in_base: *const u8, in_len: usize, out_base: *mut u8, out_len: usize) -> Connection {
+    fn make_connection(
+        in_base: *const u8,
+        in_len: usize,
+        out_base: *mut u8,
+        out_len: usize,
+    ) -> Connection {
         Connection {
             msg: PsaMsg {
                 handle: ServiceHandle::Crypto,
@@ -309,11 +320,7 @@ mod tests {
         }
     }
 
-    fn make_test_spm(
-        connection: Connection,
-        allow_read: bool,
-        allow_write: bool,
-    ) -> TestSpm {
+    fn make_test_spm(connection: Connection, allow_read: bool, allow_write: bool) -> TestSpm {
         TestSpm {
             connection: RefCell::new(connection),
             allow_read,
@@ -323,7 +330,11 @@ mod tests {
 
     #[test]
     fn zero_length_vectors_allow_null_bases() {
-        let spm = make_test_spm(make_connection(ptr::null(), 0, ptr::null_mut(), 0), true, true);
+        let spm = make_test_spm(
+            make_connection(ptr::null(), 0, ptr::null_mut(), 0),
+            true,
+            true,
+        );
 
         let in_result = psa_map_invec(&spm, ServiceHandle::Crypto, 0, |buf| {
             assert!(buf.is_empty());
@@ -341,7 +352,11 @@ mod tests {
     #[test]
     #[should_panic(expected = "input vector base pointer is null")]
     fn nonzero_input_vector_rejects_null_base() {
-        let spm = make_test_spm(make_connection(ptr::null(), 1, ptr::null_mut(), 0), true, true);
+        let spm = make_test_spm(
+            make_connection(ptr::null(), 1, ptr::null_mut(), 0),
+            true,
+            true,
+        );
 
         let _ = psa_map_invec(&spm, ServiceHandle::Crypto, 0, |_| ());
     }
@@ -349,7 +364,11 @@ mod tests {
     #[test]
     #[should_panic(expected = "output vector base pointer is null")]
     fn nonzero_output_vector_rejects_null_base() {
-        let spm = make_test_spm(make_connection(ptr::null(), 0, ptr::null_mut(), 1), true, true);
+        let spm = make_test_spm(
+            make_connection(ptr::null(), 0, ptr::null_mut(), 1),
+            true,
+            true,
+        );
 
         let _ = psa_map_outvec(&spm, ServiceHandle::Crypto, 0, |_| ((), 0));
     }
@@ -381,7 +400,11 @@ mod tests {
     #[test]
     #[should_panic(expected = "input vector is not permitted by real memory access control")]
     fn nonzero_input_vector_rejects_permission_failure() {
-        let spm = make_test_spm(make_connection(0x2400_4000 as *const u8, 1, ptr::null_mut(), 0), false, true);
+        let spm = make_test_spm(
+            make_connection(0x2400_4000 as *const u8, 1, ptr::null_mut(), 0),
+            false,
+            true,
+        );
 
         let _ = psa_map_invec(&spm, ServiceHandle::Crypto, 0, |_| ());
     }
@@ -389,7 +412,11 @@ mod tests {
     #[test]
     #[should_panic(expected = "output vector is not permitted by real memory access control")]
     fn nonzero_output_vector_rejects_permission_failure() {
-        let spm = make_test_spm(make_connection(ptr::null(), 0, 0x2400_4000 as *mut u8, 1), true, false);
+        let spm = make_test_spm(
+            make_connection(ptr::null(), 0, 0x2400_4000 as *mut u8, 1),
+            true,
+            false,
+        );
 
         let _ = psa_map_outvec(&spm, ServiceHandle::Crypto, 0, |_| ((), 0));
     }
