@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Infineon Technologies AG 2026.
+#
+# SPDX-License-Identifier: MIT
+
 [project]
 name = "RuSPE"
 description = "RuSPE Python dependencies."
@@ -9,6 +13,7 @@ dependencies = [
     "invoke==3.0.3", # command support
     "intelhex==2.3.0", # merging hex files like SPE and NSPE
     "edgeprotecttools==1.6.1", # tool for provisioning Infineon devices (currently only psc3m5 here)
+    "reuse>=6.2.0",
 ]
 
 [tool.ruff]

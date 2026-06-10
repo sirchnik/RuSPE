@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: Infineon Technologies AG
+//
+// SPDX-License-Identifier: MIT
+
 use crate::psa::psa_call::PsaMsg;
 use crate::service::Service;
 use crate::spm::spm_fn::ConnectionArray;

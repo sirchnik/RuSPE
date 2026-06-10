@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: Infineon Technologies AG
+//
+// SPDX-License-Identifier: MIT
+
 module sirchnik.ruspe/client-tester
 
 go 1.26.2

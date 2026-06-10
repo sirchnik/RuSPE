@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: Infineon Technologies AG
+
+SPDX-License-Identifier: MIT
+-->
+
 # RuSPE AGENTS.md
 
 This project uses invoke for directory specific tasks make sure to change directory.

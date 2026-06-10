@@ -1,6 +1,10 @@
 #![no_std]
 #![no_main]
 
+// SPDX-FileCopyrightText: Infineon Technologies AG
+//
+// SPDX-License-Identifier: MIT
+
 use ruspe_psc3::services::attest::{InitialAttestation, Psc3AttestPlatform};
 use spe::{into_psa_status, psa::psa_call::PsaMsg, service::Service, spm::FlashProcessVectors};
 

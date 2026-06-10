@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: Infineon Technologies AG
+
+SPDX-License-Identifier: MIT
+-->
+
 # RuSPE
 
 RuSPE — a proof-of-concept Rust implementation of an TrustedFirmware-M

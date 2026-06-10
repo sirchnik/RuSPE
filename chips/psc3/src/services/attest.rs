@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: Infineon Technologies AG
+//
+// SPDX-License-Identifier: MIT
+
 use core::cmp;
 use spe_services::attest::attest_service::{self, CERTIFICATION_REF_MAX_SIZE};
 use tock_psc3::cryptolite;

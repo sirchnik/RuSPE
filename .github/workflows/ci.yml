@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: Infineon Technologies AG
+#
+# SPDX-License-Identifier: MIT
+
 name: CI
 
 on:
@@ -32,6 +36,9 @@ jobs:
         run: inv clippy
       - name: Check spelling
         run: inv check-spelling
+        continue-on-error: true
+      - name: Run reuse linting
+        run: inv reuse
         continue-on-error: true
 
   build:

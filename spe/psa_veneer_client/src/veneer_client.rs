@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: Infineon Technologies AG
+//
+// SPDX-License-Identifier: MIT
+
 use psa_interface::{PsaApiCallInterface, types};
 
 unsafe extern "C" {

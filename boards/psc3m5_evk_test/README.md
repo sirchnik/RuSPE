@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: Infineon Technologies AG
+
+SPDX-License-Identifier: MIT
+-->
+
 # PSOC™ Control C3M5 Evaluation Kit
 
 <img src="https://assets.infineon.com/is/image/infineon/kit-psc3m5-evk-main-picture-kit-psc3m5-evk.png" width="40%">

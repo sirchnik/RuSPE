@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: Infineon Technologies AG
+
+SPDX-License-Identifier: MIT
+-->
+
 # Test client
 
 Test client for [`boards/tock/psa_tock_app`](../../boards/tock/psa_tock_app/).

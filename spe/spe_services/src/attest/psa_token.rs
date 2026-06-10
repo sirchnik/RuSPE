@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: Infineon Technologies AG
+//
+// SPDX-License-Identifier: MIT
+
 use cose::cose_sign1::{
     CoseCrypto, CoseSign1, CoseSign1Error, RustCryptoHasher, Sign1Options, encode_payload_bstr,
 };
