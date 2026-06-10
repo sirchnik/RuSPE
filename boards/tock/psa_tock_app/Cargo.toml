@@ -7,5 +7,5 @@ rust-version = "1.87"
 [dependencies]
 libtock = { git = "https://www.github.com/tock/libtock-rs" }
 
-# [build-dependencies]
-# libtock_build_scripts = { git = "https://www.github.com/tock/libtock-rs" }
+[build-dependencies]
+libtock_build_scripts = { git = "https://www.github.com/tock/libtock-rs" }
