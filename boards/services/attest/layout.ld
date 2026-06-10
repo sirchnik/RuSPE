@@ -9,7 +9,7 @@
 MEMORY
 {
 	ROM (rx)  : ORIGIN = 0x32010000, LENGTH = 0x3F00
-	RAM (rwx) : ORIGIN = 0x34003800, LENGTH = 0x800
+	RAM (rwx) : ORIGIN = 0x34002F00, LENGTH = 0x1100
 }
 
 INCLUDE service_layout.ld

@@ -11,8 +11,8 @@ See also standard [secure board docs](../psc3m5_evk_secure/mem-conf.md) for gene
 
 | Region                      |     Size |                           Configuration |
 | --------------------------- | -------: | --------------------------------------: |
-| `0x3400_0000`-`0x3400_3800` | 14,336 B |        Secure privileged (S) (SPM SRAM) |
-| `0x3400_3800`-`0x3400_4000` |  2,048 B | Secure unprivileged (S) (attest service) |
+| `0x3400_0000`-`0x3400_2F00` | 12,032 B |        Secure privileged (S) (SPM SRAM) |
+| `0x3400_2F00`-`0x3400_4000` |  4,352 B | Secure unprivileged (S) (attest service) |
 | `0x2400_4000`-`0x2400_77E4` | 14,308 B |   Non-Secure privileged (NS kernel RAM) |
 | `0x2400_77E4`-`0x2400_F000` | 30,748 B | Non-Secure unprivileged (NS app memory) |
 | `0x2400_F000`-`0x2401_0000` |     4 KB |            Shared Memory (SHM) (unused) |
