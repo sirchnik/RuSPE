@@ -1,51 +1,56 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Infineon Technologies AG 2026.
+
 use core::cmp;
+
 use psa_interface;
-use psc3::cryptolite;
 use spe::{
-    StatusCode,
     attest::attest_service::{self, CERTIFICATION_REF_MAX_SIZE},
     crypto::crypto_service,
     psa::psa_call::PsaMsg,
     service::Service,
     spm::spm::SpmPlatform,
 };
+use tock_psc3::cryptolite;
+
 pub struct Psc3AttestPlatform;
 
 impl attest_service::AttestPlatform for Psc3AttestPlatform {
-    fn security_lifecycle(&self) -> Result<u32, StatusCode> {
+    fn security_lifecycle(&self) -> Result<u32, spe::StatusCode> {
         Ok(12288)
     }
 
-    fn verification_service(&self, buf: &mut [u8]) -> Result<usize, StatusCode> {
+    fn verification_service(&self, buf: &mut [u8]) -> Result<usize, spe::StatusCode> {
         let s = b"https://psa-verifier.org";
         let len = cmp::min(buf.len(), s.len());
         buf[..len].copy_from_slice(&s[..len]);
         Ok(len)
     }
 
-    fn profile_definition(&self, buf: &mut [u8]) -> Result<usize, StatusCode> {
+    fn profile_definition(&self, buf: &mut [u8]) -> Result<usize, spe::StatusCode> {
         let s = b"tag:psacertified.org,2023:psa#tfm";
         let len = cmp::min(buf.len(), s.len());
         buf[..len].copy_from_slice(&s[..len]);
         Ok(len)
     }
 
-    fn boot_seed(&self, seed: &mut [u8; 32]) -> Result<(), StatusCode> {
+    fn boot_seed(&self, seed: &mut [u8; 32]) -> Result<(), spe::StatusCode> {
         let cryptolite = cryptolite::Cryptolite::new();
         if cryptolite
             .trng_init(&cryptolite::TrngConfig::default())
             .and_then(|()| cryptolite.trng_enable())
             .is_err()
         {
-            return Err(StatusCode::GenericError);
+            return Err(spe::StatusCode::GenericError);
         }
         cryptolite
             .trng_try_fill_bytes(seed)
-            .map_err(|_| StatusCode::GenericError)
+            .map_err(|_| spe::StatusCode::GenericError)
     }
     // TODO get key from `raw_data_pc012`
 
-    fn implementation_id(&self, buf: &mut [u8; 32]) -> Result<(), StatusCode> {
+    fn implementation_id(&self, buf: &mut [u8; 32]) -> Result<(), spe::StatusCode> {
         let s = b"acme-implementation-id-000000001";
         let len = cmp::min(buf.len(), s.len());
         buf[..len].copy_from_slice(&s[..len]);
@@ -55,15 +60,16 @@ impl attest_service::AttestPlatform for Psc3AttestPlatform {
         Ok(())
     }
 
-    fn instance_id(&self, buf: &mut [u8; 33]) -> Result<(), StatusCode> {
-        // Type byte 0x01 (RAND) followed by 32-byte random instance ID.
-        // TODO: derive from a device-unique key or TRNG.
+    fn instance_id(&self, buf: &mut [u8; 33]) -> Result<(), spe::StatusCode> {
         buf[0] = 0x01;
         buf[1..].fill(0x02);
         Ok(())
     }
 
-    fn cert_ref(&self, buf: &mut [u8; CERTIFICATION_REF_MAX_SIZE]) -> Result<usize, StatusCode> {
+    fn cert_ref(
+        &self,
+        buf: &mut [u8; CERTIFICATION_REF_MAX_SIZE],
+    ) -> Result<usize, spe::StatusCode> {
         let s = b"0123456789012-12345";
         let len = cmp::min(buf.len(), s.len());
         buf[..len].copy_from_slice(&s[..len]);
@@ -80,13 +86,13 @@ pub struct Psc3SecPlatform {
 }
 
 impl SpmPlatform for Psc3SecPlatform {
-    fn call(&self, msg: PsaMsg) -> Result<(), StatusCode> {
-        return match msg.handle {
+    fn call(&self, msg: PsaMsg) -> Result<(), spe::StatusCode> {
+        match msg.handle {
             psa_interface::types::ServiceHandle::AttestationService => {
                 self.initial_attestation.call(msg)
             }
             psa_interface::types::ServiceHandle::Crypto => self.crypto.call(msg),
-            _ => Err(StatusCode::NotSupported),
-        };
+            _ => Err(spe::StatusCode::NotSupported),
+        }
     }
 }

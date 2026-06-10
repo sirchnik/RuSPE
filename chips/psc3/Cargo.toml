@@ -1,0 +1,15 @@
+[package]
+name = "psc3"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+infineon = { path = "../../chips/infineon" }
+psa_interface = { path = "../../spe/psa_interface" }
+spe = { path = "../../spe/spe" }
+cortexm33 = { path = "../../tock/arch/cortex-m33" }
+tock_psc3 = { package = "psc3", path = "../../tock/chips/psc3" }
+
+[lints]
+workspace = true

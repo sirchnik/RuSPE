@@ -245,6 +245,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "infineon"
+version = "0.1.0"
+
+[[package]]
 name = "kernel"
 version = "0.2.3-dev"
 dependencies = [
@@ -554,6 +558,17 @@ dependencies = [
 
 [[package]]
 name = "psc3"
+version = "0.1.0"
+dependencies = [
+ "cortexm33",
+ "infineon",
+ "psa_interface",
+ "psc3 0.2.3-dev",
+ "spe",
+]
+
+[[package]]
+name = "psc3"
 version = "0.2.3-dev"
 dependencies = [
  "cortexm33",
@@ -568,7 +583,8 @@ dependencies = [
  "cortexm33",
  "helpers",
  "psa_interface",
- "psc3",
+ "psc3 0.1.0",
+ "psc3 0.2.3-dev",
  "spe",
  "tock_build_scripts",
 ]
@@ -582,7 +598,7 @@ dependencies = [
  "kernel",
  "psa_interface",
  "psa_veneer_client",
- "psc3",
+ "psc3 0.2.3-dev",
  "tock_build_scripts",
 ]
 
@@ -599,7 +615,7 @@ dependencies = [
  "kernel",
  "psa_interface",
  "psa_veneer_client",
- "psc3",
+ "psc3 0.2.3-dev",
  "tock_build_scripts",
 ]
 
