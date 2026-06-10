@@ -36,6 +36,7 @@ _BIN_CRATES = [
     "psc3m5_evk_tock",
     "psa_tock_app",
     "psc3m5_evk_attest",
+    "psc3m5_evk_crypto",
 ]
 
 
@@ -249,9 +250,28 @@ def coverage(ctx: Context, html=False):
 
 @build_task
 def fmt(ctx: Context, check=False):
-    """Run cargo fmt. Pass --check to verify formatting without changes."""
-    check_flag = "--check" if check else ""
-    run_command(f"cargo fmt --all {check_flag}".strip())
+    """Run rustfmt on all git-tracked files using run_command, ignoring the tock folder."""
+    result = run_command(
+        ["git", "ls-files"],
+        capture_output=True,
+    )
+    tracked_files = result.stdout.splitlines()
+    
+    rust_files = [
+        f for f in tracked_files 
+        if f.endswith(".rs") and not f.startswith("tock/")
+    ]
+    
+    if not rust_files:
+        print("No Rust files found to format.")
+        return
+
+    cmd = ["rustfmt", "--edition", "2024"]
+    if check:
+        cmd.append("--check")
+    cmd.extend(rust_files)
+    
+    run_command(cmd, shorten_args=True)
 
 
 @build_task

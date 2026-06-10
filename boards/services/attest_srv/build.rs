@@ -45,8 +45,7 @@ INCLUDE ../shared/service_layout.ld
         flash_origin, flash_length, ram_origin, ram_length
     );
 
-    fs::write(&layout_path, layout_content)
-        .expect("Failed to write generated layout.ld");
+    fs::write(&layout_path, layout_content).expect("Failed to write generated layout.ld");
 
     tock_build::add_board_dir_to_linker_search_path();
     // Set the generated linker script path

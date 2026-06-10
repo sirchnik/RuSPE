@@ -4,8 +4,8 @@
 
 use crate::types;
 
-use crate::status::StatusCode;
 use crate::PsaApiCallInterface;
+use crate::status::StatusCode;
 
 fn status_from_raw(status: types::PsaStatus) -> Result<(), StatusCode> {
     match StatusCode::try_from(status) {

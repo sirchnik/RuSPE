@@ -27,11 +27,12 @@ fn main() {
     let out_dir = env::var("OUT_DIR").expect("OUT_DIR env var not set");
     let config_path = Path::new(&out_dir).join("service_config.rs");
 
-    let mut config_content = String::from(
-        "// Generated service configuration from build time\n\n"
-    );
+    let mut config_content = String::from("// Generated service configuration from build time\n\n");
 
-    config_content.push_str(&format!("pub const SERVICE_COUNT: usize = {};\n\n", service_count));
+    config_content.push_str(&format!(
+        "pub const SERVICE_COUNT: usize = {};\n\n",
+        service_count
+    ));
     config_content.push_str("pub const SERVICE_ADDRS: [u32; SERVICE_COUNT] = [\n");
     for service in &services {
         config_content.push_str(&format!("    {},\n", service.flash_origin));
@@ -39,15 +40,14 @@ fn main() {
     config_content.push_str("];\n\n");
 
     config_content.push_str(
-        "pub const SERVICE_HANDLES: [psa_interface::types::ServiceHandle; SERVICE_COUNT] = [\n"
+        "pub const SERVICE_HANDLES: [psa_interface::types::ServiceHandle; SERVICE_COUNT] = [\n",
     );
     for service in &services {
         config_content.push_str(&format!("    {},\n", service.handle_variant));
     }
     config_content.push_str("];\n");
 
-    fs::write(&config_path, config_content)
-        .expect("Failed to write generated service_config.rs");
+    fs::write(&config_path, config_content).expect("Failed to write generated service_config.rs");
 
     tock_build::add_board_dir_to_linker_search_path();
     tock_build::set_and_track_linker_script("layout.ld");

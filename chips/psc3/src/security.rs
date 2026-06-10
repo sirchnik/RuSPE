@@ -237,7 +237,9 @@ pub fn configure_security(
     nonsecure_ram_start: u32,
     nonsecure_ram_limit: u32,
 ) {
-    let nsc_start = nonsecure_flash_start.wrapping_add(0x1000_0000).wrapping_sub(0x100);
+    let nsc_start = nonsecure_flash_start
+        .wrapping_add(0x1000_0000)
+        .wrapping_sub(0x100);
 
     // Sometimes while debugging no BUS_ERROR is generated and the debugger just hangs. Change to RZWI then.
     ppc::set_viloation_response(ppc::PPC_CTL::RESP_CFG::RZWI);

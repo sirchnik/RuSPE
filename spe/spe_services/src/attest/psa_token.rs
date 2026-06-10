@@ -205,10 +205,10 @@ pub fn compute_initial_attestation_token_size(
 
 #[cfg(test)]
 mod tests {
+    use super::StatusCode;
     use super::{
         AttestClaim, AttestClaimValue, IatClaim, SwComponent, encode_payload, map_cose_error,
     };
-    use super::StatusCode;
     use cose::cose_sign1::CoseSign1Error;
     use minicbor::Decoder;
 
