@@ -2,4 +2,7 @@ target
 build/*
 .venv
 
+*.local
+.local/
+
 /.agents
