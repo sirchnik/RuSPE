@@ -185,14 +185,16 @@ pub fn encode_initial_attestation_token(
     token: &mut [u8],
     key_id: u32,
 ) -> Result<usize, StatusCode> {
-    let payload_len = encode_payload(claims, token)?;
+    // payload in attest stack as io_vecs cannot be passed to other services (crypto)
+    let mut payload_buf = [0u8; 512];
+    let payload_len = encode_payload(claims, &mut payload_buf)?;
     let payload_bstr_len =
-        encode_payload_bstr_in_place(payload_len, token).map_err(map_cose_error)?;
+        encode_payload_bstr_in_place(payload_len, &mut payload_buf).map_err(map_cose_error)?;
 
     let signer = CoseSign1::new(PsaCryptoBackend::new(key_id), Sign1Options::default());
 
     let encoded = signer
-        .encode_from_payload_bstr_in_place(payload_bstr_len, token)
+        .encode_from_payload_bstr(&payload_buf[..payload_bstr_len], token)
         .map_err(map_cose_error)?;
 
     Ok(encoded.encoded_len)
@@ -726,13 +728,14 @@ mod tests {
 
         // Actually encode the token
         let mut out = [0u8; 1024];
-        let payload_len = encode_payload(&claims, &mut out).unwrap();
-        let payload_bstr_len = encode_payload_bstr_in_place(payload_len, &mut out).unwrap();
+        let mut payload_buf = [0u8; 512];
+        let payload_len = encode_payload(&claims, &mut payload_buf).unwrap();
+        let payload_bstr_len = encode_payload_bstr_in_place(payload_len, &mut payload_buf).unwrap();
 
         let backend = RustCryptoBackend::new(TEST_PRIVATE_KEY);
         let signer = CoseSign1::new(backend, Sign1Options::default());
         let encoded = signer
-            .encode_from_payload_bstr_in_place(payload_bstr_len, &mut out)
+            .encode_from_payload_bstr(&payload_buf[..payload_bstr_len], &mut out)
             .unwrap();
 
         assert_eq!(

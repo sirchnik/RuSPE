@@ -231,137 +231,10 @@ impl<'a, C: CoseCrypto> CoseSign1<'a, C> {
         })
     }
 
-    /// Encodes a complete COSE_Sign1 using a payload bstr already in `out`.
-    ///
-    /// This allows in-place construction where the payload bstr is prepared in the
-    /// same buffer that will hold the final COSE_Sign1.
-    pub fn encode_from_payload_bstr_in_place(
-        &self,
-        payload_bstr_len: usize,
-        out: &mut [u8],
-    ) -> Result<EncodedParameters, CoseSign1Error> {
-        if payload_bstr_len > out.len() {
-            return Err(CoseSign1Error::BufferTooSmall);
-        }
 
-        let (protected_headers_buf, protected_headers_len) = encode_protected_headers()?;
-        let protected_headers = &protected_headers_buf[..protected_headers_len];
-
-        let digest = {
-            let payload_bstr = &out[..payload_bstr_len];
-            validate_payload_bstr(payload_bstr)?;
-            hash_sig_structure(
-                &self.crypto,
-                protected_headers,
-                self.external_aad,
-                payload_bstr,
-            )?
-        };
-        let signature_bytes = self.crypto.sign_es256_prehash(&digest)?;
-
-        let prefix_len = {
-            let mut counter = SizeCounter::default();
-            let mut enc = Encoder::new(&mut counter);
-            encode_sign1_prefix(
-                &mut enc,
-                protected_headers,
-                self.key_id,
-                self.option_flags.omit_cbor_tag,
-                self.option_flags.detached_payload,
-            )
-            .map_err(|_| CoseSign1Error::CborEncoding)?;
-            counter.len
-        };
-
-        if self.option_flags.detached_payload {
-            let mut prefix_enc = Encoder::new(Cursor::new(&mut *out));
-            encode_sign1_prefix(
-                &mut prefix_enc,
-                protected_headers,
-                self.key_id,
-                self.option_flags.omit_cbor_tag,
-                true,
-            )
-            .map_err(map_encode_error)?;
-            let prefix_len = prefix_enc.writer().position();
-
-            let mut sig_enc = Encoder::new(Cursor::new(&mut out[prefix_len..]));
-            sig_enc.bytes(&signature_bytes).map_err(map_encode_error)?;
-
-            return Ok(EncodedParameters {
-                encoded_len: prefix_len + sig_enc.writer().position(),
-                payload_is_detached: true,
-            });
-        }
-
-        let payload_end = prefix_len
-            .checked_add(payload_bstr_len)
-            .ok_or(CoseSign1Error::BufferTooSmall)?;
-        if payload_end > out.len() {
-            return Err(CoseSign1Error::BufferTooSmall);
-        }
-
-        out.copy_within(0..payload_bstr_len, prefix_len);
-
-        let mut prefix_enc = Encoder::new(Cursor::new(&mut *out));
-        encode_sign1_prefix(
-            &mut prefix_enc,
-            protected_headers,
-            self.key_id,
-            self.option_flags.omit_cbor_tag,
-            false,
-        )
-        .map_err(map_encode_error)?;
-
-        let mut sig_enc = Encoder::new(Cursor::new(&mut out[payload_end..]));
-        sig_enc.bytes(&signature_bytes).map_err(map_encode_error)?;
-
-        Ok(EncodedParameters {
-            encoded_len: payload_end + sig_enc.writer().position(),
-            payload_is_detached: false,
-        })
-    }
 }
 
-#[derive(Default)]
-struct SizeCounter {
-    len: usize,
-}
 
-impl minicbor::encode::Write for SizeCounter {
-    type Error = core::convert::Infallible;
-
-    fn write_all(&mut self, buf: &[u8]) -> Result<(), Self::Error> {
-        self.len = self.len.saturating_add(buf.len());
-        Ok(())
-    }
-}
-
-fn encode_sign1_prefix<W: minicbor::encode::Write>(
-    enc: &mut Encoder<W>,
-    protected_headers: &[u8],
-    key_id: Option<&[u8]>,
-    omit_cbor_tag: bool,
-    detached_payload: bool,
-) -> Result<(), minicbor::encode::Error<W::Error>> {
-    if !omit_cbor_tag {
-        enc.tag(Tag::new(CBOR_TAG_COSE_SIGN1))?;
-    }
-
-    enc.array(4)?.bytes(protected_headers)?;
-
-    if let Some(kid) = key_id {
-        enc.map(1)?.u8(CoseHeaderLabels::Kid as u8)?.bytes(kid)?;
-    } else {
-        enc.map(0)?;
-    }
-
-    if detached_payload {
-        enc.null()?;
-    }
-
-    Ok(())
-}
 
 fn encode_protected_headers() -> Result<([u8; 16], usize), CoseSign1Error> {
     let mut protected_headers = [0u8; 16];
@@ -429,19 +302,19 @@ fn hash_cbor_major_len(hasher: &mut impl CoseHasher, major: u8, len: usize) {
         header[0] = (major << 5) | (len as u8);
         1
     } else if len <= 0xff {
-        header[0] = (major << 5) | 24;
+        header[0] = (major << 5) | 0x18;
         header[1] = len as u8;
         2
     } else if len <= 0xffff {
-        header[0] = (major << 5) | 25;
+        header[0] = (major << 5) | 0x19;
         header[1..3].copy_from_slice(&(len as u16).to_be_bytes());
         3
     } else if len <= 0xffff_ffff {
-        header[0] = (major << 5) | 26;
+        header[0] = (major << 5) | 0x1a;
         header[1..5].copy_from_slice(&(len as u32).to_be_bytes());
         5
     } else {
-        header[0] = (major << 5) | 27;
+        header[0] = (major << 5) | 0x1b;
         header[1..9].copy_from_slice(&(len as u64).to_be_bytes());
         9
     };
@@ -453,19 +326,19 @@ fn encode_cbor_major_len_header(major: u8, len: usize, header: &mut [u8; 9]) -> 
         header[0] = (major << 5) | (len as u8);
         1
     } else if len <= 0xff {
-        header[0] = (major << 5) | 24;
+        header[0] = (major << 5) | 0x18;
         header[1] = len as u8;
         2
     } else if len <= 0xffff {
-        header[0] = (major << 5) | 25;
+        header[0] = (major << 5) | 0x19;
         header[1..3].copy_from_slice(&(len as u16).to_be_bytes());
         3
     } else if len <= 0xffff_ffff {
-        header[0] = (major << 5) | 26;
+        header[0] = (major << 5) | 0x1a;
         header[1..5].copy_from_slice(&(len as u32).to_be_bytes());
         5
     } else {
-        header[0] = (major << 5) | 27;
+        header[0] = (major << 5) | 0x1b;
         header[1..9].copy_from_slice(&(len as u64).to_be_bytes());
         9
     }
@@ -566,23 +439,7 @@ mod tests {
         assert_eq!(&out[..encoded.encoded_len], EXPECTED_ENCODED_COSE_SIGN1);
     }
 
-    #[test]
-    fn encodes_test_vector_from_payload_bstr_in_place() {
-        let backend = RustCryptoBackend {
-            key: TEST_PRIVATE_KEY,
-        };
-        let signer = CoseSign1::new(backend, Sign1Options::default()).with_key_id(TEST_KEY_ID);
-        let mut out = [0u8; 256];
-        out[..TEST_PAYLOAD.len()].copy_from_slice(TEST_PAYLOAD);
-        let payload_bstr_len = encode_payload_bstr_in_place(TEST_PAYLOAD.len(), &mut out).unwrap();
 
-        let encoded = signer
-            .encode_from_payload_bstr_in_place(payload_bstr_len, &mut out)
-            .expect("payload bstr should encode");
-
-        assert_eq!(encoded.encoded_len, EXPECTED_ENCODED_LEN);
-        assert_eq!(&out[..encoded.encoded_len], EXPECTED_ENCODED_COSE_SIGN1);
-    }
 
     #[test]
     fn encode_payload_bstr_empty() {

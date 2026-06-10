@@ -49,6 +49,7 @@ unsafe impl Sync for CustomMpuRegion {}
 ///   to unprivileged code (the service's stack).
 use crate::psa::psa_svc_api::SVC_CALL_UNPRIV;
 
+#[cfg(target_arch = "arm")]
 pub(crate) unsafe fn svc_call_unpriv(
     fn_ptr: usize,
     arg: usize,
@@ -109,4 +110,15 @@ pub(crate) unsafe fn svc_call_unpriv(
     }
 
     ret
+}
+
+#[cfg(not(target_arch = "arm"))]
+pub(crate) unsafe fn svc_call_unpriv(
+    _fn_ptr: usize,
+    _arg: usize,
+    _thunk: usize,
+    _stack_limit: usize,
+    _stack_top: usize,
+) -> usize {
+    unimplemented!("svc_call_unpriv is only implemented for ARM architectures");
 }

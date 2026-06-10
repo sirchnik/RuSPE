@@ -10,6 +10,7 @@
 
 pub mod hil;
 pub mod internal_trusted_storage;
+#[cfg(target_arch = "arm")]
 pub mod faults;
 mod libs;
 
