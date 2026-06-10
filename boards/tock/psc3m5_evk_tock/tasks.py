@@ -84,7 +84,7 @@ def program(ctx, app=None, debug=False):
     """Build, merge, and program the secure image with OpenOCD."""
 
     merged = _build_merged(ctx, app, debug)
-    return program_hex(ctx, SECURE_BOARD, merged)
+    return program_hex(ctx, SECURE_BOARD, merged, {"OPENOCD_IS_IFX": "true"})
 
 
 @build_task(default=True, help={"app": APP_HELP, "debug": DEBUG_HELP})

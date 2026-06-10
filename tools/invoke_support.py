@@ -101,7 +101,7 @@ def _command_path(command_name: str) -> Path | None:
     return Path(resolved) if resolved else None
 
 
-def resolve_openocd() -> Path | None:
+def resolve_openocd(version="default") -> Path | None:
     candidates: list[Path] = []
     openocd_root = os.environ.get("OPENOCD_ROOT")
     if openocd_root:
@@ -115,9 +115,31 @@ def resolve_openocd() -> Path | None:
         candidates.append(path_candidate)
 
     for candidate in candidates:
-        if candidate.exists():
+        if version == "infineon":
+            if is_infineon_openocd(candidate):
+                return candidate
+        elif candidate.exists():
             return candidate
-    return None
+    raise BuildError("OpenOCD was not found. Set OPENOCD_ROOT or add openocd to PATH.")
+
+
+def is_infineon_openocd(openocd_bin: Path) -> bool:
+    """Check if the given OpenOCD binary is an Infineon version."""
+    search_bases = [
+        openocd_bin.parent,
+        openocd_bin.parent.parent,
+        openocd_bin.parent.parent.parent,
+    ]
+    targets = [
+        Path("scripts") / "target" / "infineon" / "psc3.cfg",
+    ]
+    for base in search_bases:
+        if not base:
+            continue
+        for t in targets:
+            if (base / t).exists():
+                return True
+    return False
 
 
 def _rust_sysroot_objcopy_candidates(ctx: Context) -> list[Path]:
@@ -304,12 +326,11 @@ def flash_hex(ctx: Context, board: BoardConfig, hex_path: Path) -> Path:
     return hex_path
 
 
-def program_hex(ctx: Context, board: BoardConfig, hex_path: Path) -> Path:
-    openocd = resolve_openocd()
-    if openocd is None:
-        raise BuildError(
-            "OpenOCD was not found. Set OPENOCD_ROOT or add openocd to PATH."
-        )
+def program_hex(ctx: Context, board: BoardConfig, hex_path: Path, options={}) -> Path:
+    if options.get("OPENOCD_IS_IFX", None):
+        openocd = resolve_openocd(version="infineon")
+    else:
+        openocd = resolve_openocd()
     if board.openocd_tcl is None or not board.openocd_tcl.exists():
         raise BuildError(f"OpenOCD configuration does not exist: {board.openocd_tcl}")
 
