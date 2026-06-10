@@ -133,7 +133,7 @@ const NONSECURE_PRIV: &[PpcRegion] = &[
     PpcRegion::ProtBackupBBreg3,
     PpcRegion::ProtBackupBackupSecure,
     PpcRegion::ProtCryptoliteMain,
-    PpcRegion::ProtCryptoliteTrng,
+    // PpcRegion::ProtCryptoliteTrng, // used for bootseed in attest service
     PpcRegion::ProtMxcordic10,
     PpcRegion::ProtDebug600Debug600,
     PpcRegion::ProtHsiomPrt0Prt,
@@ -192,7 +192,7 @@ const NONSECURE_PRIV: &[PpcRegion] = &[
     PpcRegion::ProtDft,
     PpcRegion::ProtEfuseCtl1,
     PpcRegion::ProtEfuseCtl2,
-    PpcRegion::ProtEfuseCtl3,
+    // PpcRegion::ProtEfuseCtl3, // used for lifecycle state in attest service
     PpcRegion::ProtEfuseDataBoot1,
     PpcRegion::ProtCanfd0Ch0Ch,
     PpcRegion::ProtCanfd0Ch1Ch,
@@ -232,12 +232,20 @@ const NONSECURE_PRIV: &[PpcRegion] = &[
 ];
 
 pub fn configure_security() {
+    // Sometimes while debugging no BUS_ERROR is generated and the debugger just hangs. T
     ppc::set_viloation_response(ppc::PPC_CTL::RESP_CFG::BUS_ERROR);
 
     for region in NONSECURE_PRIV.iter().copied() {
-        ppc::set_trustzone_access(region, true, true, true);
+        ppc::set_permissions(region, true, false, false);
         ppc::set_protection_context(region, 0xFF);
     }
+
+    // TODO should be inverted
+    ppc::set_permissions(PpcRegion::ProtCryptoliteTrng, true, true, false);
+    ppc::set_permissions(PpcRegion::ProtEfuseCtl1, true, true, false);
+    ppc::set_permissions(PpcRegion::ProtEfuseCtl2, true, true, false);
+    ppc::set_permissions(PpcRegion::ProtEfuseCtl3, true, true, false);
+    ppc::set_permissions(PpcRegion::ProtEfuseDataBoot1, true, true, false);
 
     ppc::lock_protection_contexts();
 
