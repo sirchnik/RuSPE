@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Infineon Technologies AG 2026.
 
-extern "C" {
+unsafe extern "C" {
     // _estack is not really a function, but it makes the types work.
     // You should never actually invoke it.
     fn _estack();
@@ -17,9 +17,9 @@ extern "C" {
 
 #[cfg_attr(
     all(target_arch = "arm", target_os = "none"),
-    link_section = ".stack_buffer"
+    unsafe(link_section = ".stack_buffer")
 )]
-#[no_mangle]
+#[unsafe(no_mangle)]
 static mut STACK_MEMORY: [u8; 0x3200] = [0; 0x3200];
 
 /// Initializes RAM and jumps to main. This is the entry point of the secure firmware.
@@ -81,7 +81,7 @@ pub unsafe extern "C" fn sec_initialize_ram_jump_to_main() {
 
 #[cfg_attr(
     all(target_arch = "arm", target_os = "none"),
-    link_section = ".vectors"
+    unsafe(link_section = ".vectors")
 )]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
@@ -103,7 +103,10 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     unhandled_interrupt, // SysTick
 ];
 
-#[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
+#[cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    unsafe(link_section = ".irqs")
+)]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static IRQS: [unsafe extern "C" fn(); 140] = [unhandled_interrupt; 140];
 
@@ -145,16 +148,16 @@ pub unsafe extern "C" fn unhandled_interrupt() {
 
     let mut interrupt_number: u32;
 
-    unsafe{
-    // IPSR[8:0] holds the currently active interrupt
-    asm!(
-        "
+    unsafe {
+        // IPSR[8:0] holds the currently active interrupt
+        asm!(
+            "
     mrs r0, ipsr
         ",
-        out("r0") interrupt_number,
-        options(nomem, nostack, preserves_flags),
-    );
-}
+            out("r0") interrupt_number,
+            options(nomem, nostack, preserves_flags),
+        );
+    }
 
     interrupt_number &= 0x1ff;
 

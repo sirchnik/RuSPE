@@ -21,13 +21,13 @@ use spe::{
 
 use crate::platform::{Psc3AttestPlatform, Psc3SecPlatform};
 
-extern "Rust" {
+unsafe extern "Rust" {
     static __veneer_base: ();
     static __veneer_limit: ();
 }
 
 // These symbols are defined in the linker script.
-extern "C" {
+unsafe extern "C" {
     /// Beginning of the stack region.
     static _sstack: u8;
 }
@@ -51,11 +51,11 @@ pub unsafe fn main() {
     scb0.set_standard_uart_mode();
     scb0.enable_scb();
 
-    unsafe{
-    (*addr_of_mut!(io::WRITER)).set_serial(scb0);
+    unsafe {
+        (*addr_of_mut!(io::WRITER)).set_serial(scb0);
 
-    cortexm33::nvic::set_interrupt_non_secure(0, 140);
-    cortexm33::nvic::enable_all();
+        cortexm33::nvic::set_interrupt_non_secure(0, 140);
+        cortexm33::nvic::enable_all();
     }
 
     // useless. strangely only setting vector table in scb from ns works
