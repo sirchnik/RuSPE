@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 
 from invoke.context import Context
-from invoke.tasks import task
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
@@ -14,7 +13,7 @@ if str(REPO_ROOT) not in sys.path:
 from tools.invoke_support import (  # noqa: E402
     BuildError,
     _command_path,
-    handle_build_errors,
+    build_task,
     run_command,
 )
 
@@ -122,17 +121,8 @@ APP = AppConfig(
 DEBUG_HELP = "Build the debug profile instead of release."
 
 
-@task(help={"debug": DEBUG_HELP})
-@handle_build_errors
+@build_task(default=True, help={"debug": DEBUG_HELP})
 def build(ctx, debug=False):
-    """Build the Tock userland app ELF."""
-
-    return cargo_build_app(ctx, APP, bool(debug))
-
-
-@task(default=True, help={"debug": DEBUG_HELP})
-@handle_build_errors
-def tbf(ctx, debug=False):
     """Build the Tock userland app and convert it to TBF."""
 
     return elf_to_tbf(ctx, APP, bool(debug))

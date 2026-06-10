@@ -3,8 +3,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from invoke.tasks import task
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -14,8 +12,8 @@ from boards.tock.psa_tock_app import tasks as app_tasks  # noqa: E402
 from tools.invoke_support import (  # noqa: E402
     BoardConfig,
     build_non_secure,
+    build_task,
     flash_hex,
-    handle_build_errors,
     merge_secure_non_secure_hex,
     program_hex,
 )
@@ -49,7 +47,7 @@ TOOLS = ["cargo", "objcopy", "probe-rs", "openocd", "elf2tab"]
 def _resolve_app(ctx, app: str | None, debug: bool) -> str | None:
     if app is not None:
         return app
-    return str(app_tasks.tbf(ctx, debug=debug))
+    return str(app_tasks.build(ctx, debug=debug))
 
 
 def _build_merged(ctx, app: str | None, debug: bool) -> Path:
@@ -66,16 +64,14 @@ def _build_merged(ctx, app: str | None, debug: bool) -> Path:
     )
 
 
-@task(help={"app": APP_HELP, "debug": DEBUG_HELP})
-@handle_build_errors
+@build_task(help={"app": APP_HELP, "debug": DEBUG_HELP})
 def build(ctx, app=None, debug=False):
     """Build the secure image, merge it with the non-secure kernel, and write a HEX output."""
 
     return _build_merged(ctx, app, debug)
 
 
-@task(help={"app": APP_HELP, "debug": DEBUG_HELP})
-@handle_build_errors
+@build_task(help={"app": APP_HELP, "debug": DEBUG_HELP})
 def flash(ctx, app=None, debug=False):
     """Build, merge, and flash the secure and non-secure images with probe-rs."""
 
@@ -83,8 +79,7 @@ def flash(ctx, app=None, debug=False):
     return flash_hex(ctx, SECURE_BOARD, merged)
 
 
-@task(help={"app": APP_HELP, "debug": DEBUG_HELP})
-@handle_build_errors
+@build_task(help={"app": APP_HELP, "debug": DEBUG_HELP})
 def program(ctx, app=None, debug=False):
     """Build, merge, and program the secure image with OpenOCD."""
 
@@ -92,8 +87,7 @@ def program(ctx, app=None, debug=False):
     return program_hex(ctx, SECURE_BOARD, merged)
 
 
-@task(default=True, help={"app": APP_HELP, "debug": DEBUG_HELP})
-@handle_build_errors
+@build_task(default=True, help={"app": APP_HELP, "debug": DEBUG_HELP})
 def install(ctx, app=None, debug=False):
     """Alias for flash."""
 
