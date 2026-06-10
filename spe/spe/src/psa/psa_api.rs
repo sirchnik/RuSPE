@@ -2,13 +2,13 @@
 
 use core::panic;
 
-use cortexm33::support;
+use cortexm::support;
 
 use crate::{
     StatusCode,
     libs::once_lock::OnceLock,
     psa::psa_call::CallerAttributes,
-    psa::{psa_call, psa_iovec_api},
+    psa::{psa_call, psa_iovec_api, psa_svc_api},
     spm::SpmCall,
 };
 use psa_interface::PsaApiCallInterface;
@@ -19,6 +19,13 @@ static SPM: OnceLock<&'static dyn SpmCall> = OnceLock::new();
 fn get_spm() -> &'static dyn SpmCall {
     *SPM.try_get()
         .expect("SPM must be initialized with set_spm() before PSA API use")
+}
+
+pub fn try_get_spm() -> Option<&'static dyn SpmCall> {
+    match SPM.try_get() {
+        Ok(spm) => Some(*spm),
+        Err(_) => None,
+    }
 }
 
 pub fn set_spm(spm: &'static dyn SpmCall) {
@@ -101,8 +108,11 @@ pub fn psa_map_invec<R>(
     invec_idx: u32,
     f: impl FnOnce(&[u8]) -> R,
 ) -> R {
-    let spm = get_spm();
-    psa_iovec_api::psa_map_invec(spm, msg_handle, invec_idx, f)
+    if let Some(spm) = try_get_spm() {
+        psa_iovec_api::psa_map_invec(spm, msg_handle, invec_idx, f)
+    } else {
+        psa_svc_api::psa_map_invec(msg_handle, invec_idx, f)
+    }
 }
 
 pub fn psa_map_outvec<R>(
@@ -110,8 +120,11 @@ pub fn psa_map_outvec<R>(
     outvec_idx: u32,
     f: impl FnOnce(&mut [u8]) -> (R, usize),
 ) -> R {
-    let spm = get_spm();
-    psa_iovec_api::psa_map_outvec(spm, msg_handle, outvec_idx, f)
+    if let Some(spm) = try_get_spm() {
+        psa_iovec_api::psa_map_outvec(spm, msg_handle, outvec_idx, f)
+    } else {
+        psa_svc_api::psa_map_outvec(msg_handle, outvec_idx, f)
+    }
 }
 
 pub fn psa_map_invec_outvec<R>(
@@ -120,6 +133,33 @@ pub fn psa_map_invec_outvec<R>(
     outvec_idx: u32,
     f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize),
 ) -> R {
-    let spm = get_spm();
-    psa_iovec_api::psa_map_invec_outvec(spm, msg_handle, invec_idx, outvec_idx, f)
+    if let Some(spm) = try_get_spm() {
+        psa_iovec_api::psa_map_invec_outvec(spm, msg_handle, invec_idx, outvec_idx, f)
+    } else {
+        psa_svc_api::psa_map_invec_outvec(msg_handle, invec_idx, outvec_idx, f)
+    }
+}
+
+pub fn psa_read(
+    msg_handle: ServiceHandle,
+    invec_idx: u32,
+    buffer: &mut [u8],
+) -> Result<usize, StatusCode> {
+    if let Some(spm) = try_get_spm() {
+        psa_iovec_api::psa_read(spm, msg_handle, invec_idx, buffer)
+    } else {
+        psa_svc_api::psa_read(msg_handle, invec_idx, buffer)
+    }
+}
+
+pub fn psa_write(
+    msg_handle: ServiceHandle,
+    outvec_idx: u32,
+    buffer: &[u8],
+) -> Result<usize, StatusCode> {
+    if let Some(spm) = try_get_spm() {
+        psa_iovec_api::psa_write(spm, msg_handle, outvec_idx, buffer)
+    } else {
+        psa_svc_api::psa_write(msg_handle, outvec_idx, buffer)
+    }
 }

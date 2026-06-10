@@ -139,6 +139,60 @@ impl<P: AttestPlatform> AttestService<P> {
             && msg.in_size[1..].iter().all(Option::is_none)
             && msg.out_size[1..].iter().all(Option::is_none)
     }
+
+    fn build_token_claims<'a>(
+        &'a self,
+        boot_seed: &'a [u8; 32],
+        profile_str: &'a str,
+        security_lifecycle: u32,
+        verification_str: &'a str,
+        cert_ref_str: &'a str,
+        impl_id: &'a [u8; 32],
+        instance_id: &'a [u8; 33],
+    ) -> [AttestClaim<'a>; 9] {
+        [
+            AttestClaim {
+                key: IatClaim::InstanceId,
+                value: AttestClaimValue::Bytes(instance_id),
+            },
+            AttestClaim {
+                key: IatClaim::ProfileDefinition,
+                value: AttestClaimValue::Text(profile_str),
+            },
+            AttestClaim {
+                key: IatClaim::ClientId,
+                value: AttestClaimValue::Signed(1),
+            },
+            AttestClaim {
+                key: IatClaim::SecurityLifecycle,
+                value: AttestClaimValue::Unsigned(security_lifecycle as u64),
+            },
+            AttestClaim {
+                key: IatClaim::BootSeed,
+                value: AttestClaimValue::Bytes(boot_seed),
+            },
+            AttestClaim {
+                key: IatClaim::SwComponents,
+                value: AttestClaimValue::SwComponents(&[SwComponent {
+                    measurement_type: None,
+                    measurement_value: &[0x03; 32],
+                    signer_id: &[0x08; 32],
+                }]),
+            },
+            AttestClaim {
+                key: IatClaim::CertificationReference,
+                value: AttestClaimValue::Text(cert_ref_str),
+            },
+            AttestClaim {
+                key: IatClaim::ImplementationId,
+                value: AttestClaimValue::Bytes(impl_id),
+            },
+            AttestClaim {
+                key: IatClaim::VerificationService,
+                value: AttestClaimValue::Text(verification_str),
+            },
+        ]
+    }
 }
 
 impl<P: AttestPlatform> Service for AttestService<P> {
@@ -152,146 +206,80 @@ impl<P: AttestPlatform> Service for AttestService<P> {
         }
 
         if msg.msg_type == psa_interface::types::AttestationServiceType::GetToken as i32 {
-            psa_api::psa_map_invec_outvec(msg.handle, 0, 0, |challenge, token_buf| {
-                let mut written_len = 0;
-                let result = (|| -> Result<(), StatusCode> {
-                    if !Self::challenge_size_is_supported(challenge.len()) {
-                        return Err(StatusCode::InvalidArgument);
-                    }
+            // TODO only allocate for ipc
+            let mut challenge = [0u8; 64];
+            let challenge_len = psa_api::psa_read(msg.handle, 0, &mut challenge)?;
+            let challenge = &challenge[..challenge_len];
 
-                    if token_buf.is_empty() {
-                        return Err(StatusCode::InvalidArgument);
-                    }
+            if !Self::challenge_size_is_supported(challenge.len()) {
+                return Err(StatusCode::InvalidArgument);
+            }
 
-                    if token_buf.len() > PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE {
-                        return Err(StatusCode::BufferTooSmall);
-                    }
+            let mut boot_seed = [0u8; 32];
+            self.platform.boot_seed(&mut boot_seed)?;
 
-                    let mut boot_seed = [0u8; 32];
-                    self.platform.boot_seed(&mut boot_seed)?;
+            let mut profile_buf = [0u8; 64];
+            let profile_len = self.platform.profile_definition(&mut profile_buf)?;
+            let profile_str = core::str::from_utf8(&profile_buf[..profile_len])
+                .map_err(|_| StatusCode::InvalidArgument)?;
 
-                    let mut profile_buf = [0u8; 64];
-                    let profile_len = self.platform.profile_definition(&mut profile_buf)?;
-                    let profile_str = core::str::from_utf8(&profile_buf[..profile_len])
-                        .map_err(|_| StatusCode::InvalidArgument)?;
+            let security_lifecycle = self.platform.security_lifecycle()?;
 
-                    let security_lifecycle = self.platform.security_lifecycle()?;
+            let mut verification_buf = [0u8; 64];
+            let verification_len = self.platform.verification_service(&mut verification_buf)?;
+            let verification_str = core::str::from_utf8(&verification_buf[..verification_len])
+                .map_err(|_| StatusCode::InvalidArgument)?;
 
-                    let mut verification_buf = [0u8; 64];
-                    let verification_len =
-                        self.platform.verification_service(&mut verification_buf)?;
-                    let verification_str =
-                        core::str::from_utf8(&verification_buf[..verification_len])
-                            .map_err(|_| StatusCode::InvalidArgument)?;
+            let mut cert_ref_buf = [0u8; CERTIFICATION_REF_MAX_SIZE];
+            let cert_ref_len = self.platform.cert_ref(&mut cert_ref_buf)?;
+            let cert_ref_str = core::str::from_utf8(&cert_ref_buf[..cert_ref_len])
+                .map_err(|_| StatusCode::InvalidArgument)?;
 
-                    let mut cert_ref_buf = [0u8; CERTIFICATION_REF_MAX_SIZE];
-                    let cert_ref_len = self.platform.cert_ref(&mut cert_ref_buf)?;
-                    let cert_ref_str = core::str::from_utf8(&cert_ref_buf[..cert_ref_len])
-                        .map_err(|_| StatusCode::InvalidArgument)?;
+            let mut impl_id = [0u8; 32];
+            self.platform.implementation_id(&mut impl_id)?;
 
-                    let mut impl_id = [0u8; 32];
-                    self.platform.implementation_id(&mut impl_id)?;
+            let mut instance_id = [0u8; 33];
+            self.platform.instance_id(&mut instance_id)?;
 
-                    let mut instance_id = [0u8; 33];
-                    self.platform.instance_id(&mut instance_id)?;
+            let additional_claims = self.build_token_claims(
+                &boot_seed,
+                profile_str,
+                security_lifecycle,
+                verification_str,
+                cert_ref_str,
+                &impl_id,
+                &instance_id,
+            );
 
-                    let additional_claims = [
-                        AttestClaim {
-                            key: IatClaim::InstanceId,
-                            value: AttestClaimValue::Bytes(&instance_id),
-                        },
-                        AttestClaim {
-                            key: IatClaim::ProfileDefinition,
-                            value: AttestClaimValue::Text(profile_str),
-                        },
-                        AttestClaim {
-                            key: IatClaim::ClientId,
-                            value: AttestClaimValue::Signed(1),
-                        },
-                        AttestClaim {
-                            key: IatClaim::SecurityLifecycle,
-                            value: AttestClaimValue::Unsigned(security_lifecycle as u64),
-                        },
-                        AttestClaim {
-                            key: IatClaim::BootSeed,
-                            value: AttestClaimValue::Bytes(&boot_seed),
-                        },
-                        AttestClaim {
-                            key: IatClaim::SwComponents,
-                            value: AttestClaimValue::SwComponents(&[SwComponent {
-                                measurement_type: None,
-                                measurement_value: &[0x03; 32],
-                                signer_id: &[0x08; 32],
-                            }]),
-                        },
-                        AttestClaim {
-                            key: IatClaim::CertificationReference,
-                            value: AttestClaimValue::Text(cert_ref_str),
-                        },
-                        AttestClaim {
-                            key: IatClaim::ImplementationId,
-                            value: AttestClaimValue::Bytes(&impl_id),
-                        },
-                        AttestClaim {
-                            key: IatClaim::VerificationService,
-                            value: AttestClaimValue::Text(verification_str),
-                        },
-                    ];
-
-                    self.initial_attest_get_token(challenge, &additional_claims, token_buf)?;
-                    written_len = token_buf.len();
-                    Ok(())
-                })();
-
-                if result.is_err() {
-                    token_buf.fill(0);
-                    written_len = 0;
-                }
-
-                (result, written_len)
-            })
+            let mut token = [0u8; PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE];
+            let written_len =
+                self.initial_attest_get_token(challenge, &additional_claims, &mut token)?;
+            psa_api::psa_write(msg.handle, 0, &token[..written_len])?;
+            Ok(())
         } else if msg.msg_type == psa_interface::types::AttestationServiceType::GetTokenSize as i32
         {
-            psa_api::psa_map_invec_outvec(msg.handle, 0, 0, |challenge_size_bytes, out_buf| {
-                let mut written_len = 0;
-                let result = (|| -> Result<(), StatusCode> {
-                    if challenge_size_bytes.len() != size_of::<usize>() {
-                        return Err(StatusCode::InvalidArgument);
-                    }
+            let mut challenge_size = [0u8; size_of::<usize>()];
+            let challenge_size_len = psa_api::psa_read(msg.handle, 0, &mut challenge_size)?;
+            if challenge_size_len != size_of::<usize>() {
+                return Err(StatusCode::InvalidArgument);
+            }
 
-                    let mut challenge_size = [0u8; size_of::<usize>()];
-                    challenge_size.copy_from_slice(challenge_size_bytes);
+            let mut boot_seed = [0u8; 32];
+            self.platform.boot_seed(&mut boot_seed)?;
 
-                    let mut boot_seed = [0u8; 32];
-                    self.platform.boot_seed(&mut boot_seed)?;
+            let additional_claims = [AttestClaim {
+                key: IatClaim::BootSeed,
+                value: AttestClaimValue::Bytes(&boot_seed),
+            }];
 
-                    let additional_claims = [AttestClaim {
-                        key: IatClaim::BootSeed,
-                        value: AttestClaimValue::Bytes(&boot_seed),
-                    }];
+            let token_size = self.initial_attest_get_token_size(
+                usize::from_ne_bytes(challenge_size),
+                &additional_claims,
+            )?;
 
-                    let token_size = self.initial_attest_get_token_size(
-                        usize::from_ne_bytes(challenge_size),
-                        &additional_claims,
-                    )?;
-
-                    let token_size_bytes = token_size.to_ne_bytes();
-                    if out_buf.len() < token_size_bytes.len() {
-                        return Err(StatusCode::BufferTooSmall);
-                    }
-
-                    out_buf[..token_size_bytes.len()].copy_from_slice(&token_size_bytes);
-                    written_len = token_size_bytes.len();
-                    Ok(())
-                })();
-
-                if result.is_err() {
-                    out_buf.fill(0);
-                    written_len = 0;
-                }
-
-                (result, written_len)
-            })
+            let token_size_bytes = token_size.to_ne_bytes();
+            psa_api::psa_write(msg.handle, 0, &token_size_bytes)?;
+            Ok(())
         } else {
             Err(psa_interface::status::StatusCode::NotSupported)
         }
