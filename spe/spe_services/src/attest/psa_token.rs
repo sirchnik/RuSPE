@@ -1,10 +1,11 @@
-use crate::{StatusCode, psa::psa_api::InternalPsaClient};
 use cose::cose_sign1::{
     CoseCrypto, CoseSign1, CoseSign1Error, RustCryptoHasher, Sign1Options, encode_payload_bstr,
 };
 use minicbor::{Encoder, encode::write::Cursor};
+use psa_interface::status::StatusCode;
 use psa_interface::{psa_api::psa_sign_hash, types::PSA_ALG_ECDSA_SHA256};
 use sha2::{Digest, Sha256};
+use spe::psa::psa_api::InternalPsaClient;
 
 /// PSA / EAT claim labels per RFC 9783 §6.
 #[repr(u32)]
@@ -160,7 +161,7 @@ impl CoseCrypto for PsaCryptoBackend {
                 Err(CoseSign1Error::BufferTooSmall)
             }
             Err(status) => {
-                if status == crate::StatusCode::BufferTooSmall as isize {
+                if status == StatusCode::BufferTooSmall as isize {
                     return Err(CoseSign1Error::BufferTooSmall);
                 }
                 Err(CoseSign1Error::Unknown)

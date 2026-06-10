@@ -39,7 +39,7 @@ impl TestTarget {
                 AccessType::NonSecureUnprivileged => {
                     core::arch::asm!("ttat {0}, {1}", out(reg) bits, in(reg) addr_val);
                 }
-            };
+            }
         }
 
         TestTarget { bits, access_type }

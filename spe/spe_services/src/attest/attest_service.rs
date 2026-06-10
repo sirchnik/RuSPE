@@ -1,13 +1,13 @@
-use crate::{
-    StatusCode,
-    attest::psa_token::{
-        AttestClaim, AttestClaimValue, IatClaim, SwComponent,
-        compute_initial_attestation_token_size, encode_initial_attestation_token,
-    },
+use crate::attest::psa_token::{
+    AttestClaim, AttestClaimValue, IatClaim, SwComponent, compute_initial_attestation_token_size,
+    encode_initial_attestation_token,
+};
+use core::mem::size_of;
+use psa_interface::status::StatusCode;
+use spe::{
     psa::{psa_api, psa_call::PsaMsg},
     service::{Info, Service},
 };
-use core::mem::size_of;
 
 /// Maximum token buffer size used by default TF-M builds.
 pub const PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE: usize = 0x250;

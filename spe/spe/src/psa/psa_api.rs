@@ -7,8 +7,8 @@ use cortexm33::support;
 use crate::{
     StatusCode,
     libs::once_lock::OnceLock,
-    psa::{psa_call, psa_iovec_api},
     psa::psa_call::CallerAttributes,
+    psa::{psa_call, psa_iovec_api},
     spm::spm::SpmCall,
 };
 use psa_interface::PsaApiCallInterface;

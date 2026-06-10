@@ -89,6 +89,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
 
 [[package]]
+name = "cortex_m"
+version = "0.1.0"
+
+[[package]]
 name = "cortexm"
 version = "0.2.3-dev"
 dependencies = [
@@ -592,11 +596,13 @@ dependencies = [
 name = "psc3"
 version = "0.1.0"
 dependencies = [
+ "cortex_m",
  "cortexm33",
  "infineon",
  "psa_interface",
  "psc3 0.2.3-dev",
  "spe",
+ "spe_services",
 ]
 
 [[package]]
@@ -618,6 +624,7 @@ dependencies = [
  "psc3 0.1.0",
  "psc3 0.2.3-dev",
  "spe",
+ "spe_services",
  "tock_build_scripts",
 ]
 
@@ -730,6 +737,22 @@ dependencies = [
  "psa_interface",
  "sha2",
  "signature",
+]
+
+[[package]]
+name = "spe_services"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "cortexm33",
+ "cose",
+ "helpers",
+ "minicbor",
+ "p256",
+ "psa_interface",
+ "sha2",
+ "signature",
+ "spe",
 ]
 
 [[package]]

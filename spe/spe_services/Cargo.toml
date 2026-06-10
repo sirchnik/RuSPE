@@ -3,11 +3,12 @@
 # Copyright Infineon Technologies AG 2026.
 
 [package]
-name = "spe"
+name = "spe_services"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+spe = { path = "../spe" }
 minicbor = { version = "2.2.1", default-features = false }
 p256 = { version = "0.13.2", features = [
     "ecdsa",

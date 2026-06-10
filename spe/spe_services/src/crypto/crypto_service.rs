@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Infineon Technologies AG 2026.
 
-use crate::{
+use p256::ecdsa::{Signature, SigningKey, signature::hazmat::PrehashSigner};
+use psa_interface::types::{TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID, TfmCryptoPackIovec};
+use spe::{
     StatusCode,
     psa::{psa_api, psa_call::PsaMsg},
     service::{Info, Service},
 };
-use p256::ecdsa::{Signature, SigningKey, signature::hazmat::PrehashSigner};
-use psa_interface::types::{TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID, TfmCryptoPackIovec};
 
 /// P-256 ECDSA signature size in bytes (r ‖ s, 32 + 32).
 const P256_SIGNATURE_SIZE: usize = 64;
