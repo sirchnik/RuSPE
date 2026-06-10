@@ -10,15 +10,15 @@ else
 	BUILD_TYPE = release
 endif
 
-TOCK_ROOT_DIRECTORY = ../..
+TARGET_DIR = ../../target
 TARGET = thumbv8m.main-none-eabi
 PLATFORM = psc3m5_evk_secure
 
 # Define the path to the TBF file to flash an application
 APP?=
-SECURE_PROJ=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/$(BUILD_TYPE)/$(PLATFORM)
-KERNEL=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/$(BUILD_TYPE)/psc3m5_evk-app.elf
-SEC_KERNEL_MERGED=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/$(BUILD_TYPE)/psc3m5_evk_sec_merged.hex
+SECURE_PROJ=$(TARGET_DIR)/$(TARGET)/$(BUILD_TYPE)/$(PLATFORM)
+KERNEL=$(TARGET_DIR)/$(TARGET)/$(BUILD_TYPE)/psc3m5_evk-app.elf
+SEC_KERNEL_MERGED=$(TARGET_DIR)/$(TARGET)/$(BUILD_TYPE)/psc3m5_evk_sec_merged.hex
 
 OPENOCD_ROOT = /opt/ModusToolboxProgtools-1.7/openocd
 
@@ -27,9 +27,9 @@ install: flash
 
 $(BUILD_TYPE):
 ifeq ($(DEBUG), 1)
-	cargo b
+	cargo build
 else
-	cargo b --release
+	cargo build --release
 endif
 	FEATURES=non_secure_tz $(MAKE) -C ../psc3m5_evk build-with-app APP=$(APP) DEBUG=$(DEBUG)
 	arm-none-eabi-objcopy -O ihex $(KERNEL) $(KERNEL).hex

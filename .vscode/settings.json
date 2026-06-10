@@ -1,0 +1,10 @@
+{
+    "files.insertFinalNewline": true,
+    "debug.onTaskErrors": "abort", // when build tasks fails, debugging is stopped
+    "[rust]": {
+        "editor.defaultFormatter": "rust-lang.rust-analyzer",
+    },
+    "rust-analyzer.server.extraEnv": {
+        "RUSTUP_TOOLCHAIN": "nightly-2025-11-03"
+    }
+}

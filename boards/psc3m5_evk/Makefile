@@ -2,8 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright Infineon Technologies AG 2026.
 
-include ../Makefile.common
-
 DEBUG ?= 0
 
 ifeq ($(DEBUG), 1)
@@ -12,15 +10,27 @@ else
 	BUILD_TYPE = release
 endif
 
+TARGET_DIR = ../../target
+TARGET = thumbv8m.main-none-eabi
+PLATFORM = psc3m5_evk
+
 # Define the path to the TBF file to flash an application
 APP?=
-KERNEL=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/$(BUILD_TYPE)/$(PLATFORM).elf
-KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/$(BUILD_TYPE)/$(PLATFORM)-app.elf
+KERNEL=$(TARGET_DIR)/$(TARGET)/$(BUILD_TYPE)/$(PLATFORM)
+KERNEL_WITH_APP=$(TARGET_DIR)/$(TARGET)/$(BUILD_TYPE)/$(PLATFORM)-app.elf
 
 OPENOCD_ROOT = /opt/ModusToolboxProgtools-1.7/openocd
 
 install: flash
 .PHONY: install
+
+# Build flavors expected by caller (debug/release)
+.PHONY: debug release
+debug:
+	cargo build
+
+release:
+	cargo build --release
 
 build-with-app: $(BUILD_TYPE) # let cargo rebuild
 ifeq ($(APP),)
