@@ -62,7 +62,7 @@ def cargo_build_app(ctx: Context, app: AppConfig, debug: bool) -> Path:
     command = ["cargo", "build"]
     if not debug:
         command.append("--release")
-    run_command(ctx, command, cwd=app.app_dir, extra_env=app.linker_env())
+    run_command(command, cwd=app.app_dir, env=app.linker_env())
     return app.elf_image(debug)
 
 
@@ -80,7 +80,6 @@ def elf_to_tbf(ctx: Context, app: AppConfig, debug: bool) -> Path:
     tbf = app.tbf_image(debug)
     tab = tbf.with_suffix(".tab")
     run_command(
-        ctx,
         [
             str(elf2tab),
             "--kernel-major",

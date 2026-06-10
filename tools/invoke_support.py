@@ -9,7 +9,7 @@ from pathlib import Path
 from shutil import copy2, which
 
 from invoke.context import Context
-from invoke.exceptions import Exit, Failure, UnexpectedExit
+from invoke.exceptions import Exit
 from invoke.tasks import task
 
 
@@ -80,18 +80,73 @@ def _merge_env(extra_env: dict[str, str] | None) -> dict[str, str]:
 
 
 def run_command(
-    ctx: Context, command: list[str], cwd: Path, extra_env: dict[str, str] | None = None
+    command: list[str] | str,
+    *,
+    cwd: Path | str | None = None,
+    env: dict[str, str] | None = None,
+    in_stream: bool | None = None,
+    verbose: bool | None = None,
 ) -> None:
-    command_text = _format_command(command)
+    """Run a command using subprocess (no Invoke context required).
+
+    - `command` may be a list (preferred) or a shell string.
+    - `cwd` may be a Path or string. If None current cwd is used.
+    - `in_stream=False` will disable stdin (use DEVNULL).
+    - `RUN_HANDLER_VERBOSE=0` in env disables the compact printout.
+    """
+    # determine verbosity
+    RUN_HANDLER_VERBOSE = os.environ.get("RUN_HANDLER_VERBOSE", "1") != "0"
+    if verbose is None:
+        verbose = RUN_HANDLER_VERBOSE
+
+    def _is_sandbox() -> bool:
+        if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"):
+            return True
+        try:
+            return not sys.stdin.isatty()
+        except Exception:
+            return True
+
+    merged_env = _merge_env(env)
+    cmd_text = command if isinstance(command, str) else _format_command(command)
+
+    if in_stream is None:
+        in_stream = not _is_sandbox()
+
+    if verbose:
+        reset = "\x1b[0m"
+        grey = "\x1b[90m"
+        envs = ""
+        if env:
+            items = [f"{k}={v}" for k, v in list(env.items())[:4]]
+            envs = (" ".join(items) + ("..." if len(env) > 4 else "")) + " "
+        compact = f"{grey}cd {cwd or Path.cwd()} && {envs}{cmd_text} {reset}"
+        print(compact)
+
+    stdin = None if in_stream else subprocess.DEVNULL
+
     try:
-        with ctx.cd(str(cwd)):
-            ctx.run(command_text, env=_merge_env(extra_env), echo=True)
-    except UnexpectedExit as error:
+        if isinstance(command, str):
+            subprocess.run(
+                command,
+                cwd=str(cwd) if cwd is not None else None,
+                env=merged_env,
+                shell=True,
+                check=True,
+                stdin=stdin,
+            )
+        else:
+            subprocess.run(
+                command,
+                cwd=str(cwd) if cwd is not None else None,
+                env=merged_env,
+                check=True,
+                stdin=stdin,
+            )
+    except subprocess.CalledProcessError as error:
         raise BuildError(
-            f"Command failed with exit code {error.result.exited}: {command_text}"
+            f"Command failed with exit code {error.returncode}: {cmd_text}"
         ) from error
-    except Failure as error:
-        raise BuildError(f"Failed to execute command: {command_text}") from error
 
 
 def _command_path(command_name: str) -> Path | None:
@@ -148,13 +203,16 @@ def _rust_sysroot_objcopy_candidates(ctx: Context) -> list[Path]:
         return []
 
     try:
-        result = ctx.run(
-            f"{_format_command([str(rustc), '--print', 'sysroot'])}", hide=True
+        completed = subprocess.run(
+            [str(rustc), "--print", "sysroot"],
+            capture_output=True,
+            text=True,
+            check=False,
         )
-        if result is None:
+        if completed.returncode != 0:
             return []
-        sysroot = result.stdout.strip()
-    except Failure:
+        sysroot = completed.stdout.strip()
+    except Exception:
         return []
 
     if not sysroot:
@@ -190,7 +248,7 @@ def cargo_build(ctx: Context, board: BoardConfig, debug: bool) -> Path:
     command = ["cargo", "build"]
     if not debug:
         command.append("--release")
-    run_command(ctx, command, cwd=board.board_dir)
+    run_command(command, cwd=board.board_dir)
     return board.kernel_image(debug)
 
 
@@ -222,12 +280,10 @@ def inject_app(ctx: Context, board: BoardConfig, debug: bool, app: str | None) -
 
     copy2(kernel, kernel_with_app)
     run_command(
-        ctx,
         [str(objcopy), "--set-section-flags", ".apps=LOAD,ALLOC", str(kernel_with_app)],
         cwd=board.board_dir,
     )
     run_command(
-        ctx,
         [str(objcopy), "--update-section", f".apps={app_path}", str(kernel_with_app)],
         cwd=board.board_dir,
     )
@@ -252,9 +308,7 @@ def elf_to_hex(
 
     output_hex.parent.mkdir(parents=True, exist_ok=True)
     run_command(
-        ctx,
-        [str(objcopy), "-O", "ihex", str(input_image), str(output_hex)],
-        cwd=board_dir,
+        [str(objcopy), "-O", "ihex", str(input_image), str(output_hex)], cwd=board_dir
     )
     return output_hex
 
@@ -311,7 +365,6 @@ def merge_secure_non_secure_hex(
 
 def flash_hex(ctx: Context, board: BoardConfig, hex_path: Path) -> Path:
     run_command(
-        ctx,
         [
             "probe-rs",
             "download",
@@ -335,7 +388,6 @@ def program_hex(ctx: Context, board: BoardConfig, hex_path: Path, options={}) ->
         raise BuildError(f"OpenOCD configuration does not exist: {board.openocd_tcl}")
 
     run_command(
-        ctx,
         [
             str(openocd),
             "-f",
