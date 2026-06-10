@@ -7,8 +7,8 @@ module sirchnik.ruspe/client-tester
 go 1.26.2
 
 require (
-	github.com/tarm/serial v0.0.0-20180830185346-98f6abe2eb07
 	github.com/veraison/psatoken v1.2.1-0.20251211083527-a6e46122bbca
+	go.bug.st/serial v1.7.1
 )
 
 require (
@@ -28,6 +28,6 @@ require (
 	github.com/veraison/go-cose v1.3.0-rc.1 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	golang.org/x/crypto v0.0.0-20220427172511-eb4f295cb31f // indirect
-	golang.org/x/sys v0.22.0 // indirect
+	golang.org/x/sys v0.43.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

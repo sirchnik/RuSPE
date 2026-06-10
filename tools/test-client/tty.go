@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tarm/serial"
+	"go.bug.st/serial"
 )
 
 // --- TTY ---
@@ -30,24 +30,33 @@ func sendNonceSlowly(port io.Writer, nonceHex string) error {
 		if _, err := port.Write([]byte{b}); err != nil {
 			return err
 		}
-		time.Sleep(2 * time.Millisecond)
+		time.Sleep(20 * time.Millisecond)
 	}
 	return nil
 }
 
 func requestTokenFromTTY(ttyPath string, baudRate int, nonceHex string) (string, error) {
 	fmt.Printf("Debug: Requesting token with nonce '%s' from %s at %d baud...\n", nonceHex, ttyPath, baudRate)
-	port, err := serial.OpenPort(&serial.Config{
-		Name: ttyPath, Baud: baudRate, ReadTimeout: 5 * time.Second,
-	})
+	mode := &serial.Mode{
+		BaudRate: baudRate,
+	}
+	port, err := serial.Open(ttyPath, mode)
 	if err != nil {
 		return "", err
 	}
+	if err := port.SetReadTimeout(5 * time.Second); err != nil {
+		port.Close()
+		return "", fmt.Errorf("failed to set read timeout: %w", err)
+	}
 	defer port.Close()
+
+	port.Write([]byte("\n"))
+	port.Drain()
 
 	buf := make([]byte, 4096)
 	var accum string
 
+	fmt.Println("Debug: waiting for newline...")
 	for {
 		n, err := port.Read(buf)
 		if n > 0 {
@@ -84,17 +93,8 @@ func requestTokenFromTTY(ttyPath string, baudRate int, nonceHex string) (string,
 				continue
 			}
 
-			fmt.Printf("Debug: Received line: %s\n", line)
-
 			var resp tokenResponse
 			if err := json.Unmarshal([]byte(line), &resp); err != nil {
-				if strings.Contains(line, "enter_nonce") {
-					fmt.Println("Device requested nonce (fallback match), sending slowly...")
-					if err := sendNonceSlowly(port, nonceHex); err != nil {
-						return "", fmt.Errorf("serial write: %w", err)
-					}
-					continue
-				}
 				fmt.Fprintln(os.Stderr, "device (non-JSON):", line)
 				continue
 			}
@@ -112,16 +112,13 @@ func requestTokenFromTTY(ttyPath string, baudRate int, nonceHex string) (string,
 				if err := sendNonceSlowly(port, nonceHex); err != nil {
 					return "", fmt.Errorf("serial write: %w", err)
 				}
+				fmt.Println("Nonce sent")
 			case "error":
-				if resp.Msg == "Nonce-Read Failed" {
-					fmt.Fprintln(os.Stderr, "device error: Nonce read failed - check nonce format and length")
-					continue
+				fmt.Fprintf(os.Stderr, "device error: %s - retrying via reset...\n", resp.Msg)
+				if _, wErr := io.WriteString(port, "\n"); wErr != nil {
+					return "", fmt.Errorf("serial write (reset): %w", wErr)
 				}
-				if resp.Msg == "Nonce-Parse Failed" {
-					fmt.Fprintln(os.Stderr, "device error: Nonce parse failed - check nonce format and length")
-					continue
-				}
-				return "", fmt.Errorf("device error: %s", resp.Msg)
+				continue
 			}
 		}
 	}
