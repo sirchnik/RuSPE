@@ -165,7 +165,7 @@ impl CoseCrypto for PsaCryptoBackend {
                 Err(CoseSign1Error::BufferTooSmall)
             }
             Err(status) => {
-                if status == StatusCode::BufferTooSmall as isize {
+                if status == StatusCode::BufferTooSmall {
                     return Err(CoseSign1Error::BufferTooSmall);
                 }
                 Err(CoseSign1Error::Unknown)

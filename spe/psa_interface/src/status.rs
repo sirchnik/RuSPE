@@ -63,8 +63,8 @@ pub enum StatusCode {
 }
 
 impl From<StatusCode> for PsaStatus {
-    fn from(err: StatusCode) -> PsaStatus {
-        err as PsaStatus
+    fn from(status: StatusCode) -> Self {
+        status as Self
     }
 }
 

@@ -13,12 +13,6 @@ from shutil import copy2
 from invoke.context import Context
 
 from tools.build.invoke_support import resolve_openocd, build_task, run_command
-from tools.build.generate_service import generate_service_crate
-from tools.build.service_catalog import (
-    available_service_names,
-    embedded_service_package_names,
-    resolve_service,
-)
 
 
 REPO_ROOT = Path(__file__).resolve().parent
@@ -43,8 +37,6 @@ _BIN_CRATES = [
     "psa_tock_app",
     "psc3m5_evk_attest",
 ]
-_BIN_CRATES.extend(embedded_service_package_names())
-_BIN_CRATES = sorted(set(_BIN_CRATES))
 
 
 def _build_exclude_args(exclude_list: list[str]) -> str:
@@ -269,33 +261,6 @@ def check_spelling(ctx: Context):
         "npx -y cspell lint --no-progress --show-suggestions -c cspell.config.yaml ."
     )
 
-
-@build_task(help={"service": "Service to generate", "force": "Replace existing generated crate if present"})
-def service_generate(ctx: Context, service="crypto", force=False):
-    """Generate an IPC service crate from the built-in skeleton."""
-    spec = resolve_service(REPO_ROOT, service)
-    created = generate_service_crate(REPO_ROOT, spec, force=bool(force))
-    print(f"Generated service crate: {created.relative_to(REPO_ROOT)}")
-
-
-@build_task(help={"force": "Replace existing generated crates if present"})
-def service_generate_all(ctx: Context, force=False):
-    """Generate all services configured in generated mode."""
-    generated = []
-    for name in available_service_names():
-        spec = resolve_service(REPO_ROOT, name)
-        if spec.mode != "generated":
-            continue
-        created = generate_service_crate(REPO_ROOT, spec, force=bool(force))
-        generated.append(created.relative_to(REPO_ROOT))
-
-    if not generated:
-        print("No generated services configured.")
-        return
-
-    print("Generated service crates:")
-    for path in generated:
-        print(f"  - {path}")
 
 @build_task
 def reuse(ctx: Context):

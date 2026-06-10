@@ -14,7 +14,7 @@ use kernel::{
     syscall::{CommandReturn, SyscallDriver},
 };
 
-use psa_interface::{psa_api, status::StatusCode, types::PsaStatus};
+use psa_interface::{psa_api, status::StatusCode};
 use psa_veneer_client::PsaVeneerClient;
 
 pub const DRIVER_NUM: usize = 0xa0000;
@@ -73,14 +73,10 @@ fn psa_status_to_error_code(status: StatusCode) -> ErrorCode {
     }
 }
 
-fn psa_status_to_command_return(status: Result<(), PsaStatus>) -> CommandReturn {
+fn psa_status_to_command_return(status: Result<(), StatusCode>) -> CommandReturn {
     match status {
         Ok(()) => CommandReturn::success(),
-        Err(status) => match StatusCode::try_from(status) {
-            Ok(StatusCode::_Success) => CommandReturn::success(),
-            Ok(status_code) => CommandReturn::failure(psa_status_to_error_code(status_code)),
-            Err(_) => CommandReturn::failure(ErrorCode::FAIL),
-        },
+        Err(status) => CommandReturn::failure(psa_status_to_error_code(status)),
     }
 }
 
