@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 [package]
-name = "secure"
+name = "psc3m5_evk_secure"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

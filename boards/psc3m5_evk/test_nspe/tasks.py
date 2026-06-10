@@ -21,12 +21,13 @@ from tools.build.invoke_support import (
 from tools.build.board import ( 
     BoardConfig,
     Manufacturer,
-    build_non_secure,
+    cargo_build,
     flash_hex,
     merge_secure_non_secure_hex,
     program_hex,
 )
 
+BOARD_DIR = Path(__file__).resolve().parent.parent 
 NON_SECURE_DIR = Path(__file__).resolve().parent
 SECURE_BOARD_FN_DIR = NON_SECURE_DIR.parent / "secure"
 SECURE_BOARD_IPC_DIR = NON_SECURE_DIR.parent / "secure_ipc"
@@ -36,7 +37,8 @@ SECURE_BOARD_FN = BoardConfig(
     repo_root=REPO_ROOT,
     manufacturer=Manufacturer.INFINEON,
     chip="PSC3M5FDS2AFQ1",
-    openocd_tcl=NON_SECURE_DIR / "openocd.tcl",
+    crate_name="psc3m5_evk_secure",
+    openocd_tcl=BOARD_DIR / "openocd.tcl",
 )
 
 SECURE_BOARD_IPC = BoardConfig(
@@ -44,7 +46,8 @@ SECURE_BOARD_IPC = BoardConfig(
     repo_root=REPO_ROOT,
     manufacturer=Manufacturer.INFINEON,
     chip="PSC3M5FDS2AFQ1",
-    openocd_tcl=NON_SECURE_DIR / "openocd.tcl",
+    crate_name="psc3m5_evk_secure_ipc",
+    openocd_tcl=BOARD_DIR / "openocd.tcl",
 )
 
 NON_SECURE_BOARD = BoardConfig(
@@ -52,7 +55,8 @@ NON_SECURE_BOARD = BoardConfig(
     repo_root=REPO_ROOT,
     manufacturer=Manufacturer.INFINEON,
     chip="PSC3M5FDS2AFQ1",
-    openocd_tcl=NON_SECURE_DIR / "openocd.tcl",
+    crate_name="psc3m5_evk_test_nspe",
+    openocd_tcl=BOARD_DIR / "openocd.tcl",
 )
 
 DEBUG_HELP = "Build the debug profile instead of release."
@@ -70,7 +74,7 @@ def _build_merged(ctx: Context, debug: bool, ipc: bool) -> Path:
         secure_board = SECURE_BOARD_FN
         extra_hexes = []
 
-    non_secure_elf = build_non_secure(ctx, NON_SECURE_BOARD, debug, app=None)
+    non_secure_elf = cargo_build(ctx, NON_SECURE_BOARD, debug)
     return merge_secure_non_secure_hex(
         ctx,
         secure_board,
@@ -105,10 +109,3 @@ def program(ctx: Context, debug=False, ipc=False):
     merged = _build_merged(ctx, bool(debug), bool(ipc))
     secure_board = SECURE_BOARD_IPC if ipc else SECURE_BOARD_FN
     return program_hex(ctx, secure_board, merged)
-
-
-@build_task(default=True, help={"debug": DEBUG_HELP, "ipc": IPC_HELP})
-def install(ctx: Context, debug=False, ipc=False):
-    """Alias for flash."""
-
-    return flash(ctx, debug=debug, ipc=ipc)

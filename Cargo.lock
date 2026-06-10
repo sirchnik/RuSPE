@@ -3,18 +3,6 @@
 version = 4
 
 [[package]]
-name = "attest_srv"
-version = "0.1.0"
-dependencies = [
- "helpers",
- "psa_interface",
- "psc3 0.1.0",
- "spe",
- "spe_services",
- "tock_build_scripts",
-]
-
-[[package]]
 name = "base16ct"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -54,7 +42,7 @@ name = "capsules-core"
 version = "0.2.3-dev"
 dependencies = [
  "enum_primitive",
- "kernel 0.2.3-dev",
+ "kernel",
  "tickv",
 ]
 
@@ -64,7 +52,7 @@ version = "0.2.3-dev"
 dependencies = [
  "capsules-core",
  "enum_primitive",
- "kernel 0.2.3-dev",
+ "kernel",
  "tickv",
 ]
 
@@ -72,7 +60,7 @@ dependencies = [
 name = "capsules-system"
 version = "0.2.3-dev"
 dependencies = [
- "kernel 0.2.3-dev",
+ "kernel",
  "tock-tbf",
 ]
 
@@ -89,7 +77,7 @@ dependencies = [
  "capsules-core",
  "capsules-extra",
  "capsules-system",
- "kernel 0.2.3-dev",
+ "kernel",
  "segger",
  "tock-tbf",
 ]
@@ -108,7 +96,7 @@ version = "0.1.0"
 name = "cortexm"
 version = "0.2.3-dev"
 dependencies = [
- "kernel 0.2.3-dev",
+ "kernel",
 ]
 
 [[package]]
@@ -117,14 +105,14 @@ version = "0.2.3-dev"
 dependencies = [
  "cortexm",
  "cortexv7m",
- "kernel 0.2.3-dev",
+ "kernel",
 ]
 
 [[package]]
 name = "cortexv7m"
 version = "0.2.3-dev"
 dependencies = [
- "kernel 0.2.3-dev",
+ "kernel",
 ]
 
 [[package]]
@@ -166,18 +154,6 @@ checksum = "1bfb12502f3fc46cca1bb51ac28df9d618d813cdc3d2f25b9fe775a34af26bb3"
 dependencies = [
  "generic-array",
  "typenum",
-]
-
-[[package]]
-name = "crypto_srv"
-version = "0.1.0"
-dependencies = [
- "helpers",
- "psa_interface",
- "psc3 0.1.0",
- "spe",
- "spe_services",
- "tock_build_scripts",
 ]
 
 [[package]]
@@ -295,23 +271,6 @@ dependencies = [
 [[package]]
 name = "infineon"
 version = "0.1.0"
-
-[[package]]
-name = "kernel"
-version = "0.1.0"
-dependencies = [
- "capsules-core",
- "capsules-extra",
- "capsules-system",
- "components",
- "cortexm33",
- "enum_primitive",
- "kernel 0.2.3-dev",
- "psa_interface",
- "psa_veneer_client",
- "psc3 0.2.3-dev",
- "tock_build_scripts",
-]
 
 [[package]]
 name = "kernel"
@@ -644,7 +603,100 @@ version = "0.2.3-dev"
 dependencies = [
  "cortexm33",
  "enum_primitive",
- "kernel 0.2.3-dev",
+ "kernel",
+]
+
+[[package]]
+name = "psc3m5_evk_attest_srv"
+version = "0.1.0"
+dependencies = [
+ "helpers",
+ "psa_interface",
+ "psc3 0.1.0",
+ "spe",
+ "spe_services",
+ "tock_build_scripts",
+]
+
+[[package]]
+name = "psc3m5_evk_crypto_srv"
+version = "0.1.0"
+dependencies = [
+ "helpers",
+ "psa_interface",
+ "psc3 0.1.0",
+ "spe",
+ "spe_services",
+ "tock_build_scripts",
+]
+
+[[package]]
+name = "psc3m5_evk_secure"
+version = "0.1.0"
+dependencies = [
+ "cortexm33",
+ "helpers",
+ "psa_interface",
+ "psc3 0.1.0",
+ "psc3 0.2.3-dev",
+ "spe",
+ "spe_services",
+ "tock_build_scripts",
+]
+
+[[package]]
+name = "psc3m5_evk_secure_ipc"
+version = "0.1.0"
+dependencies = [
+ "cortex_m",
+ "cortexm",
+ "cortexm33",
+ "helpers",
+ "kernel",
+ "psa_interface",
+ "psc3 0.1.0",
+ "psc3 0.2.3-dev",
+ "spe",
+ "spe_services",
+ "tock_build_scripts",
+]
+
+[[package]]
+name = "psc3m5_evk_test_nspe"
+version = "0.1.0"
+dependencies = [
+ "cortexm33",
+ "helpers",
+ "kernel",
+ "psa_interface",
+ "psa_veneer_client",
+ "psc3 0.2.3-dev",
+ "tock_build_scripts",
+]
+
+[[package]]
+name = "psc3m5_evk_tock_app"
+version = "0.1.0"
+dependencies = [
+ "libtock",
+ "libtock_build_scripts",
+]
+
+[[package]]
+name = "psc3m5_evk_tock_kernel"
+version = "0.1.0"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexm33",
+ "enum_primitive",
+ "kernel",
+ "psa_interface",
+ "psa_veneer_client",
+ "psc3 0.2.3-dev",
+ "tock_build_scripts",
 ]
 
 [[package]]
@@ -686,41 +738,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "secure"
-version = "0.1.0"
-dependencies = [
- "cortexm33",
- "helpers",
- "psa_interface",
- "psc3 0.1.0",
- "psc3 0.2.3-dev",
- "spe",
- "spe_services",
- "tock_build_scripts",
-]
-
-[[package]]
-name = "secure_ipc"
-version = "0.1.0"
-dependencies = [
- "cortex_m",
- "cortexm",
- "cortexm33",
- "helpers",
- "kernel 0.2.3-dev",
- "psa_interface",
- "psc3 0.1.0",
- "psc3 0.2.3-dev",
- "spe",
- "spe_services",
- "tock_build_scripts",
-]
-
-[[package]]
 name = "segger"
 version = "0.2.3-dev"
 dependencies = [
- "kernel 0.2.3-dev",
+ "kernel",
 ]
 
 [[package]]
@@ -753,7 +774,7 @@ dependencies = [
  "cortexm33",
  "cose",
  "helpers",
- "kernel 0.2.3-dev",
+ "kernel",
  "minicbor",
  "p256",
  "psa_interface",
@@ -795,19 +816,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "test"
-version = "0.1.0"
-dependencies = [
- "cortexm33",
- "helpers",
- "kernel 0.2.3-dev",
- "psa_interface",
- "psa_veneer_client",
- "psc3 0.2.3-dev",
- "tock_build_scripts",
-]
-
-[[package]]
 name = "tickv"
 version = "2.0.0"
 
@@ -824,14 +832,6 @@ checksum = "8d2d250f87fb3fb6f225c907cf54381509f47b40b74b1d1f12d2dccbc915bdfe"
 [[package]]
 name = "tock-tbf"
 version = "0.1.0"
-
-[[package]]
-name = "tock_app"
-version = "0.1.0"
-dependencies = [
- "libtock",
- "libtock_build_scripts",
-]
 
 [[package]]
 name = "tock_build_scripts"

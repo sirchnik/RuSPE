@@ -111,7 +111,7 @@ APP = AppConfig(
     flash_length="0x3000",
     ram_start="0x2400A000",
     ram_length="0x3000",
-    app_name="tock_app",
+    app_name="psc3m5_evk_tock_app",
 )
 
 DEBUG_HELP = "Build the debug profile instead of release."

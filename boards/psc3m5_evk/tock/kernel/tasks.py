@@ -26,16 +26,18 @@ from tools.build.board import (  # noqa: E402
     program_hex,
 )
 
+BOARD_DIR = Path(__file__).resolve().parent.parent
 NON_SECURE_BOARD_DIR = Path(__file__).resolve().parent
-SECURE_BOARD_FN_DIR = NON_SECURE_BOARD_DIR.parent.parent / "secure"
-SECURE_BOARD_IPC_DIR = NON_SECURE_BOARD_DIR.parent.parent / "secure_ipc"
+SECURE_BOARD_FN_DIR = BOARD_DIR / "secure"
+SECURE_BOARD_IPC_DIR = BOARD_DIR / "secure_ipc"
 
 SECURE_BOARD_FN = BoardConfig(
     board_dir=SECURE_BOARD_FN_DIR,
     repo_root=REPO_ROOT,
     manufacturer=Manufacturer.INFINEON,
     chip="PSC3M5FDS2AFQ1",
-    openocd_tcl=NON_SECURE_BOARD_DIR / "openocd.tcl",
+    crate_name="psc3m5_evk_secure",
+    openocd_tcl=BOARD_DIR / "openocd.tcl",
 )
 
 SECURE_BOARD_IPC = BoardConfig(
@@ -43,7 +45,8 @@ SECURE_BOARD_IPC = BoardConfig(
     repo_root=REPO_ROOT,
     manufacturer=Manufacturer.INFINEON,
     chip="PSC3M5FDS2AFQ1",
-    openocd_tcl=NON_SECURE_BOARD_DIR / "openocd.tcl",
+    crate_name="psc3m5_evk_secure_ipc",
+    openocd_tcl=BOARD_DIR / "openocd.tcl",
 )
 
 NON_SECURE_BOARD = BoardConfig(
@@ -51,7 +54,8 @@ NON_SECURE_BOARD = BoardConfig(
     repo_root=REPO_ROOT,
     manufacturer=Manufacturer.INFINEON,
     chip="PSC3M5FDS2AFQ1",
-    openocd_tcl=NON_SECURE_BOARD_DIR / "openocd.tcl",
+    crate_name="psc3m5_evk_tock_kernel",
+    openocd_tcl=BOARD_DIR / "openocd.tcl",
 )
 
 APP_HELP = (

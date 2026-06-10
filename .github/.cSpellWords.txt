@@ -245,3 +245,7 @@ irvalid
 COSE
 Cose
 Interruptible
+ADDRS
+stmdb
+unrecognised
+regen

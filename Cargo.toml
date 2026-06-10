@@ -19,10 +19,10 @@ members = [
     "spe/spe_services",
     "boards/psc3m5_evk/secure",
     "boards/psc3m5_evk/secure_ipc",
-    "boards/psc3m5_evk/test",
+    "boards/psc3m5_evk/test_nspe",
     "boards/psc3m5_evk/tock/kernel",
     "boards/psc3m5_evk/tock/app",
-    "boards/psc3m5_evk/services/*_srv"
+    "boards/psc3m5_evk/services/*_srv",
 ]
 exclude = ["tock"]
 resolver = "3"

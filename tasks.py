@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import urllib.request
 from pathlib import Path
 from shutil import copy2
@@ -32,11 +33,11 @@ TASKS_FILE_NAME = "tasks.py"
 _BIN_CRATES = [
     "psc3m5_evk_secure",
     "psc3m5_evk_secure_ipc",
-    "psc3m5_evk_test",
-    "psc3m5_evk_tock",
-    "psa_tock_app",
-    "psc3m5_evk_attest",
-    "psc3m5_evk_crypto",
+    "psc3m5_evk_test_nspe",
+    "psc3m5_evk_tock_kernel",
+    "psc3m5_evk_tock_app",
+    "psc3m5_evk_attest_srv",
+    "psc3m5_evk_crypto_srv",
 ]
 
 
@@ -101,31 +102,31 @@ def _tasks_targets(release: bool = False) -> list[dict]:
         {
             **common_task,
             "label": f"build{profile_short_snake}.psc3m5_evk_test",
-            "options": {"cwd": "${workspaceFolder}/boards/psc3m5_evk_test"},
+            "options": {"cwd": "${workspaceFolder}/boards/psc3m5_evk/test"},
             "command": build_command,
         },
         {
             **common_task,
             "label": f"build{profile_short_snake}.psc3m5_evk_test_ipc",
-            "options": {"cwd": "${workspaceFolder}/boards/psc3m5_evk_test"},
+            "options": {"cwd": "${workspaceFolder}/boards/psc3m5_evk/test"},
             "command": build_ipc_command,
         },
         {
             **common_task,
             "label": f"build{profile_short_snake}.psc3m5_evk_tock",
-            "options": {"cwd": "${workspaceFolder}/boards/tock/psc3m5_evk_tock"},
+            "options": {"cwd": "${workspaceFolder}/boards/psc3m5_evk/tock/kernel"},
             "command": build_with_app_command,
         },
         {
             **common_task,
             "label": f"build{profile_short_snake}.psc3m5_evk_tock_ipc",
-            "options": {"cwd": "${workspaceFolder}/boards/tock/psc3m5_evk_tock"},
+            "options": {"cwd": "${workspaceFolder}/boards/psc3m5_evk/tock/kernel"},
             "command": build_with_app_ipc_command,
         },
         {
             **common_task,
             "label": f"build{profile_short_snake}.psc3m5_evk_secure_ipc",
-            "options": {"cwd": "${workspaceFolder}/boards/psc3m5_evk_secure_ipc"},
+            "options": {"cwd": "${workspaceFolder}/boards/psc3m5_evk/secure_ipc"},
             "command": build_command,
         },
     ]
@@ -147,15 +148,15 @@ def _launch_targets(release: bool = False) -> list[dict]:
         "cwd": "${workspaceFolder}",
         "openOCDLaunchCommands": ["init; reset init;"],
         "svdFile": "${workspaceFolder}/.local/svds/psc3.svd",
-        "configFiles": ["${workspaceFolder}/boards/psc3m5_evk_test/openocd.tcl"],
+        "configFiles": ["${workspaceFolder}/boards/psc3m5_evk/openocd.tcl"],
     }
     return [
         {
             "name": f"Test-PSC3 FN {profile_short}",
             **psc3m5_base_conf,
-            "executable": f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test_merged.hex",
+            "executable": f"target/thumbv8m.main-none-eabi/{profile}/test_merged.hex",
             "preLaunchCommands": [
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test_nspe",
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure",
             ],
             "preLaunchTask": f"build{profile_short_snake}.psc3m5_evk_test",
@@ -163,36 +164,36 @@ def _launch_targets(release: bool = False) -> list[dict]:
         {
             "name": f"Test-PSC3 IPC {profile_short}",
             **psc3m5_base_conf,
-            "executable": f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test_merged.hex",
+            "executable": f"target/thumbv8m.main-none-eabi/{profile}/test_merged.hex",
             "preLaunchCommands": [
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test_nspe",
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure_ipc",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_attest",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_crypto",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_attest_srv",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_crypto_srv",
             ],
             "preLaunchTask": f"build{profile_short_snake}.psc3m5_evk_test_ipc",
         },
         {
             "name": f"Tock-PSC3 FN {profile_short}",
             **psc3m5_base_conf,
-            "executable": f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock_merged.hex",
+            "executable": f"target/thumbv8m.main-none-eabi/{profile}/kernel_merged.hex",
             "preLaunchCommands": [
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock_kernel",
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psa_tock_app",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock_app",
             ],
             "preLaunchTask": f"build{profile_short_snake}.psc3m5_evk_tock",
         },
         {
             "name": f"Tock-PSC3 IPC {profile_short}",
             **psc3m5_base_conf,
-            "executable": f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock_merged.hex",
+            "executable": f"target/thumbv8m.main-none-eabi/{profile}/kernel_merged.hex",
             "preLaunchCommands": [
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock_kernel",
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure_ipc",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psa_tock_app",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_attest",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_crypto",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock_app",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_attest_srv",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_crypto_srv",
             ],
             "preLaunchTask": f"build{profile_short_snake}.psc3m5_evk_tock_ipc",
         },
@@ -266,7 +267,7 @@ def build(ctx: Context, debug=False):
     for build_dir in build_dirs:
         relative_dir = build_dir.relative_to(REPO_ROOT)
         print(f"Building {relative_dir}")
-        run_command(f"inv build{debug_arg}", cwd=str(build_dir))
+        run_command(f"{sys.executable} -m invoke build{debug_arg}", cwd=str(build_dir))
 
 
 @build_task
@@ -338,14 +339,14 @@ def check_spelling(ctx: Context):
 @build_task
 def reuse(ctx: Context):
     """Run reuse linting"""
-    run_command("reuse lint")
+    run_command("python -m reuse lint")
 
 
 @build_task
 def reuse_annotate(ctx: Context, comment: str):
     """Run reuse annotate to add missing SPDX headers"""
     run_command(
-        f'reuse annotate -l MIT -c "{comment}" --recursive . --skip-unrecognised --exclude-year --skip-existing'
+        f'python -m reuse annotate -l MIT -c "{comment}" --recursive . --skip-unrecognised --exclude-year --skip-existing'
     )
 
 

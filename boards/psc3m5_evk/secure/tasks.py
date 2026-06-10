@@ -25,6 +25,7 @@ BOARD = BoardConfig(
     repo_root=REPO_ROOT,
     manufacturer=Manufacturer.INFINEON,
     chip="PSC3M5FDS2AFQ1",
+    crate_name="psc3m5_evk_secure",
 )
 
 DEBUG_HELP = "Build the debug profile instead of release."

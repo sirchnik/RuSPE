@@ -303,7 +303,7 @@ pub fn psa_prepare_invec(
 
         let (_, in_len, base) = prepare_invec(spm, connection, invec_idx);
         raw = Some(RawVec {
-            base: base as *mut u8,
+            base: base.cast_mut(),
             len: in_len,
         });
     }) {

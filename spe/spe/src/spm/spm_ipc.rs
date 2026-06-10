@@ -139,7 +139,7 @@ impl FlashProcess {
             mailbox.write(msg);
         }
 
-        (mailbox as *const PsaMsg, mailbox_addr)
+        (mailbox.cast_const(), mailbox_addr)
     }
 }
 

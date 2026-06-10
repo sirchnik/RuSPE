@@ -35,6 +35,7 @@ class BoardConfig:
     board_dir: Path
     chip: str
     manufacturer: Manufacturer
+    crate_name: str
     openocd_tcl: Path | None = None
 
     @property
@@ -53,7 +54,7 @@ class BoardConfig:
         )
 
     def kernel_image(self, debug: bool) -> Path:
-        return self.target_root(debug) / self.platform
+        return self.target_root(debug) / self.crate_name
 
 
 def _cargo_package_name(crate_dir: Path) -> str:

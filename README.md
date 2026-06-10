@@ -25,7 +25,9 @@ Needed tools:
 Setup workspace:
 
 ```bash
-pip install -r requirements.txt # install Python dependencies
+uv venv
+uv sync # install Python dependencies
+source .venv/bin/activate # activate the virtual environment
 inv install # install cargo tools
 inv vscode # generate VSCode configuration for development
 ```

@@ -47,8 +47,6 @@ unsafe impl Sync for CustomMpuRegion {}
 /// - `stack_limit` must be the lowest permitted PSP value for the service.
 /// - `stack_top` must be an 8-byte aligned address at the top of RAM accessible
 ///   to unprivileged code (the service's stack).
-use crate::psa::psa_svc_api::SVC_CALL_UNPRIV;
-
 #[cfg(target_arch = "arm")]
 pub(crate) unsafe fn svc_call_unpriv(
     fn_ptr: usize,
@@ -57,6 +55,7 @@ pub(crate) unsafe fn svc_call_unpriv(
     stack_limit: usize,
     stack_top: usize,
 ) -> usize {
+    use crate::psa::psa_svc_api::SVC_CALL_UNPRIV;
     use core::arch::asm;
 
     // Build a fake exception frame at (stack_top - 32).

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 [package]
-name = "test"
+name = "psc3m5_evk_test_nspe"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

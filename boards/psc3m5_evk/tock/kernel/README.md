@@ -51,9 +51,8 @@ delivery, the board is configured with all contexts only available in secure
 mode. To reset this configuration, follow these steps:
 
 ```bash
-$ cd edgeprotecttools
-# install edgeprotecttools
-$ pip install edgeprotecttools
+# activate the virtual environment if not already active (from repository root)
+$ source .venv/bin/activate
 # init configurations
 $ edgeprotecttools -t psoc_c3 init
 # provision the device with the configuration
