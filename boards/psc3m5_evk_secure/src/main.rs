@@ -46,7 +46,7 @@ pub unsafe fn main() {
 
     psc3::chip::init_gpio_pins();
 
-    let scb0 = static_init!(psc3::scb::Scb, psc3::scb::Scb::new_scb0());
+    let scb0 = unsafe { static_init!(psc3::scb::Scb, psc3::scb::Scb::new_scb0()) };
 
     scb0.set_standard_uart_mode();
     scb0.enable_scb();
@@ -100,19 +100,21 @@ pub unsafe fn main() {
 
     security::configure_security();
 
-    let sec_platform = static_init!(
-        Psc3SecPlatform,
-        Psc3SecPlatform {
-            initial_attestation: attest_service::AttestService::new(Psc3AttestPlatform),
-            crypto: crypto_service::CryptoService::new([
-                0x3d, 0x42, 0x9a, 0x83, 0xef, 0xe3, 0x87, 0x10, 0xab, 0x9a, 0xb4, 0xc0, 0x2c, 0xcb,
-                0xbe, 0x0b, 0x87, 0xab, 0x69, 0x36, 0xdd, 0xf4, 0x14, 0x57, 0xea, 0x30, 0xf9, 0x6c,
-                0xa6, 0xf2, 0xcd, 0xee,
-            ]),
-        }
-    );
+    let sec_platform = unsafe {
+        static_init!(
+            Psc3SecPlatform,
+            Psc3SecPlatform {
+                initial_attestation: attest_service::AttestService::new(Psc3AttestPlatform),
+                crypto: crypto_service::CryptoService::new([
+                    0x3d, 0x42, 0x9a, 0x83, 0xef, 0xe3, 0x87, 0x10, 0xab, 0x9a, 0xb4, 0xc0, 0x2c,
+                    0xcb, 0xbe, 0x0b, 0x87, 0xab, 0x69, 0x36, 0xdd, 0xf4, 0x14, 0x57, 0xea, 0x30,
+                    0xf9, 0x6c, 0xa6, 0xf2, 0xcd, 0xee,
+                ]),
+            }
+        )
+    };
 
-    let spm = static_init!(spm::Spm<Psc3SecPlatform>, spm::Spm::new(sec_platform));
+    let spm = unsafe { static_init!(spm::Spm<Psc3SecPlatform>, spm::Spm::new(sec_platform)) };
 
     psa_api::set_spm(spm);
 

@@ -18,13 +18,13 @@ use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::syscall::SyscallDriver;
 use kernel::utilities::single_thread_value::SingleThreadValue;
-use kernel::{capabilities, create_capability, static_init, Kernel};
+use kernel::{Kernel, capabilities, create_capability, static_init};
 
 use psc3::chip::{Psc3, Psc3DefaultPeripherals};
 use psc3::tcpwm::Tcpwm0;
-use psc3::{chip_init, gpio};
 #[allow(unused)]
 use psc3::{BASE_VECTORS, IRQS};
+use psc3::{chip_init, gpio};
 
 mod io;
 mod spe_adapter;
@@ -140,7 +140,9 @@ unsafe extern "C" {
 pub unsafe fn main() {
     cortexm33::support::dmb();
     // set vector-table when coming from secure world
-    cortexm33::scb::set_vector_table_offset(BASE_VECTORS.as_ptr().cast::<()>());
+    unsafe {
+        cortexm33::scb::set_vector_table_offset(BASE_VECTORS.as_ptr().cast::<()>());
+    }
 
     cortexm33::support::set_msplim(core::ptr::addr_of!(_sstack) as u32);
 
@@ -155,7 +157,8 @@ pub unsafe fn main() {
     // Bind global variables to this thread.
     PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
 
-    let peripherals = static_init!(Psc3DefaultPeripherals, Psc3DefaultPeripherals::new());
+    let peripherals =
+        unsafe { static_init!(Psc3DefaultPeripherals, Psc3DefaultPeripherals::new()) };
 
     peripherals.init();
 
@@ -182,9 +185,9 @@ pub unsafe fn main() {
         .preconfigure(&GPIO_CONFIG);
 
     // Set the UART used for panic
-    unsafe{(*addr_of_mut!(io::WRITER)).set_scb(&peripherals.scb3)};
+    unsafe { (*addr_of_mut!(io::WRITER)).set_scb(&peripherals.scb3) };
 
-    let chip = unsafe {static_init!(Psc3<Psc3DefaultPeripherals>, Psc3::new(peripherals))};
+    let chip = unsafe { static_init!(Psc3<Psc3DefaultPeripherals>, Psc3::new(peripherals)) };
     PANIC_RESOURCES.get().map(|resources| {
         resources.chip.put(chip);
     });
@@ -196,7 +199,7 @@ pub unsafe fn main() {
         resources.processes.put(processes.as_slice());
     });
 
-    let board_kernel = static_init!(Kernel, Kernel::new(processes.as_slice()));
+    let board_kernel = unsafe { static_init!(Kernel, Kernel::new(processes.as_slice())) };
 
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
@@ -340,7 +343,7 @@ pub unsafe fn main() {
         console,
         alarm,
         scheduler,
-        systick: cortexm33::systick::SysTick::new_with_calibration(1_000_000),
+        systick: unsafe { cortexm33::systick::SysTick::new_with_calibration(1_000_000) },
         led,
         button,
         #[cfg(feature = "non_secure_tz")]
@@ -353,14 +356,18 @@ pub unsafe fn main() {
     kernel::process::load_processes(
         board_kernel,
         chip,
-        unsafe { core::slice::from_raw_parts(
-            core::ptr::addr_of!(_sapps),
-            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-        ) },
-        unsafe { core::slice::from_raw_parts_mut(
-            core::ptr::addr_of_mut!(_sappmem),
-            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-        ) },
+        unsafe {
+            core::slice::from_raw_parts(
+                core::ptr::addr_of!(_sapps),
+                core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
+            )
+        },
+        unsafe {
+            core::slice::from_raw_parts_mut(
+                core::ptr::addr_of_mut!(_sappmem),
+                core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
+            )
+        },
         &FAULT_RESPONSE,
         &process_management_capability,
     )

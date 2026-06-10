@@ -3,8 +3,8 @@
 # Copyright Infineon Technologies AG 2026.
 
 include = [
-    "../../../tock/boards/cargo/tock_flags.toml",
-    "../../../tock/boards/cargo/unstable_flags.toml",
+    "../../../../tock/boards/cargo/tock_flags.toml",
+    "../../../../tock/boards/cargo/unstable_flags.toml",
 ]
 
 [build]

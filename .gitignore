@@ -1,6 +1,11 @@
 target
 build/*
 .venv
+.vscode/tasks.json
+.vscode/launch.json
+.vscode/settings.json
+
+__pycache__
 
 *.local
 .local/

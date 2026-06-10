@@ -16,20 +16,25 @@ class BuildError(RuntimeError):
 
 @dataclass(frozen=True)
 class BoardConfig:
+    repo_root: Path
     board_dir: Path
-    platform: str
     chip: str
     openocd_tcl: Path | None = None
 
     @property
-    def repo_root(self) -> Path:
-        return self.board_dir.parent.parent
+    def platform(self) -> str:
+        return self.board_dir.name
 
     def build_type(self, debug: bool) -> str:
         return "debug" if debug else "release"
 
     def target_root(self, debug: bool) -> Path:
-        return self.repo_root / "target" / "thumbv8m.main-none-eabi" / self.build_type(debug)
+        return (
+            self.repo_root
+            / "target"
+            / "thumbv8m.main-none-eabi"
+            / self.build_type(debug)
+        )
 
     def kernel_image(self, debug: bool) -> Path:
         return self.target_root(debug) / self.platform
@@ -46,13 +51,17 @@ def _merge_env(extra_env: dict[str, str] | None) -> dict[str, str]:
     return env
 
 
-def run_command(ctx: Context, command: list[str], cwd: Path, extra_env: dict[str, str] | None = None) -> None:
+def run_command(
+    ctx: Context, command: list[str], cwd: Path, extra_env: dict[str, str] | None = None
+) -> None:
     command_text = _format_command(command)
     try:
         with ctx.cd(str(cwd)):
             ctx.run(command_text, env=_merge_env(extra_env), echo=True)
     except UnexpectedExit as error:
-        raise BuildError(f"Command failed with exit code {error.result.exited}: {command_text}") from error
+        raise BuildError(
+            f"Command failed with exit code {error.result.exited}: {command_text}"
+        ) from error
     except Failure as error:
         raise BuildError(f"Failed to execute command: {command_text}") from error
 
@@ -67,7 +76,9 @@ def resolve_openocd() -> Path | None:
     openocd_root = os.environ.get("OPENOCD_ROOT")
     if openocd_root:
         root_path = Path(openocd_root)
-        candidates.extend((root_path / "bin" / "openocd.exe", root_path / "bin" / "openocd"))
+        candidates.extend(
+            (root_path / "bin" / "openocd.exe", root_path / "bin" / "openocd")
+        )
 
     path_candidate = _command_path("openocd")
     if path_candidate is not None:
@@ -85,7 +96,11 @@ def _rust_sysroot_objcopy_candidates(ctx: Context) -> list[Path]:
         return []
 
     try:
-        result = ctx.run(f'{_format_command([str(rustc), "--print", "sysroot"])}', hide=True)
+        result = ctx.run(
+            f"{_format_command([str(rustc), '--print', 'sysroot'])}", hide=True
+        )
+        if result is None:
+            return []
         sysroot = result.stdout.strip()
     except Failure:
         return []
@@ -117,45 +132,6 @@ def resolve_objcopy(ctx: Context) -> Path | None:
         if candidate.exists():
             return candidate
     return None
-
-
-def python_package_available(module_name: str) -> bool:
-    try:
-        __import__(module_name)
-    except ImportError:
-        return False
-    return True
-
-
-def missing_tools(ctx: Context, tool_names: list[str]) -> list[str]:
-    missing: list[str] = []
-    for tool_name in tool_names:
-        if tool_name == "openocd":
-            if resolve_openocd() is None:
-                missing.append(tool_name)
-            continue
-
-        if tool_name == "objcopy":
-            if resolve_objcopy(ctx) is None:
-                missing.append("rust-objcopy/llvm-objcopy")
-            continue
-
-        if _command_path(tool_name) is None:
-            missing.append(tool_name)
-    return missing
-
-
-def ensure_tools(ctx: Context, tool_names: list[str], python_modules: list[str] | None = None) -> None:
-    missing = missing_tools(ctx, tool_names)
-    if python_modules:
-        missing.extend(module_name for module_name in python_modules if not python_package_available(module_name))
-
-    if missing:
-        raise BuildError(
-            "Missing required tools/modules: "
-            + ", ".join(missing)
-            + ". Install the missing dependencies and rerun 'invoke check-tools'. For Rust objcopy support, install 'llvm-tools-preview' and 'cargo-binutils'."
-        )
 
 
 def cargo_build(ctx: Context, board: BoardConfig, debug: bool) -> None:
@@ -205,25 +181,34 @@ def inject_app(ctx: Context, board: BoardConfig, debug: bool, app: str | None) -
     return kernel_with_app
 
 
-def build_non_secure(ctx: Context, board: BoardConfig, debug: bool, app: str | None) -> Path:
-    ensure_tools(ctx, ["cargo", "objcopy"], python_modules=["invoke"])
+def build_non_secure(
+    ctx: Context, board: BoardConfig, debug: bool, app: str | None
+) -> Path:
     cargo_build(ctx, board, debug)
     return inject_app(ctx, board, debug, app)
 
 
-def flash_non_secure(ctx: Context, board: BoardConfig, debug: bool, app: str | None) -> Path:
-    ensure_tools(ctx, ["cargo", "objcopy", "probe-rs"], python_modules=["invoke"])
+def flash_non_secure(
+    ctx: Context, board: BoardConfig, debug: bool, app: str | None
+) -> Path:
     kernel_with_app = build_non_secure(ctx, board, debug, app)
-    run_command(ctx, ["probe-rs", "run", "--chip", board.chip, str(kernel_with_app)], cwd=board.board_dir)
+    run_command(
+        ctx,
+        ["probe-rs", "run", "--chip", board.chip, str(kernel_with_app)],
+        cwd=board.board_dir,
+    )
     return kernel_with_app
 
 
-def program_non_secure(ctx: Context, board: BoardConfig, debug: bool, app: str | None) -> Path:
-    ensure_tools(ctx, ["cargo", "objcopy", "openocd"], python_modules=["invoke"])
+def program_non_secure(
+    ctx: Context, board: BoardConfig, debug: bool, app: str | None
+) -> Path:
     kernel_with_app = build_non_secure(ctx, board, debug, app)
     openocd = resolve_openocd()
     if openocd is None:
-        raise BuildError("OpenOCD was not found. Set OPENOCD_ROOT or add openocd to PATH.")
+        raise BuildError(
+            "OpenOCD was not found. Set OPENOCD_ROOT or add openocd to PATH."
+        )
     if board.openocd_tcl is None or not board.openocd_tcl.exists():
         raise BuildError(f"OpenOCD configuration does not exist: {board.openocd_tcl}")
 
@@ -241,7 +226,9 @@ def program_non_secure(ctx: Context, board: BoardConfig, debug: bool, app: str |
     return kernel_with_app
 
 
-def elf_to_hex(ctx: Context, input_image: Path, output_hex: Path, board_dir: Path) -> Path:
+def elf_to_hex(
+    ctx: Context, input_image: Path, output_hex: Path, board_dir: Path
+) -> Path:
     objcopy = resolve_objcopy(ctx)
     if objcopy is None:
         raise BuildError(
@@ -249,7 +236,11 @@ def elf_to_hex(ctx: Context, input_image: Path, output_hex: Path, board_dir: Pat
         )
 
     output_hex.parent.mkdir(parents=True, exist_ok=True)
-    run_command(ctx, [str(objcopy), "-O", "ihex", str(input_image), str(output_hex)], cwd=board_dir)
+    run_command(
+        ctx,
+        [str(objcopy), "-O", "ihex", str(input_image), str(output_hex)],
+        cwd=board_dir,
+    )
     return output_hex
 
 
@@ -273,8 +264,13 @@ def merge_hex_images(output_path: Path, input_paths: list[Path]) -> Path:
     return output_path
 
 
-def build_secure_non_secure_hex(ctx: Context, secure_board: BoardConfig, non_secure_board: BoardConfig, debug: bool, app: str | None) -> Path:
-    ensure_tools(ctx, ["cargo", "objcopy"], python_modules=["invoke", "intelhex"])
+def build_secure_non_secure_hex(
+    ctx: Context,
+    secure_board: BoardConfig,
+    non_secure_board: BoardConfig,
+    debug: bool,
+    app: str | None,
+) -> Path:
     cargo_build(ctx, secure_board, debug)
     non_secure_kernel = build_non_secure(ctx, non_secure_board, debug, app)
 
@@ -283,33 +279,70 @@ def build_secure_non_secure_hex(ctx: Context, secure_board: BoardConfig, non_sec
         raise BuildError(f"Secure image does not exist: {secure_image}")
 
     target_root = secure_board.target_root(debug)
-    secure_hex = elf_to_hex(ctx, secure_image, target_root / f"{secure_board.platform}.hex", secure_board.board_dir)
-    non_secure_hex = elf_to_hex(ctx, non_secure_kernel, target_root / f"{non_secure_board.platform}-app.hex", secure_board.board_dir)
-    merged_hex = target_root / "psc3m5_evk_sec_merged.hex"
+    secure_hex = elf_to_hex(
+        ctx,
+        secure_image,
+        target_root / f"{secure_board.platform}.hex",
+        secure_board.board_dir,
+    )
+    non_secure_hex = elf_to_hex(
+        ctx,
+        non_secure_kernel,
+        target_root / f"{non_secure_board.platform}-app.hex",
+        secure_board.board_dir,
+    )
+    merged_hex = target_root / f"{non_secure_board.platform}_merged.hex"
     merge_hex_images(merged_hex, [secure_hex, non_secure_hex])
     print(f"Built merged secure image: {merged_hex}")
     return merged_hex
 
 
-def flash_secure(ctx: Context, secure_board: BoardConfig, non_secure_board: BoardConfig, debug: bool, app: str | None) -> Path:
-    ensure_tools(ctx, ["cargo", "objcopy", "probe-rs"], python_modules=["invoke", "intelhex"])
-    merged_hex = build_secure_non_secure_hex(ctx, secure_board, non_secure_board, debug, app)
+def flash_secure(
+    ctx: Context,
+    secure_board: BoardConfig,
+    non_secure_board: BoardConfig,
+    debug: bool,
+    app: str | None,
+) -> Path:
+    merged_hex = build_secure_non_secure_hex(
+        ctx, secure_board, non_secure_board, debug, app
+    )
     run_command(
         ctx,
-        ["probe-rs", "download", "--chip", secure_board.chip, "--binary-format", "hex", str(merged_hex)],
+        [
+            "probe-rs",
+            "download",
+            "--chip",
+            secure_board.chip,
+            "--binary-format",
+            "hex",
+            str(merged_hex),
+        ],
         cwd=secure_board.board_dir,
     )
     return merged_hex
 
 
-def program_secure(ctx: Context, secure_board: BoardConfig, non_secure_board: BoardConfig, debug: bool, app: str | None) -> Path:
-    ensure_tools(ctx, ["cargo", "objcopy", "openocd"], python_modules=["invoke", "intelhex"])
-    merged_hex = build_secure_non_secure_hex(ctx, secure_board, non_secure_board, debug, app)
+def program_secure(
+    ctx: Context,
+    secure_board: BoardConfig,
+    non_secure_board: BoardConfig,
+    debug: bool,
+    *,
+    app: str | None,
+) -> Path:
+    merged_hex = build_secure_non_secure_hex(
+        ctx, secure_board, non_secure_board, debug, app
+    )
     openocd = resolve_openocd()
     if openocd is None:
-        raise BuildError("OpenOCD was not found. Set OPENOCD_ROOT or add openocd to PATH.")
+        raise BuildError(
+            "OpenOCD was not found. Set OPENOCD_ROOT or add openocd to PATH."
+        )
     if secure_board.openocd_tcl is None or not secure_board.openocd_tcl.exists():
-        raise BuildError(f"OpenOCD configuration does not exist: {secure_board.openocd_tcl}")
+        raise BuildError(
+            f"OpenOCD configuration does not exist: {secure_board.openocd_tcl}"
+        )
 
     run_command(
         ctx,
@@ -323,13 +356,3 @@ def program_secure(ctx: Context, secure_board: BoardConfig, non_secure_board: Bo
         cwd=secure_board.board_dir,
     )
     return merged_hex
-
-
-def print_check_summary(ctx: Context, tool_names: list[str], python_modules: list[str]) -> None:
-    missing = missing_tools(ctx, tool_names)
-    missing.extend(module_name for module_name in python_modules if not python_package_available(module_name))
-
-    if missing:
-        raise BuildError("Missing required tools/modules: " + ", ".join(missing))
-
-    print("All required tools are available.")

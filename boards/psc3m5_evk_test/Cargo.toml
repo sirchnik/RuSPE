@@ -3,7 +3,7 @@
 # Copyright Infineon Technologies AG 2026.
 
 [package]
-name = "psc3m5_evk"
+name = "psc3m5_evk_test"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
