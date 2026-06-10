@@ -7,8 +7,11 @@ build/*
 
 __pycache__
 
+*.local.*
 *.local
 .local/
+
+/.temp/
 
 /.agents
 
