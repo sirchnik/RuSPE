@@ -138,7 +138,7 @@ macro_rules! static_buf {
 /// Before the static buffer can be used it must be initialized. For example:
 ///
 /// ```ignore
-/// let mut static_buffer = static_nmaed_buf!(T, "MY_BUF");
+/// let mut static_buffer = static_named_buf!(T, "MY_BUF");
 /// let static_reference: &'static mut T = static_buffer.initialize(T::new());
 /// ```
 ///

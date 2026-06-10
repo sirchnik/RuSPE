@@ -30,6 +30,9 @@ jobs:
         run: inv fmt --check
       - name: Run clippy
         run: inv clippy
+      - name: Check spelling
+        run: inv check-spelling
+        continue-on-error: true
 
   build:
     name: Build
