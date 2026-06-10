@@ -37,7 +37,7 @@ mod service_config {
     include!(concat!(env!("OUT_DIR"), "/service_config.rs"));
 }
 
-mod faults;
+
 mod io;
 mod startup;
 mod svc;

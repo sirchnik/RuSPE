@@ -129,8 +129,11 @@ def run_command(
     if verbose:
         envs = ""
         if env:
-            items = [f"{k}={v}" for k, v in list(env.items())[:4]]
-            envs = (" ".join(items) + ("..." if len(env) > 4 else "")) + " "
+            items = [f"{k}={v}" for k, v in list(env.items())]
+            if shorten_args:
+                envs = (" ".join(items) + ("..." if len(env) > 4 else "")) + " "
+            else:
+                envs = " ".join(items) + " "
         compact = f"$ cd {cwd or Path.cwd()} && {envs}{cmd_text}"
         print_step(compact)
 

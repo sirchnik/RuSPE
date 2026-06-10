@@ -78,92 +78,29 @@ pub unsafe extern "C" fn sec_initialize_ram_jump_to_main() {
     );
 }
 
+use spe::faults;
+
 #[unsafe(link_section = ".vectors")]
 #[used]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     _estack,
     sec_initialize_ram_jump_to_main,
-    unhandled_interrupt, // NMI
-    hard_fault_handler,  // Hard Fault
-    unhandled_interrupt, // MemManage
-    unhandled_interrupt, // BusFault
-    unhandled_interrupt, // UsageFault
-    unhandled_interrupt,
-    unhandled_interrupt,
-    unhandled_interrupt,
-    unhandled_interrupt,
-    svc_handler,         // SVC
-    unhandled_interrupt, // DebugMon
-    unhandled_interrupt,
-    unhandled_interrupt, // PendSV
-    unhandled_interrupt, // SysTick
+    faults::unhandled_interrupt, // NMI
+    faults::hard_fault_handler,  // Hard Fault
+    faults::mem_manage_handler,  // MemManage
+    faults::bus_fault_handler,   // BusFault
+    faults::unhandled_interrupt, // UsageFault
+    faults::unhandled_interrupt,
+    faults::unhandled_interrupt,
+    faults::unhandled_interrupt,
+    faults::unhandled_interrupt,
+    faults::unhandled_interrupt, // SVC
+    faults::unhandled_interrupt, // DebugMon
+    faults::unhandled_interrupt,
+    faults::unhandled_interrupt, // PendSV
+    faults::unhandled_interrupt, // SysTick
 ];
 
 #[unsafe(link_section = ".irqs")]
 #[used]
-pub static IRQS: [unsafe extern "C" fn(); 140] = [unhandled_interrupt; 140];
-
-#[unsafe(naked)]
-pub unsafe extern "C" fn svc_handler() {
-    use core::arch::naked_asm;
-    naked_asm!(
-        "
-    movs r0, #0
-    msr control, r0
-    isb
-    bx lr
-        "
-    );
-}
-
-#[unsafe(naked)]
-pub unsafe extern "C" fn hard_fault_handler() {
-    use core::arch::naked_asm;
-    naked_asm!(
-        "
-    // In the case of a hard fault, we want to panic with the active interrupt number.
-    // The active interrupt number is stored in the IPSR register, which we can read
-    // using the MRS instruction. We then branch to the unhandled_interrupt handler,
-    // which will panic with the interrupt number.
-
-    // Check if STKOF in CFSR is set (bit 4). Pass this as arg1.
-    ldr r2, =0xE000ED28
-    ldr r1, [r2]
-    lsrs r1, r1, #4
-    ands r1, r1, #1
-
-    mrs r0, ipsr
-    b {unhandled_interrupt}
-        ",
-        unhandled_interrupt = sym hard_fault_handler_real,
-    );
-}
-
-pub unsafe extern "C" fn hard_fault_handler_real(interrupt_number: u32, stack_overflow: u32) {
-    panic!(
-        "Hard Fault. ISR {} is active. stack_overflow={}",
-        interrupt_number & 0x1ff,
-        stack_overflow
-    );
-}
-
-pub unsafe extern "C" fn unhandled_interrupt() {
-    use core::arch::asm;
-
-    let mut interrupt_number: u32;
-
-    unsafe {
-        // IPSR[8:0] holds the currently active interrupt
-        asm!(
-            "
-    mrs {interrupt_number}, ipsr
-        ",
-            interrupt_number = out(reg) interrupt_number,
-            options(nomem, nostack, preserves_flags),
-        );
-    }
-
-    interrupt_number &= 0x1ff;
-
-    panic!("Unhandled Interrupt. ISR {} is active.", interrupt_number);
-}
+pub static IRQS: [unsafe extern "C" fn(); 140] = [faults::unhandled_interrupt; 140];

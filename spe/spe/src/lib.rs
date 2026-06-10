@@ -10,6 +10,7 @@
 
 pub mod hil;
 pub mod internal_trusted_storage;
+pub mod faults;
 mod libs;
 
 pub mod psa;
