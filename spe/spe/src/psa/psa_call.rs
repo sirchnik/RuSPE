@@ -1,6 +1,6 @@
 use crate::{
     StatusCode,
-    spm::spm::{Connection, SpmCall},
+    spm::{Connection, SpmCall},
 };
 use core::{ptr, slice};
 use psa_interface::types::{CtrlParam, FFInVec, FFOutVec, ServiceHandle};

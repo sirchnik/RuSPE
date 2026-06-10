@@ -6,7 +6,9 @@ import urllib.request
 from pathlib import Path
 from shutil import copy2
 
-from tools.invoke_support import resolve_openocd, build_task, run_command
+from invoke.context import Context
+
+from tools.build.invoke_support import resolve_openocd, build_task, run_command
 
 
 REPO_ROOT = Path(__file__).resolve().parent
@@ -143,7 +145,7 @@ def _download(url: str, destination: Path) -> None:
 
 
 @build_task(default=True)
-def vscode(ctx, force=False):
+def vscode(ctx: Context, force=False):
     """Set up the VS Code workspace files."""
 
     if not (REPO_ROOT / ".venv").exists():
@@ -174,7 +176,7 @@ def install(ctx):
 
 
 @build_task
-def build(ctx, debug=False):
+def build(ctx: Context, debug=False):
     """Run `inv build` for every nested Invoke task file in the repository."""
 
     build_dirs = _build_task_directories()
@@ -211,7 +213,7 @@ def miri(ctx):
 
 
 @build_task
-def coverage(ctx, html=False):
+def coverage(ctx: Context, html=False):
     """Run tests with coverage via cargo-llvm-cov. Pass --html for an HTML report."""
     if html:
         run_command(
@@ -224,7 +226,7 @@ def coverage(ctx, html=False):
 
 
 @build_task
-def fmt(ctx, check=False):
+def fmt(ctx: Context, check=False):
     """Run cargo fmt. Pass --check to verify formatting without changes."""
     check_flag = "--check" if check else ""
     run_command(f"cargo fmt --all {check_flag}".strip())

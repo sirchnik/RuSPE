@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Infineon Technologies AG 2026.
 
-//! Secure startup and services
+//! Secure startup and services — IPC model with embedded service processes.
 
 #![no_std]
 #![no_main]
@@ -13,12 +13,11 @@ use core::ptr::addr_of_mut;
 use helpers::static_init;
 use spe::{
     psa::psa_api,
-    spm::{self},
+    spm::{self, EmbeddedProcess, SpmPlatform},
 };
-use spe_services::{attest::attest_service, crypto::crypto_service};
 use tock_psc3::{chip, chip_init, gpio, icache, peri_clk, scb};
 
-use ruspe_psc3::{Psc3SecPlatform, configure_security, services::attest::Psc3AttestPlatform};
+use ruspe_psc3::configure_security;
 
 unsafe extern "Rust" {
     static __veneer_base: ();
@@ -33,6 +32,61 @@ unsafe extern "C" {
 
 mod io;
 mod startup;
+
+/// Minimal platform for the IPC model — only provides memory permission checks.
+/// Service dispatch is handled by the SpmIpc process table, not by this platform.
+pub struct Psc3IpcPlatform;
+
+impl SpmPlatform for Psc3IpcPlatform {
+    fn call(&self, _msg: spe::psa::psa_call::PsaMsg) -> Result<(), spe::StatusCode> {
+        // In the IPC model, services are dispatched via the process table.
+        // This method is never called directly.
+        Err(spe::StatusCode::NotSupported)
+    }
+
+    fn has_permission_on_memory(
+        &self,
+        base: *const u8,
+        len: usize,
+        is_write: bool,
+        caller: spe::psa::psa_call::CallerAttributes,
+    ) -> bool {
+        use ruspe_cortexm::cmse;
+
+        if len == 0 {
+            return true;
+        }
+
+        if base.is_null() {
+            return false;
+        }
+
+        let access_type = match (caller.ns, caller.privileged) {
+            (true, false) => cmse::AccessType::NonSecureUnprivileged,
+            (true, true) => cmse::AccessType::NonSecure,
+            (false, false) => cmse::AccessType::Unprivileged,
+            (false, true) => cmse::AccessType::Current,
+        };
+
+        if let Some(target) = cmse::TestTarget::check_range(base as *mut u32, len, access_type) {
+            if caller.ns {
+                if is_write {
+                    target.ns_read_and_writable()
+                } else {
+                    target.ns_readable()
+                }
+            } else {
+                if is_write {
+                    target.read_and_writable()
+                } else {
+                    target.readable()
+                }
+            }
+        } else {
+            false
+        }
+    }
+}
 
 #[unsafe(no_mangle)]
 pub unsafe fn main() {
@@ -54,9 +108,6 @@ pub unsafe fn main() {
         cortexm33::nvic::set_interrupt_non_secure(0, 140);
         cortexm33::nvic::enable_all();
     }
-
-    // useless. strangely only setting vector table in scb from ns works
-    // mxcm33::set_ns_vector_table_base(security::NONSECURE_START_FLASH as u32);
 
     // set msplim. There was one incident where then non-secure handled stack overflow.
     cortexm33::support::set_msplim(core::ptr::addr_of!(_sstack) as u32);
@@ -97,25 +148,21 @@ pub unsafe fn main() {
 
     configure_security();
 
-    let sec_platform = unsafe {
+    // Services are injected later as separate service binaries.
+    let processes: [EmbeddedProcess; 0] = [];
+
+    let platform = unsafe { static_init!(Psc3IpcPlatform, Psc3IpcPlatform) };
+
+    let spm = unsafe {
         static_init!(
-            Psc3SecPlatform,
-            Psc3SecPlatform {
-                initial_attestation: attest_service::AttestService::new(Psc3AttestPlatform),
-                crypto: crypto_service::CryptoService::new([
-                    0xc3, 0xfe, 0xe8, 0x4c, 0x73, 0x49, 0xd8, 0xe8, 0x44, 0x3d, 0xe4, 0xae, 0x65,
-                    0xf7, 0xea, 0x3b, 0xb8, 0x09, 0x3b, 0xe9, 0xb1, 0x5b, 0xc4, 0xbd, 0x4a, 0x54,
-                    0x95, 0x3c, 0xd3, 0x31, 0xce, 0x1b
-                ]),
-            }
+            spm::SpmIpc<Psc3IpcPlatform, 0, EmbeddedProcess>,
+            spm::SpmIpc::new(platform, processes)
         )
     };
 
-    let spm = unsafe { static_init!(spm::SpmFn<Psc3SecPlatform>, spm::SpmFn::new(sec_platform)) };
-
     psa_api::set_spm(spm);
 
-    io::debugln(format_args!("Init SPE done, jumping to non-secure"));
+    io::debugln(format_args!("Init SPE (IPC) done, jumping to non-secure"));
 
     #[cfg(all(target_arch = "arm", target_os = "none"))]
     unsafe {

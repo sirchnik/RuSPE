@@ -1,6 +1,6 @@
 use core::{panic, slice};
 
-use crate::spm::spm::{Connection, PSA_MAX_IOVEC, SpmCall, SpmError};
+use crate::spm::{Connection, PSA_MAX_IOVEC, SpmCall, SpmError};
 
 use crate::psa::psa_call::CallerAttributes;
 use psa_interface::types::ServiceHandle;
@@ -279,7 +279,7 @@ mod tests {
     use super::*;
     use crate::{
         psa::psa_call::{CallerAttributes, PsaMsg},
-        spm::spm::SpmError,
+        spm::SpmError,
     };
     use core::{cell::RefCell, ptr};
 

@@ -28,6 +28,6 @@ DEBUG_HELP = "Build the debug profile instead of release."
 
 @build_task(default=True, help={"debug": DEBUG_HELP})
 def build(ctx: Context, debug=False):
-    """Build the secure kernel ELF."""
+    """Build the secure kernel ELF (IPC model with embedded services)."""
 
     return cargo_build(ctx, BOARD, bool(debug))

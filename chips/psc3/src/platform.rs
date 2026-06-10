@@ -6,7 +6,7 @@ use psa_interface;
 use spe::{
     psa::psa_call::{CallerAttributes, PsaMsg},
     service::Service,
-    spm::spm::SpmPlatform,
+    spm::SpmPlatform,
 };
 
 use ruspe_cortexm::cmse;
