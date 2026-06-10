@@ -130,6 +130,13 @@ fn create_psa_token(writer: &mut impl Write) -> Result<(), TokenError> {
 }
 
 fn main() {
+    // TODO prevent jump to secure from non-privileged
+    // unsafe {
+    //     // jump to 0x32013f01
+    //     let func: extern "C" fn() = core::mem::transmute(0x32013f01usize);
+    //     func();
+    // }
+
     let mut writer = Console::writer();
 
     loop {

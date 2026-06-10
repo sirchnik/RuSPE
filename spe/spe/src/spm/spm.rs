@@ -1,4 +1,7 @@
-use crate::{libs::mutex::Mutex, psa::psa_call::{CallerAttributes, PsaMsg}};
+use crate::{
+    libs::mutex::Mutex,
+    psa::psa_call::{CallerAttributes, PsaMsg},
+};
 
 const MAX_CONNECTIONS: usize = 4;
 pub const PSA_MAX_IOVEC: usize = 4;

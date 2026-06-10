@@ -7,7 +7,6 @@ use crate::{
     psa::{psa_api, psa_call::PsaMsg},
     service::{Info, Service},
 };
-use core::mem::size_of;
 use p256::ecdsa::{Signature, SigningKey, signature::hazmat::PrehashSigner};
 use psa_interface::types::{TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID, TfmCryptoPackIovec};
 
@@ -44,24 +43,6 @@ impl CryptoService {
         signature_buf[..P256_SIGNATURE_SIZE].copy_from_slice(&sig.to_bytes());
         Ok(P256_SIGNATURE_SIZE)
     }
-
-    /// Parse a `TfmCryptoPackIovec` from raw invec bytes.
-    fn parse_pack_iovec(buf: &[u8]) -> Result<TfmCryptoPackIovec, StatusCode> {
-        if buf.len() != size_of::<TfmCryptoPackIovec>() {
-            return Err(StatusCode::ProgrammerError);
-        }
-        let mut iov = TfmCryptoPackIovec::for_sign_hash(0, 0);
-        let dst = core::ptr::from_mut::<TfmCryptoPackIovec>(&mut iov).cast::<u8>();
-        for (i, &b) in buf.iter().enumerate() {
-            // `dst` points to stack memory of exactly size_of::<TfmCryptoPackIovec>().
-            // `i` is bounded by `buf.len()` which we checked equals that size.
-            //
-            // # Safety:
-            // Writing to our own stack-allocated, correctly-sized struct.
-            unsafe { dst.add(i).write(b) };
-        }
-        Ok(iov)
-    }
 }
 
 impl Service for CryptoService {
@@ -72,11 +53,15 @@ impl Service for CryptoService {
     fn call(&self, msg: PsaMsg) -> Result<(), psa_interface::status::StatusCode> {
         // TF-M layout: invec[0] = TfmCryptoPackIovec, invec[1] = hash,
         //              outvec[0] = signature buffer.
-        let iov = psa_api::psa_map_invec(msg.handle, 0, Self::parse_pack_iovec)?;
+        psa_api::psa_map_invec(msg.handle, 0, |buf| -> Result<(), StatusCode> {
+            let iov: &TfmCryptoPackIovec =
+                bytemuck::try_from_bytes(buf).map_err(|_| StatusCode::ProgrammerError)?;
 
-        if iov.function_id != TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID {
-            return Err(psa_interface::status::StatusCode::NotSupported);
-        }
+            if iov.function_id != TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID {
+                return Err(StatusCode::NotSupported);
+            }
+            Ok(())
+        })?;
 
         psa_api::psa_map_invec_outvec(msg.handle, 1, 0, |hash, sig_buf| {
             let mut written_len = 0;
