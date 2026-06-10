@@ -3,6 +3,7 @@ use crate::service::Service;
 use crate::spm::spm_fn::ConnectionArray;
 use crate::spm::{Connection, SpmCall, SpmError, SpmPlatform};
 use crate::{libs::mutex::Mutex, psa::psa_call::CallerAttributes, spm::svc_call_unpriv};
+use core::mem::{align_of, size_of};
 use psa_interface::types::{PsaStatus, ServiceHandle};
 
 /// A process that can be managed and dispatched by the SPM IPC mechanism.
@@ -41,14 +42,18 @@ pub struct FlashProcessVectors {
     /// A minimal thunk in the service's flash region that executes `svc #0`
     /// to re-elevate after the unprivileged service function returns.
     pub svc_return: unsafe extern "C" fn(),
+    /// Lowest permitted PSP value for the service's dedicated stack window.
+    /// The SPM programs PSPLIM to this address before entering the service.
+    pub stack_limit: *const u8,
     /// Top of the service's stack in RAM (8-byte aligned).
     /// Used to place the PSP exception frame before each unprivileged call.
     pub stack_top: *const u8,
 }
 
 // # Safety
-// FlashProcessVectors contains a raw pointer (`stack_top`) which points to a
-// fixed RAM address that is immutable for the lifetime of the program.
+// FlashProcessVectors contains raw pointers (`stack_limit`, `stack_top`) which
+// point to fixed RAM addresses that are immutable for the lifetime of the
+// program.
 unsafe impl Sync for FlashProcessVectors {}
 
 #[derive(Clone, Copy, Debug)]
@@ -88,6 +93,7 @@ unsafe impl IpcProcess for FlashProcess {
                 vectors.init as usize,
                 0,
                 vectors.svc_return as usize,
+                vectors.stack_limit as usize,
                 vectors.stack_top as usize,
             );
         }
@@ -100,6 +106,7 @@ unsafe impl IpcProcess for FlashProcess {
                 vectors.call as usize,
                 &msg as *const PsaMsg as usize,
                 vectors.svc_return as usize,
+                vectors.stack_limit as usize,
                 vectors.stack_top as usize,
             )
         } as PsaStatus;

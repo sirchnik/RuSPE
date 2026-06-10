@@ -17,6 +17,78 @@ unsafe extern "C" {
 
 use crate::arch_v7m;
 
+#[derive(Clone, Copy)]
+struct FaultStatus {
+    cfsr: u32,
+    hfsr: u32,
+    mmfar: u32,
+    bfar: u32,
+    control: u32,
+    msp: u32,
+    psp: u32,
+    msplim: u32,
+    psplim: u32,
+}
+
+unsafe fn read_fault_status() -> FaultStatus {
+    use core::arch::asm;
+
+    let mut control: u32;
+    let mut msp: u32;
+    let mut psp: u32;
+    let mut msplim: u32;
+    let mut psplim: u32;
+
+    unsafe {
+        asm!(
+            "mrs {control}, CONTROL",
+            "mrs {msp}, MSP",
+            "mrs {psp}, PSP",
+            "mrs {msplim}, MSPLIM",
+            "mrs {psplim}, PSPLIM",
+            control = out(reg) control,
+            msp = out(reg) msp,
+            psp = out(reg) psp,
+            msplim = out(reg) msplim,
+            psplim = out(reg) psplim,
+            options(nomem, nostack, preserves_flags),
+        );
+    }
+
+    FaultStatus {
+        cfsr: unsafe { (0xE000_ED28 as *const u32).read_volatile() },
+        hfsr: unsafe { (0xE000_ED2C as *const u32).read_volatile() },
+        mmfar: unsafe { (0xE000_ED34 as *const u32).read_volatile() },
+        bfar: unsafe { (0xE000_ED38 as *const u32).read_volatile() },
+        control,
+        msp,
+        psp,
+        msplim,
+        psplim,
+    }
+}
+
+#[inline(never)]
+fn panic_with_fault_status(kind: &str, interrupt_number: u32, stack_overflow: u32) -> ! {
+    let status = unsafe { read_fault_status() };
+
+    panic!(
+        "{}. ISR {} is active. stack_overflow={} cfsr={:#010x} hfsr={:#010x} mmfar={:#010x} bfar={:#010x} control={:#010x} msp={:#010x} psp={:#010x} msplim={:#010x} psplim={:#010x}",
+        kind,
+        interrupt_number & 0x1ff,
+        stack_overflow,
+        status.cfsr,
+        status.hfsr,
+        status.mmfar,
+        status.bfar,
+        status.control,
+        status.msp,
+        status.psp,
+        status.msplim,
+        status.psplim,
+    );
+}
+
 unsafe extern "C" fn svc_handler_dispatch(
     frame: *mut spe::psa::psa_svc_api::SvcStackFrame,
     svc_num: u32,
@@ -95,8 +167,8 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     sec_initialize_ram_jump_to_main,
     unhandled_interrupt, // NMI
     hard_fault_handler,  // Hard Fault
-    unhandled_interrupt, // MemManage
-    unhandled_interrupt, // BusFault
+    mem_manage_handler,  // MemManage
+    bus_fault_handler,   // BusFault
     unhandled_interrupt, // UsageFault
     unhandled_interrupt,
     unhandled_interrupt,
@@ -190,12 +262,42 @@ pub unsafe extern "C" fn hard_fault_handler() {
     );
 }
 
-pub unsafe extern "C" fn hard_fault_handler_real(interrupt_number: u32, stack_overflow: u32) {
-    panic!(
-        "Hard Fault. ISR {} is active. stack_overflow={}",
-        interrupt_number & 0x1ff,
-        stack_overflow
+#[unsafe(naked)]
+pub unsafe extern "C" fn mem_manage_handler() {
+    use core::arch::naked_asm;
+    naked_asm!(
+        "
+    movs r1, #0
+    mrs r0, ipsr
+    b {fault_handler}
+        ",
+        fault_handler = sym mem_manage_handler_real,
     );
+}
+
+#[unsafe(naked)]
+pub unsafe extern "C" fn bus_fault_handler() {
+    use core::arch::naked_asm;
+    naked_asm!(
+        "
+    movs r1, #0
+    mrs r0, ipsr
+    b {fault_handler}
+        ",
+        fault_handler = sym bus_fault_handler_real,
+    );
+}
+
+pub unsafe extern "C" fn hard_fault_handler_real(interrupt_number: u32, stack_overflow: u32) {
+    panic_with_fault_status("Hard Fault", interrupt_number, stack_overflow);
+}
+
+pub unsafe extern "C" fn mem_manage_handler_real(interrupt_number: u32, stack_overflow: u32) {
+    panic_with_fault_status("MemManage Fault", interrupt_number, stack_overflow);
+}
+
+pub unsafe extern "C" fn bus_fault_handler_real(interrupt_number: u32, stack_overflow: u32) {
+    panic_with_fault_status("Bus Fault", interrupt_number, stack_overflow);
 }
 
 pub unsafe extern "C" fn unhandled_interrupt() {

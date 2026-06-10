@@ -19,6 +19,7 @@ unsafe extern "C" {
     static _sdata: *const u32;
     static _edata: *const u32;
     static _etext: *const u32;
+    static _stack_limit: *const u32;
     static _stack_top: *const u32;
 }
 
@@ -89,6 +90,7 @@ pub static BASE_VECTORS: FlashProcessVectors = FlashProcessVectors {
     init,
     call,
     svc_return,
+    stack_limit: unsafe { &_stack_limit as *const _ as *const u8 },
     stack_top: unsafe { &_stack_top as *const _ as *const u8 },
 };
 
