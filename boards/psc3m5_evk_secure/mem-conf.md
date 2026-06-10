@@ -37,9 +37,9 @@ These address spaces share the **same** physical Flash though.
 
 | Region                      |     Size |             Configuration |
 | --------------------------- | -------: | ------------------------: |
-| `0x3200_0000`-`0x3201_3F00` | 79,75 KB |                Secure (S) |
-| `0x3201_3F00`-`0x3201_4000` |    256 B | Non-Secure Callable (NSC) |
-| `0x2201_4000`-`0x2204_0000` |   176 KB |           Non-Secure (NS) |
+| `0x3200_0000`-`0x3201_FF00` | 127.75 KB|                Secure (S) |
+| `0x3201_FF00`-`0x3202_0000` |    256 B | Non-Secure Callable (NSC) |
+| `0x2202_0000`-`0x2204_0000` |   128 KB |           Non-Secure (NS) |
 
 ## Implementation
 

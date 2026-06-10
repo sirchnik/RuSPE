@@ -26,9 +26,9 @@ SERVICE_CONF = ServiceConfig(
     service_dir=SERVICE_DIR,
     handle_variant="psa_interface::types::ServiceHandle::AttestationService",
     flash_origin="0x32010000",
-    flash_length="0x2F00",
+    flash_length="0x3800",
     ram_origin="0x34002F00",
-    ram_length="0x1100",
+    ram_length="0x1400",
 )
 
 

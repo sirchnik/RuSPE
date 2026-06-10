@@ -12,12 +12,10 @@ use psa_interface::{
 use crate::psa::{psa_api, psa_call, psa_iovec_api::RawVec};
 
 pub const SVC_ELEVATE: u8 = 0;
-pub const SVC_PSA_PREPARE_INVEC: u8 = 1;
-pub const SVC_PSA_FINISH_INVEC: u8 = 2;
-pub const SVC_PSA_PREPARE_OUTVEC: u8 = 3;
-pub const SVC_PSA_FINISH_OUTVEC: u8 = 4;
-pub const SVC_CALL_UNPRIV: u8 = 5;
-pub const SVC_PSA_CALL: u8 = 6;
+pub const SVC_PSA_MAP_VEC: u8 = 1;
+pub const SVC_PSA_UNMAP_VEC: u8 = 2;
+pub const SVC_CALL_UNPRIV: u8 = 3;
+pub const SVC_PSA_CALL: u8 = 4;
 
 #[repr(C)]
 pub struct SvcStackFrame {
@@ -75,11 +73,7 @@ fn handle_svc_with_spm(
 ) -> bool {
     let Some(spm) = spm else {
         return match svc_num {
-            SVC_PSA_PREPARE_INVEC
-            | SVC_PSA_FINISH_INVEC
-            | SVC_PSA_PREPARE_OUTVEC
-            | SVC_PSA_FINISH_OUTVEC
-            | SVC_PSA_CALL => {
+            SVC_PSA_MAP_VEC | SVC_PSA_UNMAP_VEC | SVC_PSA_CALL => {
                 set_error(frame, StatusCode::CommunicationFailure);
                 true
             }
@@ -96,31 +90,26 @@ fn handle_svc_with_spm(
     };
 
     match svc_num {
-        SVC_PSA_PREPARE_INVEC => {
-            match crate::psa::psa_iovec_api::psa_prepare_invec(spm, handle, frame.r1 as u32) {
+        SVC_PSA_MAP_VEC => {
+            let is_outvec = frame.r2 != 0;
+            let result = if is_outvec {
+                crate::psa::psa_iovec_api::psa_prepare_outvec(spm, handle, frame.r1 as u32)
+            } else {
+                crate::psa::psa_iovec_api::psa_prepare_invec(spm, handle, frame.r1 as u32)
+            };
+            match result {
                 Ok(raw) => set_raw_vec(frame, raw),
                 Err(status) => set_error(frame, status),
             }
         }
-        SVC_PSA_FINISH_INVEC => {
-            match crate::psa::psa_iovec_api::psa_finish_invec(spm, handle, frame.r1 as u32) {
-                Ok(()) => set_success(frame),
-                Err(status) => set_error(frame, status),
-            }
-        }
-        SVC_PSA_PREPARE_OUTVEC => {
-            match crate::psa::psa_iovec_api::psa_prepare_outvec(spm, handle, frame.r1 as u32) {
-                Ok(raw) => set_raw_vec(frame, raw),
-                Err(status) => set_error(frame, status),
-            }
-        }
-        SVC_PSA_FINISH_OUTVEC => {
-            match crate::psa::psa_iovec_api::psa_finish_outvec(
-                spm,
-                handle,
-                frame.r1 as u32,
-                frame.r2,
-            ) {
+        SVC_PSA_UNMAP_VEC => {
+            let is_outvec = frame.r2 != 0;
+            let result = if is_outvec {
+                crate::psa::psa_iovec_api::psa_finish_outvec(spm, handle, frame.r1 as u32, frame.r3)
+            } else {
+                crate::psa::psa_iovec_api::psa_finish_invec(spm, handle, frame.r1 as u32)
+            };
+            match result {
                 Ok(()) => set_success(frame),
                 Err(status) => set_error(frame, status),
             }
@@ -227,9 +216,8 @@ pub fn psa_map_invec<R>(
     invec_idx: u32,
     f: impl FnOnce(&[u8]) -> R,
 ) -> R {
-    let (status, base, len, _) = unsafe {
-        svc_call::<SVC_PSA_PREPARE_INVEC>(msg_handle as usize, invec_idx as usize, 0, 0)
-    };
+    let (status, base, len, _) =
+        unsafe { svc_call::<SVC_PSA_MAP_VEC>(msg_handle as usize, invec_idx as usize, 0, 0) };
     status_from_raw(status).unwrap_or_else(|err| panic!("failed to map input vector: {:?}", err));
 
     let invec = if len == 0 {
@@ -239,9 +227,8 @@ pub fn psa_map_invec<R>(
     };
     let result = f(invec);
 
-    let (status, _, _, _) = unsafe {
-        svc_call::<SVC_PSA_FINISH_INVEC>(msg_handle as usize, invec_idx as usize, 0, 0)
-    };
+    let (status, _, _, _) =
+        unsafe { svc_call::<SVC_PSA_UNMAP_VEC>(msg_handle as usize, invec_idx as usize, 0, 0) };
     status_from_raw(status).unwrap_or_else(|err| panic!("failed to unmap input vector: {:?}", err));
 
     result
@@ -252,9 +239,8 @@ pub fn psa_map_outvec<R>(
     outvec_idx: u32,
     f: impl FnOnce(&mut [u8]) -> (R, usize),
 ) -> R {
-    let (status, base, len, _) = unsafe {
-        svc_call::<SVC_PSA_PREPARE_OUTVEC>(msg_handle as usize, outvec_idx as usize, 0, 0)
-    };
+    let (status, base, len, _) =
+        unsafe { svc_call::<SVC_PSA_MAP_VEC>(msg_handle as usize, outvec_idx as usize, 1, 0) };
     status_from_raw(status).unwrap_or_else(|err| panic!("failed to map output vector: {:?}", err));
 
     let outvec = if len == 0 {
@@ -265,7 +251,7 @@ pub fn psa_map_outvec<R>(
     let (result, written_len) = f(outvec);
 
     let (status, _, _, _) = unsafe {
-        svc_call::<SVC_PSA_FINISH_OUTVEC>(msg_handle as usize, outvec_idx as usize, written_len, 0)
+        svc_call::<SVC_PSA_UNMAP_VEC>(msg_handle as usize, outvec_idx as usize, 1, written_len)
     };
     status_from_raw(status)
         .unwrap_or_else(|err| panic!("failed to commit output vector: {:?}", err));
@@ -279,15 +265,13 @@ pub fn psa_map_invec_outvec<R>(
     outvec_idx: u32,
     f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize),
 ) -> R {
-    let (in_status, in_base, in_len, _) = unsafe {
-        svc_call::<SVC_PSA_PREPARE_INVEC>(msg_handle as usize, invec_idx as usize, 0, 0)
-    };
+    let (in_status, in_base, in_len, _) =
+        unsafe { svc_call::<SVC_PSA_MAP_VEC>(msg_handle as usize, invec_idx as usize, 0, 0) };
     status_from_raw(in_status)
         .unwrap_or_else(|err| panic!("failed to map input vector: {:?}", err));
 
-    let (out_status, out_base, out_len, _) = unsafe {
-        svc_call::<SVC_PSA_PREPARE_OUTVEC>(msg_handle as usize, outvec_idx as usize, 0, 0)
-    };
+    let (out_status, out_base, out_len, _) =
+        unsafe { svc_call::<SVC_PSA_MAP_VEC>(msg_handle as usize, outvec_idx as usize, 1, 0) };
     status_from_raw(out_status)
         .unwrap_or_else(|err| panic!("failed to map output vector: {:?}", err));
 
@@ -305,80 +289,15 @@ pub fn psa_map_invec_outvec<R>(
     let (result, written_len) = f(invec, outvec);
 
     let (out_status, _, _, _) = unsafe {
-        svc_call::<SVC_PSA_FINISH_OUTVEC>(msg_handle as usize, outvec_idx as usize, written_len, 0)
+        svc_call::<SVC_PSA_UNMAP_VEC>(msg_handle as usize, outvec_idx as usize, 1, written_len)
     };
     status_from_raw(out_status)
         .unwrap_or_else(|err| panic!("failed to commit output vector: {:?}", err));
 
-    let (in_status, _, _, _) = unsafe {
-        svc_call::<SVC_PSA_FINISH_INVEC>(msg_handle as usize, invec_idx as usize, 0, 0)
-    };
+    let (in_status, _, _, _) =
+        unsafe { svc_call::<SVC_PSA_UNMAP_VEC>(msg_handle as usize, invec_idx as usize, 0, 0) };
     status_from_raw(in_status)
         .unwrap_or_else(|err| panic!("failed to unmap input vector: {:?}", err));
-
-    result
-}
-
-pub fn psa_read(
-    msg_handle: ServiceHandle,
-    invec_idx: u32,
-    buffer: &mut [u8],
-) -> Result<usize, StatusCode> {
-    let (status, base, len, _) = unsafe {
-        svc_call::<SVC_PSA_PREPARE_INVEC>(msg_handle as usize, invec_idx as usize, 0, 0)
-    };
-    let result = (|| {
-        status_from_raw(status)?;
-
-        if len > buffer.len() {
-            return Err(StatusCode::BufferTooSmall);
-        }
-
-        if len != 0 {
-            let invec = unsafe { slice::from_raw_parts(base as *const u8, len) };
-            buffer[..len].copy_from_slice(invec);
-        }
-
-        Ok(len)
-    })();
-
-    let (finish_status, _, _, _) = unsafe {
-        svc_call::<SVC_PSA_FINISH_INVEC>(msg_handle as usize, invec_idx as usize, 0, 0)
-    };
-    status_from_raw(finish_status)?;
-
-    result
-}
-
-pub fn psa_write(
-    msg_handle: ServiceHandle,
-    outvec_idx: u32,
-    buffer: &[u8],
-) -> Result<usize, StatusCode> {
-    let (status, base, len, _) = unsafe {
-        svc_call::<SVC_PSA_PREPARE_OUTVEC>(msg_handle as usize, outvec_idx as usize, 0, 0)
-    };
-    status_from_raw(status)?;
-
-    let (result, written_len) = if len < buffer.len() {
-        if len != 0 {
-            unsafe { slice::from_raw_parts_mut(base as *mut u8, len) }.fill(0);
-        }
-        (Err(StatusCode::BufferTooSmall), 0)
-    } else {
-        if !buffer.is_empty() {
-            let outvec = unsafe { slice::from_raw_parts_mut(base as *mut u8, len) };
-            outvec[..buffer.len()].copy_from_slice(buffer);
-        }
-        // TODO: Decide whether service-side copy APIs should support TF-M-style
-        // partial reads/writes or keep the current strict full-fit behavior.
-        (Ok(buffer.len()), buffer.len())
-    };
-
-    let (finish_status, _, _, _) = unsafe {
-        svc_call::<SVC_PSA_FINISH_OUTVEC>(msg_handle as usize, outvec_idx as usize, written_len, 0)
-    };
-    status_from_raw(finish_status)?;
 
     result
 }
@@ -575,6 +494,9 @@ mod tests {
         };
 
         assert!(handle_svc_with_spm(SVC_PSA_CALL, &mut frame, None));
-        assert_eq!(frame.r0, StatusCode::CommunicationFailure as PsaStatus as usize);
+        assert_eq!(
+            frame.r0,
+            StatusCode::CommunicationFailure as PsaStatus as usize
+        );
     }
 }

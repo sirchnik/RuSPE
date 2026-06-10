@@ -255,8 +255,8 @@
                     {
                         "comment_1": "First Section left with defaults for secure flash.",
                         "description": "Non-Secure Flash + NSC Flash",
-                        "offset": "96 KB",
-                        "size": "160 KB",
+                        "offset": "128 KB",
+                        "size": "128 KB",
                         "attr": {
                             "value": {
                                 "pc0": "WR-",
