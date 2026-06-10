@@ -210,15 +210,6 @@ impl<P: AttestPlatform> Service for AttestService<P> {
         }
 
         if msg.msg_type == psa_interface::types::AttestationServiceType::GetToken as i32 {
-            // TODO only allocate for ipc
-            let mut challenge = [0u8; 64];
-            let challenge_len = psa_api::psa_read(msg.handle, 0, &mut challenge)?;
-            let challenge = &challenge[..challenge_len];
-
-            if !Self::challenge_size_is_supported(challenge.len()) {
-                return Err(StatusCode::InvalidArgument);
-            }
-
             let mut boot_seed = [0u8; 32];
             self.platform.boot_seed(&mut boot_seed)?;
 
@@ -256,17 +247,24 @@ impl<P: AttestPlatform> Service for AttestService<P> {
             );
 
             let mut token = [0u8; PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE];
-            let written_len =
-                self.initial_attest_get_token(challenge, &additional_claims, &mut token)?;
+            let written_len = psa_api::psa_map_invec(msg.handle, 0, |challenge| {
+                if !Self::challenge_size_is_supported(challenge.len()) {
+                    return Err(StatusCode::InvalidArgument);
+                }
+                self.initial_attest_get_token(challenge, &additional_claims, &mut token)
+            })?;
             psa_api::psa_write(msg.handle, 0, &token[..written_len])?;
             Ok(())
         } else if msg.msg_type == psa_interface::types::AttestationServiceType::GetTokenSize as i32
         {
-            let mut challenge_size = [0u8; size_of::<usize>()];
-            let challenge_size_len = psa_api::psa_read(msg.handle, 0, &mut challenge_size)?;
-            if challenge_size_len != size_of::<usize>() {
-                return Err(StatusCode::InvalidArgument);
-            }
+            let challenge_size = psa_api::psa_map_invec(msg.handle, 0, |challenge_size_buf| {
+                if challenge_size_buf.len() != size_of::<usize>() {
+                    return Err(StatusCode::InvalidArgument);
+                }
+                let mut challenge_size_array = [0u8; size_of::<usize>()];
+                challenge_size_array.copy_from_slice(challenge_size_buf);
+                Ok(usize::from_ne_bytes(challenge_size_array))
+            })?;
 
             let mut boot_seed = [0u8; 32];
             self.platform.boot_seed(&mut boot_seed)?;
@@ -276,10 +274,8 @@ impl<P: AttestPlatform> Service for AttestService<P> {
                 value: AttestClaimValue::Bytes(&boot_seed),
             }];
 
-            let token_size = self.initial_attest_get_token_size(
-                usize::from_ne_bytes(challenge_size),
-                &additional_claims,
-            )?;
+            let token_size =
+                self.initial_attest_get_token_size(challenge_size, &additional_claims)?;
 
             let token_size_bytes = token_size.to_ne_bytes();
             psa_api::psa_write(msg.handle, 0, &token_size_bytes)?;

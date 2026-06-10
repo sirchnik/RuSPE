@@ -25,9 +25,9 @@ SERVICE_CONF = ServiceConfig(
     repo_root=REPO_ROOT,
     service_dir=SERVICE_DIR,
     handle_variant="psa_interface::types::ServiceHandle::Crypto",
-    flash_origin="0x32012F00",
+    flash_origin="0x32013800",
     flash_length="0x5000",
-    ram_origin="0x34004000",
+    ram_origin="0x34004300",
     ram_length="0x900",
 )
 
