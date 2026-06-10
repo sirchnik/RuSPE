@@ -14,6 +14,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from boards.psc3m5_evk_secure import tasks as secure_tasks  # noqa: E402
+from boards.psc3m5_evk_secure_ipc import tasks as secure_ipc_tasks  # noqa: E402
 from boards.tock.psa_tock_app import tasks as app_tasks  # noqa: E402
 from tools.build.invoke_support import build_task  # noqa: E402
 from tools.build.board import (  # noqa: E402
@@ -26,10 +27,19 @@ from tools.build.board import (  # noqa: E402
 )
 
 NON_SECURE_BOARD_DIR = Path(__file__).resolve().parent
-SECURE_BOARD_DIR = NON_SECURE_BOARD_DIR.parent.parent / "psc3m5_evk_secure"
+SECURE_BOARD_FN_DIR = NON_SECURE_BOARD_DIR.parent.parent / "psc3m5_evk_secure"
+SECURE_BOARD_IPC_DIR = NON_SECURE_BOARD_DIR.parent.parent / "psc3m5_evk_secure_ipc"
 
-SECURE_BOARD = BoardConfig(
-    board_dir=SECURE_BOARD_DIR,
+SECURE_BOARD_FN = BoardConfig(
+    board_dir=SECURE_BOARD_FN_DIR,
+    repo_root=REPO_ROOT,
+    manufacturer=Manufacturer.INFINEON,
+    chip="PSC3M5FDS2AFQ1",
+    openocd_tcl=NON_SECURE_BOARD_DIR / "openocd.tcl",
+)
+
+SECURE_BOARD_IPC = BoardConfig(
+    board_dir=SECURE_BOARD_IPC_DIR,
     repo_root=REPO_ROOT,
     manufacturer=Manufacturer.INFINEON,
     chip="PSC3M5FDS2AFQ1",
@@ -49,6 +59,7 @@ APP_HELP = (
     "When omitted the psa_tock_app is built and used automatically."
 )
 DEBUG_HELP = "Build the debug profile instead of release."
+IPC_HELP = "Build with the secure IPC kernel instead of the function-style kernel."
 TOOLS = ["cargo", "objcopy", "probe-rs", "openocd", "elf2tab"]
 
 
@@ -58,45 +69,56 @@ def _resolve_app(ctx: Context, app: str | None, debug: bool) -> str | None:
     return str(app_tasks.build(ctx, debug=debug))
 
 
-def _build_merged(ctx: Context, app: str | None, debug: bool) -> Path:
+def _build_merged(ctx: Context, app: str | None, debug: bool, ipc: bool) -> Path:
     app = _resolve_app(ctx, app, debug)
-    secure_elf = secure_tasks.build(ctx, debug=debug)
+    if ipc:
+        secure_elf, services = secure_ipc_tasks.build(ctx, debug=debug)
+        secure_board = SECURE_BOARD_IPC
+        extra_hexes = [s.hex_path for s in services]
+    else:
+        secure_elf = secure_tasks.build(ctx, debug=debug)
+        secure_board = SECURE_BOARD_FN
+        extra_hexes = []
+
     non_secure_elf = build_non_secure(ctx, NON_SECURE_BOARD, debug, app)
     return merge_secure_non_secure_hex(
         ctx,
-        SECURE_BOARD,
+        secure_board,
         NON_SECURE_BOARD,
         secure_elf,
         non_secure_elf,
         debug,
+        extra_hexes,
     )
 
 
-@build_task(help={"app": APP_HELP, "debug": DEBUG_HELP})
-def build(ctx: Context, app=None, debug=False):
+@build_task(help={"app": APP_HELP, "debug": DEBUG_HELP, "ipc": IPC_HELP})
+def build(ctx: Context, app=None, debug=False, ipc=False):
     """Build the secure image, merge it with the non-secure kernel, and write a HEX output."""
 
-    return _build_merged(ctx, app, debug)
+    return _build_merged(ctx, app, bool(debug), bool(ipc))
 
 
-@build_task(help={"app": APP_HELP, "debug": DEBUG_HELP})
-def flash(ctx: Context, app=None, debug=False):
+@build_task(help={"app": APP_HELP, "debug": DEBUG_HELP, "ipc": IPC_HELP})
+def flash(ctx: Context, app=None, debug=False, ipc=False):
     """Build, merge, and flash the secure and non-secure images with probe-rs."""
 
-    merged = _build_merged(ctx, app, debug)
-    return flash_hex(ctx, SECURE_BOARD, merged)
+    merged = _build_merged(ctx, app, bool(debug), bool(ipc))
+    secure_board = SECURE_BOARD_IPC if ipc else SECURE_BOARD_FN
+    return flash_hex(ctx, secure_board, merged)
 
 
-@build_task(help={"app": APP_HELP, "debug": DEBUG_HELP})
-def program(ctx: Context, app=None, debug=False):
+@build_task(help={"app": APP_HELP, "debug": DEBUG_HELP, "ipc": IPC_HELP})
+def program(ctx: Context, app=None, debug=False, ipc=False):
     """Build, merge, and program the secure image with OpenOCD."""
 
-    merged = _build_merged(ctx, app, debug)
-    return program_hex(ctx, SECURE_BOARD, merged)
+    merged = _build_merged(ctx, app, bool(debug), bool(ipc))
+    secure_board = SECURE_BOARD_IPC if ipc else SECURE_BOARD_FN
+    return program_hex(ctx, secure_board, merged)
 
 
-@build_task(default=True, help={"app": APP_HELP, "debug": DEBUG_HELP})
-def install(ctx: Context, app=None, debug=False):
+@build_task(default=True, help={"app": APP_HELP, "debug": DEBUG_HELP, "ipc": IPC_HELP})
+def install(ctx: Context, app=None, debug=False, ipc=False):
     """Alias for flash."""
 
-    return flash(ctx, app=app, debug=debug)
+    return flash(ctx, app=app, debug=debug, ipc=ipc)

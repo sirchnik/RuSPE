@@ -73,13 +73,21 @@ def _tasks_targets(release: bool = False) -> list[dict]:
     profile_short_snake = "_r" if release else "_d"
     if os.name == "nt":
         build_command = f'& "{inv_executable}" build{debug_arg}'
+        build_ipc_command = f'& "{inv_executable}" build{debug_arg} --ipc'
         build_with_app_command = f'$app = \'${{config:tock.app}}\'; if ($app) {{ & "{inv_executable}" build{debug_arg} --app "$app" }} else {{ & "{inv_executable}" build{debug_arg} }}'
+        build_with_app_ipc_command = f'$app = \'${{config:tock.app}}\'; if ($app) {{ & "{inv_executable}" build{debug_arg} --ipc --app "$app" }} else {{ & "{inv_executable}" build{debug_arg} --ipc }}'
     else:
         build_command = f'"{inv_executable}" build{debug_arg}'
+        build_ipc_command = f'"{inv_executable}" build{debug_arg} --ipc'
         build_with_app_command = (
             "app='${config:tock.app}'; "
             f'if [ -n "$app" ]; then "{inv_executable}" build{debug_arg} --app "$app"; '
             f'else "{inv_executable}" build{debug_arg}; fi'
+        )
+        build_with_app_ipc_command = (
+            "app='${config:tock.app}'; "
+            f'if [ -n "$app" ]; then "{inv_executable}" build{debug_arg} --ipc --app "$app"; '
+            f'else "{inv_executable}" build{debug_arg} --ipc; fi'
         )
 
     common_task = {
@@ -98,9 +106,21 @@ def _tasks_targets(release: bool = False) -> list[dict]:
         },
         {
             **common_task,
+            "label": f"build{profile_short_snake}.psc3m5_evk_test_ipc",
+            "options": {"cwd": "${workspaceFolder}/boards/psc3m5_evk_test"},
+            "command": build_ipc_command,
+        },
+        {
+            **common_task,
             "label": f"build{profile_short_snake}.psc3m5_evk_tock",
             "options": {"cwd": "${workspaceFolder}/boards/tock/psc3m5_evk_tock"},
             "command": build_with_app_command,
+        },
+        {
+            **common_task,
+            "label": f"build{profile_short_snake}.psc3m5_evk_tock_ipc",
+            "options": {"cwd": "${workspaceFolder}/boards/tock/psc3m5_evk_tock"},
+            "command": build_with_app_ipc_command,
         },
         {
             **common_task,
@@ -131,7 +151,7 @@ def _launch_targets(release: bool = False) -> list[dict]:
     }
     return [
         {
-            "name": f"PSC3-Test {profile_short}",
+            "name": f"Test-PSC3 FN {profile_short}",
             **psc3m5_base_conf,
             "executable": f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test_merged.hex",
             "preLaunchCommands": [
@@ -141,7 +161,19 @@ def _launch_targets(release: bool = False) -> list[dict]:
             "preLaunchTask": f"build{profile_short_snake}.psc3m5_evk_test",
         },
         {
-            "name": f"PSC3-Tock {profile_short}",
+            "name": f"Test-PSC3 IPC {profile_short}",
+            **psc3m5_base_conf,
+            "executable": f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test_merged.hex",
+            "preLaunchCommands": [
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure_ipc",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_attest",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_crypto",
+            ],
+            "preLaunchTask": f"build{profile_short_snake}.psc3m5_evk_test_ipc",
+        },
+        {
+            "name": f"Tock-PSC3 FN {profile_short}",
             **psc3m5_base_conf,
             "executable": f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock_merged.hex",
             "preLaunchCommands": [
@@ -152,15 +184,17 @@ def _launch_targets(release: bool = False) -> list[dict]:
             "preLaunchTask": f"build{profile_short_snake}.psc3m5_evk_tock",
         },
         {
-            "name": f"PSC3-IPC {profile_short}",
+            "name": f"Tock-PSC3 IPC {profile_short}",
             **psc3m5_base_conf,
-            "executable": f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure_ipc_merged.hex",
+            "executable": f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock_merged.hex",
             "preLaunchCommands": [
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock",
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure_ipc",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psa_tock_app",
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_attest",
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_crypto",
             ],
-            "preLaunchTask": f"build{profile_short_snake}.psc3m5_evk_secure_ipc",
+            "preLaunchTask": f"build{profile_short_snake}.psc3m5_evk_tock_ipc",
         },
     ]
 

@@ -30,7 +30,7 @@ type GUIConfig struct {
 func startGUI(cfg GUIConfig) {
 	// Map /static/ directly to the embedded files
 	http.Handle("/static/", http.FileServer(http.FS(staticFiles)))
-	
+
 	// Redirect root to /static/index.html
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
@@ -62,10 +62,21 @@ func startGUI(cfg GUIConfig) {
 			return
 		}
 
+		type TokenRequest struct {
+			Nonce string `json:"nonce"`
+		}
+		var req TokenRequest
+		if r.Body != nil {
+			_ = json.NewDecoder(r.Body).Decode(&req)
+		}
+
 		tokenHex := ""
 		switch cfg.TokenSrc {
 		case "tty":
-			nonce := cfg.Nonce
+			nonce := req.Nonce
+			if nonce == "" {
+				nonce = cfg.Nonce
+			}
 			if nonce == "" {
 				b := make([]byte, 32)
 				_ = randRead(b)

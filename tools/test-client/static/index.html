@@ -15,46 +15,71 @@
 
         <main>
             <section class="animation-section">
-                <div class="arch-diagram" id="arch-diagram" style="position: relative;">
-                    <svg id="trail-svg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5;"></svg>
-                    <div class="rich-world">
-                        <div class="apps-row">
-                            <div class="node app-node" id="node-app">
-                                <div class="icon">📱</div>
-                                <span>Tock App</span>
-                            </div>
-                            <div class="node app-node placeholder">
-                                <span>App 2</span>
-                            </div>
-                            <div class="node app-node placeholder">
-                                <span>App 3</span>
-                            </div>
-                        </div>
-                        <div class="node os-node" id="node-kernel">
-                            <div class="icon">⚙️</div>
-                            <span>Kernel (Rich OS)</span>
+                <div class="system-container" id="system-container">
+                    <svg id="trail-svg"></svg>
+                    
+                    <div class="pc-box">
+                        <div class="node pc-node" id="node-pc">
+                            <div class="icon">💻</div>
+                            <span>PC</span>
                         </div>
                     </div>
-                    <div class="world-divider"></div>
-                    <div class="secure-world">
-                        <div class="apps-row">
-                            <div class="node service-node" id="node-attest">
-                                <div class="icon">📜</div>
-                                <span>Attest Service</span>
+                    
+                    <div class="uart-channel">
+                        <div class="uart-label">UART</div>
+                        <div class="uart-anim-line tx-line" id="uart-tx"></div>
+                        <div class="uart-line"></div>
+                        <div class="uart-anim-line rx-line" id="uart-rx"></div>
+                    </div>
+
+                    <div class="chip-container">
+                        <div class="chip-label">CHIP</div>
+                        <div class="arch-diagram" id="arch-diagram">
+                            <div class="rich-world">
+                            <div class="apps-row">
+                                <div class="node app-node" id="node-app">
+                                    <div class="icon">📱</div>
+                                    <span>Tock App</span>
+                                </div>
+                                <div class="node app-node placeholder">
+                                    <span>App 2</span>
+                                </div>
+                                <div class="node app-node placeholder">
+                                    <span>App 3</span>
+                                </div>
                             </div>
-                            <div class="node service-node" id="node-crypto">
-                                <div class="icon">🔑</div>
-                                <span>Crypto Service</span>
+                            <div class="node os-node" id="node-kernel">
+                                <div class="icon">⚙️</div>
+                                <span>Kernel (Rich OS)</span>
                             </div>
                         </div>
-                        <div class="node os-node" id="node-spe">
-                            <div class="icon">🛡️</div>
-                            <span>SPE (Secure OS)</span>
+                        <div class="world-divider"></div>
+                        <div class="secure-world">
+                            <div class="apps-row">
+                                <div class="node service-node" id="node-attest">
+                                    <div class="icon">📜</div>
+                                    <span>Attest Service</span>
+                                </div>
+                                <div class="node service-node" id="node-crypto">
+                                    <div class="icon">🔑</div>
+                                    <span>Crypto Service</span>
+                                </div>
+                            </div>
+                            <div class="node os-node" id="node-spe">
+                                <div class="icon">🛡️</div>
+                                <span>SPE (Secure OS)</span>
+                            </div>
                         </div>
                     </div>
                 </div>
-                
+            </div>
+
                 <div class="controls">
+                    <div class="nonce-inline-group">
+                        <label for="nonce-input">Nonce:</label>
+                        <input type="text" id="nonce-input" placeholder="Nonce (64-hex)..." class="text-input-small" maxlength="64" />
+                        <button id="regen-nonce-btn" class="action-button-small" title="Generate Random Nonce">🔄</button>
+                    </div>
                     <button id="fetch-btn" class="glow-button">Fetch & Verify Token</button>
                     <div id="status-text" class="status-text">Ready</div>
                 </div>

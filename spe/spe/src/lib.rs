@@ -8,10 +8,10 @@
 )]
 #![no_std]
 
-pub mod hil;
-pub mod internal_trusted_storage;
 #[cfg(target_arch = "arm")]
 pub mod faults;
+pub mod hil;
+pub mod internal_trusted_storage;
 mod libs;
 
 pub mod psa;

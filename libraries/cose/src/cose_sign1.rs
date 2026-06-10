@@ -230,11 +230,7 @@ impl<'a, C: CoseCrypto> CoseSign1<'a, C> {
             payload_is_detached: self.option_flags.detached_payload,
         })
     }
-
-
 }
-
-
 
 fn encode_protected_headers() -> Result<([u8; 16], usize), CoseSign1Error> {
     let mut protected_headers = [0u8; 16];
@@ -438,8 +434,6 @@ mod tests {
         assert!(!encoded.payload_is_detached);
         assert_eq!(&out[..encoded.encoded_len], EXPECTED_ENCODED_COSE_SIGN1);
     }
-
-
 
     #[test]
     fn encode_payload_bstr_empty() {

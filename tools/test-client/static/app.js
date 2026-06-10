@@ -2,8 +2,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const fetchBtn = document.getElementById('fetch-btn');
     const statusText = document.getElementById('status-text');
     const resultsSection = document.getElementById('results-section');
+    const nonceInput = document.getElementById('nonce-input');
+    const regenNonceBtn = document.getElementById('regen-nonce-btn');
+
+    const generateRandomNonce = () => {
+        const arr = new Uint8Array(32);
+        window.crypto.getRandomValues(arr);
+        return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
+    };
+
+    if (nonceInput) {
+        nonceInput.value = generateRandomNonce();
+    }
+
+    if (regenNonceBtn && nonceInput) {
+        regenNonceBtn.addEventListener('click', () => {
+            nonceInput.value = generateRandomNonce();
+        });
+    }
     
     const nodes = {
+        pc: document.getElementById('node-pc'),
         app: document.getElementById('node-app'),
         kernel: document.getElementById('node-kernel'),
         spe: document.getElementById('node-spe'),
@@ -24,19 +43,19 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const svg = document.getElementById('trail-svg');
-    const diagram = document.getElementById('arch-diagram');
+    const systemContainer = document.getElementById('system-container');
     let trailConnections = [];
 
     const getCenter = (node) => {
         const rect = node.getBoundingClientRect();
-        const diagRect = diagram.getBoundingClientRect();
+        const containerRect = systemContainer.getBoundingClientRect();
         return {
-            x: rect.left - diagRect.left + rect.width / 2,
-            y: rect.top - diagRect.top + rect.height / 2
+            x: rect.left - containerRect.left + rect.width / 2,
+            y: rect.top - containerRect.top + rect.height / 2
         };
     };
 
-    const drawLine = (node1, node2, isBack = false) => {
+    const drawLine = (node1, node2, isBack = false, isSolid = false) => {
         const p1 = getCenter(node1);
         const p2 = getCenter(node2);
         
@@ -71,9 +90,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         line.setAttribute('stroke-width', '4');
-        line.setAttribute('stroke-dasharray', '8 8');
-        line.classList.add('trail-line');
-        line.style.animation = 'dashAnim 1s linear infinite';
+        if (isSolid) {
+            line.setAttribute('stroke-dasharray', 'none');
+        } else {
+            line.setAttribute('stroke-dasharray', '8 8');
+            line.classList.add('trail-line');
+            line.style.animation = 'dashAnim 1s linear infinite';
+            
+            setTimeout(() => {
+                if (line.parentNode) {
+                    line.style.animationPlayState = 'paused';
+                }
+            }, 2000);
+        }
         
         svg.appendChild(line);
     };
@@ -81,15 +110,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const redrawTrail = () => {
         svg.innerHTML = '';
         trailConnections.forEach(pair => {
-            drawLine(pair[0], pair[1], pair[2]);
+            drawLine(pair[0], pair[1], pair[2], pair[3]);
         });
     };
 
     window.addEventListener('resize', redrawTrail);
 
-    const addTrailSegment = (n1, n2, isBack = false) => {
-        trailConnections.push([n1, n2, isBack]);
-        drawLine(n1, n2, isBack);
+    const addTrailSegment = (n1, n2, isBack = false, isSolid = false) => {
+        trailConnections.push([n1, n2, isBack, isSolid]);
+        drawLine(n1, n2, isBack, isSolid);
         n1.classList.add('trail');
         n2.classList.add('trail');
     };
@@ -98,10 +127,25 @@ document.addEventListener('DOMContentLoaded', () => {
         svg.innerHTML = '';
         trailConnections = [];
         Object.values(nodes).forEach(n => n.classList.remove('trail'));
+        const uartTx = document.getElementById('uart-tx');
+        if (uartTx) uartTx.classList.remove('active');
+        const uartRx = document.getElementById('uart-rx');
+        if (uartRx) uartRx.classList.remove('active');
     };
 
-    const playForwardAnimation = async () => {
-        await activateNode(nodes.app, "Tock App requesting token...");
+    const initiateRequest = async () => {
+        await activateNode(nodes.pc, "Test Client initiating request...");
+        deactivateNode(nodes.pc);
+
+        const uartTx = document.getElementById('uart-tx');
+        if (uartTx) uartTx.classList.add('active');
+        nodes.pc.classList.add('active');
+        statusText.innerText = "Waiting for device response over UART...";
+    };
+
+    const animateChipProcessing = async () => {
+        nodes.pc.classList.remove('active');
+        await activateNode(nodes.app, "Tock App receiving request over UART...");
         deactivateNode(nodes.app);
 
         addTrailSegment(nodes.app, nodes.kernel);
@@ -138,9 +182,15 @@ document.addEventListener('DOMContentLoaded', () => {
         deactivateNode(nodes.kernel);
 
         addTrailSegment(nodes.kernel, nodes.app, true);
-        await activateNode(nodes.app, "Tock App received token!");
-        await sleep(800);
+        await activateNode(nodes.app, "Tock App passing token over UART...");
         deactivateNode(nodes.app);
+
+        const uartRx = document.getElementById('uart-rx');
+        if (uartRx) uartRx.classList.add('active');
+        
+        await activateNode(nodes.pc, "Test Client received token!");
+        await sleep(800);
+        deactivateNode(nodes.pc);
         statusText.innerText = "Token flow complete.";
     };
 
@@ -222,23 +272,31 @@ document.addEventListener('DOMContentLoaded', () => {
         resultsSection.classList.add('hidden');
         clearTrail();
         
-        // Start forward animation
-        const animPromise = playForwardAnimation();
+        // Start forward animation to UART
+        await initiateRequest();
         
+        const nonceVal = nonceInput ? nonceInput.value.trim() : '';
+
         // Start API fetch
-        const fetchPromise = fetch('/api/token', { method: 'POST' })
+        const fetchPromise = fetch('/api/token', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ nonce: nonceVal })
+        })
             .then(res => res.json())
             .catch(err => ({ error: err.message }));
 
-        // Wait for forward animation to complete
-        await animPromise;
-        
-        // Wait for API response if it hasn't finished yet
-        statusText.innerText = "Waiting for device response...";
         const data = await fetchPromise;
 
-        // Play backward animation with the returned token
-        await playBackwardAnimation();
+        if (!data.error) {
+            // Animate internal flow now that token is here
+            await animateChipProcessing();
+            await playBackwardAnimation();
+        } else {
+            nodes.pc.classList.remove('active');
+        }
 
         // Show data
         displayResults(data);

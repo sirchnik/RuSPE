@@ -220,6 +220,7 @@ def merge_secure_non_secure_hex(
     secure_elf: Path,
     non_secure_elf: Path,
     debug: bool,
+    extra_hexes: list[Path] | None = None,
 ) -> Path:
     if not secure_elf.exists():
         raise BuildError(f"Secure image does not exist: {secure_elf}")
@@ -236,7 +237,10 @@ def merge_secure_non_secure_hex(
         target_root / f"{non_secure_board.platform}-app.hex",
     )
     merged_hex = target_root / f"{non_secure_board.platform}_merged.hex"
-    merge_hex_images(merged_hex, [secure_hex, non_secure_hex])
+    inputs = [secure_hex, non_secure_hex]
+    if extra_hexes:
+        inputs.extend(extra_hexes)
+    merge_hex_images(merged_hex, inputs)
     print(f"Built merged secure image: {merged_hex}")
     return merged_hex
 

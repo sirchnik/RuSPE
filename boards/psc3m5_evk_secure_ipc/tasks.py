@@ -30,18 +30,8 @@ from tools.build.board import (
 from boards.services.attest_srv.tasks import build as _attest_build_task
 from boards.services.crypto_srv.tasks import build as _crypto_build_task
 
-NON_SECURE_DIR = REPO_ROOT / "boards" / "psc3m5_evk_test"
-
 BOARD = BoardConfig(
     board_dir=Path(__file__).resolve().parent,
-    repo_root=REPO_ROOT,
-    manufacturer=Manufacturer.INFINEON,
-    chip="PSC3M5FDS2AFQ1",
-    openocd_tcl=NON_SECURE_DIR / "openocd.tcl",
-)
-
-NON_SECURE_BOARD = BoardConfig(
-    board_dir=NON_SECURE_DIR,
     repo_root=REPO_ROOT,
     manufacturer=Manufacturer.INFINEON,
     chip="PSC3M5FDS2AFQ1",
@@ -125,62 +115,13 @@ def merge_service_envs(services: list[BuiltService]) -> BuildEnv:
     default=True,
     help={"debug": DEBUG_HELP},
 )
-def build(ctx: Context, debug: bool = False):
-    """Build secure IPC + selected service + psc3m5_evk_test non-secure image and merge HEX."""
-    debug = bool(debug)
-
-    services = [build_service_hex(ctx, service, debug) for service in SERVICES]
-    service_env = merge_service_envs(services)
-
-    # 2. Build the secure IPC kernel with service address in environment
-    kernel_elf = cargo_build(ctx, BOARD, debug, env=service_env)
-
-    # 3. Build the non-secure test image
-    non_secure_elf = build_non_secure(ctx, NON_SECURE_BOARD, debug, app=None)
-
-    # 4. Convert all images to HEX and merge
-    target_root = BOARD.target_root(debug)
-    kernel_hex = elf_to_hex(ctx, kernel_elf, target_root / "psc3m5_evk_secure_ipc.hex")
-    non_secure_hex = elf_to_hex(
-        ctx,
-        non_secure_elf,
-        target_root / "psc3m5_evk_test-app.hex",
-    )
-
-    merged = merge_hex_images(
-        target_root / "psc3m5_evk_secure_ipc_merged.hex",
-        [kernel_hex, *(service.hex_path for service in services), non_secure_hex],
-    )
-    print(f"Merged image: {merged}")
-    return merged
-
-
-@build_task(
-    help={"debug": DEBUG_HELP},
-)
-def debug(ctx: Context, debug: bool = False):
-    """Build, flash, and debug with GDB."""
+def build(ctx: Context, debug: bool = False) -> tuple[Path, list[BuiltService]]:
+    """Build secure IPC kernel and selected services."""
     debug = bool(debug)
 
     services = [build_service_hex(ctx, service, debug) for service in SERVICES]
     service_env = merge_service_envs(services)
 
     kernel_elf = cargo_build(ctx, BOARD, debug, env=service_env)
-    non_secure_elf = build_non_secure(ctx, NON_SECURE_BOARD, debug, app=None)
 
-    target_root = BOARD.target_root(debug)
-    kernel_hex = elf_to_hex(ctx, kernel_elf, target_root / "psc3m5_evk_secure_ipc.hex")
-    non_secure_hex = elf_to_hex(
-        ctx,
-        non_secure_elf,
-        target_root / "psc3m5_evk_test-app.hex",
-    )
-
-    merged = merge_hex_images(
-        target_root / "psc3m5_evk_secure_ipc_merged.hex",
-        [kernel_hex, *(service.hex_path for service in services), non_secure_hex],
-    )
-    print(f"Merged image: {merged}")
-
-    elfs = [kernel_elf, non_secure_elf] + [s.elf_path for s in services]
-    debug_with_gdb(ctx, BOARD, elfs, merged)
+    return kernel_elf, services
