@@ -252,51 +252,46 @@ impl<P: AttestPlatform> Service for AttestService<P> {
             })
         } else if msg.msg_type == psa_interface::types::AttestationServiceType::GetTokenSize as i32
         {
-            psa_api::psa_map_invec_outvec(
-                msg.handle,
-                0,
-                0,
-                |challenge_size_bytes, out_buf| {
-                    let mut written_len = 0;
-                    let result = (|| -> Result<(), StatusCode> {
-                        if challenge_size_bytes.len() != size_of::<usize>() {
-                            return Err(StatusCode::InvalidArgument);
-                        }
-
-                        let mut challenge_size = [0u8; size_of::<usize>()];
-                        challenge_size.copy_from_slice(challenge_size_bytes);
-
-                        let mut boot_seed = [0u8; 32];
-                        self.platform.boot_seed(&mut boot_seed)?;
-
-                        let additional_claims = [AttestClaim {
-                            key: IatClaim::BootSeed,
-                            value: AttestClaimValue::Bytes(&boot_seed),
-                        }];
-
-                        let token_size = self.initial_attest_get_token_size(
-                            usize::from_ne_bytes(challenge_size),
-                            &additional_claims,
-                        )?;
-
-                        let token_size_bytes = token_size.to_ne_bytes();
-                        if out_buf.len() < token_size_bytes.len() {
-                            return Err(StatusCode::BufferTooSmall);
-                        }
-
-                        out_buf[..token_size_bytes.len()].copy_from_slice(&token_size_bytes);
-                        written_len = token_size_bytes.len();
-                        Ok(())
-                    })();
-
-                    if result.is_err() {
-                        out_buf.fill(0);
-                        written_len = 0;
+            psa_api::psa_map_invec_outvec(msg.handle, 0, 0, |challenge_size_bytes, out_buf| {
+                let mut written_len = 0;
+                let result = (|| -> Result<(), StatusCode> {
+                    if challenge_size_bytes.len() != size_of::<usize>() {
+                        return Err(StatusCode::InvalidArgument);
                     }
 
-                    (result, written_len)
-                },
-            )
+                    let mut challenge_size = [0u8; size_of::<usize>()];
+                    challenge_size.copy_from_slice(challenge_size_bytes);
+
+                    let mut boot_seed = [0u8; 32];
+                    self.platform.boot_seed(&mut boot_seed)?;
+
+                    let additional_claims = [AttestClaim {
+                        key: IatClaim::BootSeed,
+                        value: AttestClaimValue::Bytes(&boot_seed),
+                    }];
+
+                    let token_size = self.initial_attest_get_token_size(
+                        usize::from_ne_bytes(challenge_size),
+                        &additional_claims,
+                    )?;
+
+                    let token_size_bytes = token_size.to_ne_bytes();
+                    if out_buf.len() < token_size_bytes.len() {
+                        return Err(StatusCode::BufferTooSmall);
+                    }
+
+                    out_buf[..token_size_bytes.len()].copy_from_slice(&token_size_bytes);
+                    written_len = token_size_bytes.len();
+                    Ok(())
+                })();
+
+                if result.is_err() {
+                    out_buf.fill(0);
+                    written_len = 0;
+                }
+
+                (result, written_len)
+            })
         } else {
             Err(psa_interface::status::StatusCode::NotSupported)
         }

@@ -53,11 +53,13 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let led_kernel_pin = &GpioPin::new(gpio::PsocPin::P8_5);
     let led = &mut LedHigh::new(led_kernel_pin);
 
-    unsafe { debug::panic(
-        &mut [led],
-        writer,
-        pi,
-        &cortexm33::support::nop,
-        crate::PANIC_RESOURCES.get(),
-    ) };
+    unsafe {
+        debug::panic(
+            &mut [led],
+            writer,
+            pi,
+            &cortexm33::support::nop,
+            crate::PANIC_RESOURCES.get(),
+        )
+    };
 }

@@ -318,8 +318,8 @@ pub fn encode_payload_bstr(payload: &[u8], out: &mut [u8]) -> Result<usize, Cose
 #[cfg(test)]
 mod tests {
     use super::{
-        CoseSign1, CoseSign1Error, RustCryptoBackend, Sign1Options, encode_payload_bstr,
-        validate_payload_bstr, CBOR_TAG_COSE_SIGN1,
+        CBOR_TAG_COSE_SIGN1, CoseSign1, CoseSign1Error, RustCryptoBackend, Sign1Options,
+        encode_payload_bstr, validate_payload_bstr,
     };
 
     const TEST_PAYLOAD: &[u8] = b"This is the content.";
@@ -345,7 +345,9 @@ mod tests {
     ];
 
     fn make_signer<'a>() -> CoseSign1<'a, RustCryptoBackend<'a>> {
-        let backend = RustCryptoBackend { key: TEST_PRIVATE_KEY };
+        let backend = RustCryptoBackend {
+            key: TEST_PRIVATE_KEY,
+        };
         CoseSign1::new(backend, Sign1Options::default())
     }
 
@@ -357,9 +359,10 @@ mod tests {
 
     #[test]
     fn encodes_test_vector_from_payload_bstr() {
-        let backend = RustCryptoBackend { key: TEST_PRIVATE_KEY };
-        let signer = CoseSign1::new(backend, Sign1Options::default())
-            .with_key_id(TEST_KEY_ID);
+        let backend = RustCryptoBackend {
+            key: TEST_PRIVATE_KEY,
+        };
+        let signer = CoseSign1::new(backend, Sign1Options::default()).with_key_id(TEST_KEY_ID);
         let mut payload_bstr = [0u8; 32];
         let payload_bstr_len = encode_payload_bstr(TEST_PAYLOAD, &mut payload_bstr)
             .expect("payload bstr should encode");
@@ -401,19 +404,28 @@ mod tests {
 
     #[test]
     fn validate_payload_bstr_rejects_empty_input() {
-        assert_eq!(validate_payload_bstr(&[]), Err(CoseSign1Error::InvalidPayload));
+        assert_eq!(
+            validate_payload_bstr(&[]),
+            Err(CoseSign1Error::InvalidPayload)
+        );
     }
 
     #[test]
     fn validate_payload_bstr_rejects_non_bstr() {
         // 0x01 is CBOR unsigned integer 1, not a bstr
-        assert_eq!(validate_payload_bstr(&[0x01]), Err(CoseSign1Error::InvalidPayload));
+        assert_eq!(
+            validate_payload_bstr(&[0x01]),
+            Err(CoseSign1Error::InvalidPayload)
+        );
     }
 
     #[test]
     fn validate_payload_bstr_rejects_trailing_bytes() {
         // 0x40 is a valid empty bstr, but 0xFF is trailing
-        assert_eq!(validate_payload_bstr(&[0x40, 0xFF]), Err(CoseSign1Error::InvalidPayload));
+        assert_eq!(
+            validate_payload_bstr(&[0x40, 0xFF]),
+            Err(CoseSign1Error::InvalidPayload)
+        );
     }
 
     #[test]
@@ -425,8 +437,13 @@ mod tests {
 
     #[test]
     fn encode_without_cbor_tag() {
-        let backend = RustCryptoBackend { key: TEST_PRIVATE_KEY };
-        let opts = Sign1Options { omit_cbor_tag: true, detached_payload: false };
+        let backend = RustCryptoBackend {
+            key: TEST_PRIVATE_KEY,
+        };
+        let opts = Sign1Options {
+            omit_cbor_tag: true,
+            detached_payload: false,
+        };
         let signer = CoseSign1::new(backend, opts);
         let (payload_bstr, payload_bstr_len) = encode_test_payload_bstr();
         let mut out = [0u8; 256];
@@ -443,8 +460,13 @@ mod tests {
 
     #[test]
     fn encode_with_detached_payload() {
-        let backend = RustCryptoBackend { key: TEST_PRIVATE_KEY };
-        let opts = Sign1Options { omit_cbor_tag: false, detached_payload: true };
+        let backend = RustCryptoBackend {
+            key: TEST_PRIVATE_KEY,
+        };
+        let opts = Sign1Options {
+            omit_cbor_tag: false,
+            detached_payload: true,
+        };
         let signer = CoseSign1::new(backend, opts).with_key_id(TEST_KEY_ID);
         let (payload_bstr, payload_bstr_len) = encode_test_payload_bstr();
         let mut out = [0u8; 256];
@@ -517,9 +539,11 @@ mod tests {
 
     #[test]
     fn with_external_aad() {
-        let backend = RustCryptoBackend { key: TEST_PRIVATE_KEY };
-        let signer = CoseSign1::new(backend, Sign1Options::default())
-            .with_external_aad(b"extra context");
+        let backend = RustCryptoBackend {
+            key: TEST_PRIVATE_KEY,
+        };
+        let signer =
+            CoseSign1::new(backend, Sign1Options::default()).with_external_aad(b"extra context");
         let (payload_bstr, payload_bstr_len) = encode_test_payload_bstr();
         let mut out = [0u8; 256];
 

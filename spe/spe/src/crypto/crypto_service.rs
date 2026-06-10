@@ -72,8 +72,7 @@ impl Service for CryptoService {
     fn call(&self, msg: PsaMsg) -> Result<(), psa_interface::status::StatusCode> {
         // TF-M layout: invec[0] = TfmCryptoPackIovec, invec[1] = hash,
         //              outvec[0] = signature buffer.
-        let iov =
-            psa_api::psa_map_invec(msg.handle, 0, Self::parse_pack_iovec)?;
+        let iov = psa_api::psa_map_invec(msg.handle, 0, Self::parse_pack_iovec)?;
 
         if iov.function_id != TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID {
             return Err(psa_interface::status::StatusCode::NotSupported);

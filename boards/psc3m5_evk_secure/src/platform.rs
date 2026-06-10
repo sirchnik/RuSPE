@@ -2,12 +2,12 @@ use core::cmp;
 use psa_interface;
 use psc3::cryptolite;
 use spe::{
+    StatusCode,
     attest::attest_service::{self, CERTIFICATION_REF_MAX_SIZE},
     crypto::crypto_service,
     psa::psa_call::PsaMsg,
     service::Service,
     spm::spm::SpmPlatform,
-    StatusCode,
 };
 pub struct Psc3AttestPlatform;
 
