@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import socket
+import time
 import tomllib
 from dataclasses import dataclass
 from enum import Enum
@@ -18,6 +20,7 @@ from tools.build.invoke_support import (
     BuildError,
     resolve_objcopy,
     run_command,
+    resolve_cmd,
 )
 
 
@@ -273,3 +276,67 @@ def program_hex(ctx: Context, board: BoardConfig, hex_path: Path) -> Path:
         cwd=board.board_dir,
     )
     return hex_path
+
+
+def resolve_gdb() -> Path:
+    for command_name in ("gdb-multiarch", "arm-none-eabi-gdb"):
+        candidate = resolve_cmd(command_name)
+        if candidate is not None:
+            return candidate
+    raise BuildError("Could not find 'gdb-multiarch' or 'arm-none-eabi-gdb' in PATH.")
+
+
+def is_port_in_use(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(('localhost', port)) == 0
+
+
+def debug_with_gdb(ctx: Context, board: BoardConfig, elf_paths: list[Path], merged_hex: Path | None = None) -> None:
+    if not elf_paths:
+        raise BuildError("No ELFs provided for debugging.")
+
+    if board.manufacturer is Manufacturer.INFINEON:
+        openocd = resolve_openocd(version="infineon")
+    else:
+        openocd = resolve_openocd()
+    if board.openocd_tcl is None or not board.openocd_tcl.exists():
+        raise BuildError(f"OpenOCD configuration does not exist: {board.openocd_tcl}")
+
+    gdb = resolve_gdb()
+
+    if not is_port_in_use(3333):
+        print_step("Starting OpenOCD in the background...")
+        import subprocess
+        openocd_cmd = [str(openocd), "-f", str(board.openocd_tcl)]
+        openocd_process = subprocess.Popen(
+            openocd_cmd,
+            cwd=board.board_dir,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        for _ in range(50):
+            if is_port_in_use(3333):
+                break
+            time.sleep(0.1)
+        else:
+            openocd_process.kill()
+            raise BuildError("OpenOCD failed to start or bind to port 3333.")
+    else:
+        print_step("OpenOCD is already running on port 3333, connecting to it...")
+
+    gdb_args = [str(gdb)]
+    gdb_args.extend(["-ex", "target extended-remote localhost:3333"])
+    gdb_args.extend(["-ex", "monitor reset halt"])
+
+    if merged_hex and merged_hex.exists():
+        gdb_args.extend(["-ex", f"load {merged_hex}"])
+
+    main_elf = elf_paths[0]
+    gdb_args.extend(["-ex", f"file {main_elf}"])
+
+    for elf in elf_paths[1:]:
+        gdb_args.extend(["-ex", f"add-symbol-file {elf}"])
+        
+    gdb_args.extend(["-ex", "monitor reset halt"])
+
+    run_command(gdb_args, cwd=board.board_dir)

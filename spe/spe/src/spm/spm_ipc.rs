@@ -108,7 +108,7 @@ impl FlashProcess {
     fn stage_msg_mailbox(vectors: &FlashProcessVectors, msg: PsaMsg) -> (*const PsaMsg, usize) {
         let stack_top = vectors.stack_top as usize;
         let stack_limit = vectors.stack_limit as usize;
-        let msg_align = align_of::<PsaMsg>();
+        let msg_align = core::cmp::max(align_of::<PsaMsg>(), 8);
         let msg_size = size_of::<PsaMsg>();
         let frame_size = EXCEPTION_FRAME_WORDS * size_of::<usize>();
 

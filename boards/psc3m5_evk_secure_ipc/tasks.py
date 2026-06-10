@@ -23,19 +23,22 @@ from tools.build.board import (
     cargo_build,
     elf_to_hex,
     merge_hex_images,
+    debug_with_gdb,
+    program_hex,
 )
 
 from boards.services.attest_srv.tasks import build as _attest_build_task
 from boards.services.crypto_srv.tasks import build as _crypto_build_task
+
+NON_SECURE_DIR = REPO_ROOT / "boards" / "psc3m5_evk_test"
 
 BOARD = BoardConfig(
     board_dir=Path(__file__).resolve().parent,
     repo_root=REPO_ROOT,
     manufacturer=Manufacturer.INFINEON,
     chip="PSC3M5FDS2AFQ1",
+    openocd_tcl=NON_SECURE_DIR / "openocd.tcl",
 )
-
-NON_SECURE_DIR = REPO_ROOT / "boards" / "psc3m5_evk_test"
 
 NON_SECURE_BOARD = BoardConfig(
     board_dir=NON_SECURE_DIR,
@@ -61,6 +64,7 @@ del _crypto_build_task
 
 @dataclass(frozen=True)
 class BuiltService:
+    elf_path: Path
     hex_path: Path
     env: BuildEnv
 
@@ -74,6 +78,7 @@ SERVICES: tuple[ServiceBuilder, ...] = (
 def build_service_hex(ctx: Context, service_build: ServiceBuilder, debug: bool) -> BuiltService:
     service_elf, env = service_build(ctx, debug=debug)
     return BuiltService(
+        elf_path=service_elf,
         hex_path=elf_to_hex(
             ctx,
             service_elf,
@@ -148,3 +153,34 @@ def build(ctx: Context, debug: bool = False):
     )
     print(f"Merged image: {merged}")
     return merged
+
+
+@build_task(
+    help={"debug": DEBUG_HELP},
+)
+def debug(ctx: Context, debug: bool = False):
+    """Build, flash, and debug with GDB."""
+    debug = bool(debug)
+
+    services = [build_service_hex(ctx, service, debug) for service in SERVICES]
+    service_env = merge_service_envs(services)
+
+    kernel_elf = cargo_build(ctx, BOARD, debug, env=service_env)
+    non_secure_elf = build_non_secure(ctx, NON_SECURE_BOARD, debug, app=None)
+
+    target_root = BOARD.target_root(debug)
+    kernel_hex = elf_to_hex(ctx, kernel_elf, target_root / "psc3m5_evk_secure_ipc.hex")
+    non_secure_hex = elf_to_hex(
+        ctx,
+        non_secure_elf,
+        target_root / "psc3m5_evk_test-app.hex",
+    )
+
+    merged = merge_hex_images(
+        target_root / "psc3m5_evk_secure_ipc_merged.hex",
+        [kernel_hex, *(service.hex_path for service in services), non_secure_hex],
+    )
+    print(f"Merged image: {merged}")
+
+    elfs = [kernel_elf, non_secure_elf] + [s.elf_path for s in services]
+    debug_with_gdb(ctx, BOARD, elfs, merged)

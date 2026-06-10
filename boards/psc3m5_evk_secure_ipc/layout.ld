@@ -12,7 +12,7 @@ MEMORY
 {
 	rom (rx)  : ORIGIN = 0x32000000, LENGTH = 0x8000
 	nsc (rx)  : ORIGIN = 0x3201FF00, LENGTH = 0x100
-	priv_ram (rwx) : ORIGIN = 0x34000000, LENGTH = 0x2300
+	ram (rwx) : ORIGIN = 0x34000000, LENGTH = 0x2300
 }
 
-INCLUDE secure_layout.ld
+INCLUDE ../psc3m5_evk_secure/secure_layout.ld
