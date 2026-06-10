@@ -34,6 +34,7 @@ pub struct FFOutVec {
     pub len: usize,
 }
 
+/// Control parameter for PSA IPC calls.
 ///
 ///  31           30-28   27    26-24  23-20   19     18-16   15-0
 /// +------------+-----+------+-------+-----+-------+-------+------+

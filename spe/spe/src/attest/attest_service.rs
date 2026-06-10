@@ -152,7 +152,7 @@ impl<P: AttestPlatform> Service for AttestService<P> {
         }
 
         if msg.msg_type == psa_interface::types::AttestationServiceType::GetToken as i32 {
-            return psa_api::psa_map_invec_outvec(msg.handle, 0, 0, |challenge, token_buf| {
+            psa_api::psa_map_invec_outvec(msg.handle, 0, 0, |challenge, token_buf| {
                 let mut written_len = 0;
                 let result = (|| -> Result<(), StatusCode> {
                     if !Self::challenge_size_is_supported(challenge.len()) {
@@ -249,10 +249,10 @@ impl<P: AttestPlatform> Service for AttestService<P> {
                 }
 
                 (result, written_len)
-            });
+            })
         } else if msg.msg_type == psa_interface::types::AttestationServiceType::GetTokenSize as i32
         {
-            return psa_api::psa_map_invec_outvec(
+            psa_api::psa_map_invec_outvec(
                 msg.handle,
                 0,
                 0,
@@ -296,7 +296,7 @@ impl<P: AttestPlatform> Service for AttestService<P> {
 
                     (result, written_len)
                 },
-            );
+            )
         } else {
             Err(psa_interface::status::StatusCode::NotSupported)
         }

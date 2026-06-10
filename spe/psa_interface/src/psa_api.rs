@@ -50,7 +50,7 @@ pub fn psa_sign_hash<T: PsaApiCallInterface>(
 
     let in_vec = [
         types::FFInVec {
-            base: &iov as *const types::TfmCryptoPackIovec as *const u8,
+            base: core::ptr::from_ref::<types::TfmCryptoPackIovec>(&iov).cast::<u8>(),
             len: core::mem::size_of::<types::TfmCryptoPackIovec>(),
         },
         types::FFInVec {

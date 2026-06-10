@@ -3,7 +3,6 @@
 // Copyright Infineon Technologies AG 2026.
 
 #![no_std]
-#![feature(abi_cmse_nonsecure_call, cmse_nonsecure_entry)]
 
 pub mod attest;
 pub mod crypto;

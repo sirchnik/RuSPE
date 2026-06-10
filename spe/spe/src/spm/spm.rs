@@ -109,14 +109,13 @@ impl<P: SpmPlatform + 'static> Spm<P> {
     }
 
     fn add_connection(&self, connection: Connection) -> Result<(), SpmError> {
-        let result = match self
+        match self
             .connections
             .try_lock(|connections| connections.add_connection(connection))
         {
             Ok(result) => result,
-            Err(_) => Err(SpmError::MutexBusy),
-        };
-        result
+            Err(()) => Err(SpmError::MutexBusy),
+        }
     }
 
     pub fn call(&self, connection: Connection) -> Result<(), crate::StatusCode> {
@@ -137,7 +136,7 @@ impl<P: SpmPlatform + 'static> Spm<P> {
         {
             Ok(Ok(result)) => result,
             Ok(Err(err)) => return Err(err),
-            Err(_) => return Err(SpmError::MutexBusy),
+            Err(()) => return Err(SpmError::MutexBusy),
         };
 
         let result = f(&mut connection);
@@ -148,7 +147,7 @@ impl<P: SpmPlatform + 'static> Spm<P> {
         {
             Ok(Ok(())) => {}
             Ok(Err(err)) => return Err(err),
-            Err(_) => return Err(SpmError::MutexBusy),
+            Err(()) => return Err(SpmError::MutexBusy),
         }
         Ok(result)
     }
