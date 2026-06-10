@@ -5,6 +5,7 @@ authors = ["Niklas Sirch"]
 
 [workspace]
 members = [
+    "libraries/helpers",
     "spe/psa_interface",
     "spe/psa_veneer_client",
     "spe/spe",

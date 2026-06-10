@@ -17,6 +17,7 @@ sha2 = { version = "0.11.0", default-features = false }
 signature = { version = "2.2.0", default-features = false }
 cortexm33 = { path = "../../tock/arch/cortex-m33" }
 psa_interface = { path = "../psa_interface" }
+helpers = { path = "../../libraries/helpers" }
 
 [lints]
 workspace = true

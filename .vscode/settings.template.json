@@ -1,6 +1,7 @@
 {
     "files.insertFinalNewline": true,
     "debug.onTaskErrors": "abort",
+    "tock.app": "",
     "[rust]": {
         "editor.defaultFormatter": "rust-lang.rust-analyzer"
     },

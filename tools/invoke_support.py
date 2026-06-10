@@ -95,7 +95,9 @@ def run_command(
 
 
 def _command_path(command_name: str) -> Path | None:
-    resolved = which(command_name)
+    add_paths = [str(Path.home() / ".cargo" / "bin")]
+    path = path = (os.environ.get("PATH") or "") + ":" + (":".join(add_paths))
+    resolved = which(command_name, path=path)
     return Path(resolved) if resolved else None
 
 

@@ -10,12 +10,12 @@
 
 use core::ptr::addr_of_mut;
 
-use psc3::chip::{Psc3DefaultPeripherals};
+use psc3::chip::Psc3DefaultPeripherals;
+use psc3::chip_init;
 #[allow(unused)]
 use psc3::{BASE_VECTORS, IRQS};
-use psc3::{chip_init};
 
-use kernel::static_init;
+use helpers::static_init;
 
 use psa_interface::{self, psa_api};
 
@@ -54,12 +54,13 @@ pub unsafe fn main() {
     /* !Only after chip_init::preinit_peripherals() was called peripheral view for debugging works! */
     chip_init::preinit_peripherals();
 
-    let peripherals = unsafe{ static_init!(Psc3DefaultPeripherals, Psc3DefaultPeripherals::new())};
+    let peripherals =
+        unsafe { static_init!(Psc3DefaultPeripherals, Psc3DefaultPeripherals::new()) };
 
     peripherals.init();
 
     // Set the UART used for panic
-    unsafe { (*addr_of_mut!(io::WRITER)).set_scb(&peripherals.scb3)};
+    unsafe { (*addr_of_mut!(io::WRITER)).set_scb(&peripherals.scb3) };
 
     let challenge = [0u8; 32];
     let mut token_buf = [0u8; 512];
