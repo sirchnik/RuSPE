@@ -87,7 +87,7 @@ impl ConnectionArray {
 
 pub trait SpmPlatform: Sync {
     fn call(&self, msg: PsaMsg) -> Result<(), crate::StatusCode>;
-    fn has_real_permission(&self, base: *const u8, len: usize, is_write: bool) -> bool;
+    fn has_permission_on_memory(&self, base: *const u8, len: usize, is_write: bool) -> bool;
 }
 
 /// Object-safe trait for SPM operations, used for type-erased storage in statics.
@@ -156,6 +156,7 @@ impl<P: SpmPlatform + 'static> Spm<P> {
 }
 
 impl<P: SpmPlatform + 'static> SpmCall for Spm<P> {
+    /// Forwards the call to the platform's call method, while managing the connection stack.
     fn call(&self, connection: Connection) -> Result<(), crate::StatusCode> {
         Spm::call(self, connection)
     }
@@ -164,7 +165,8 @@ impl<P: SpmPlatform + 'static> SpmCall for Spm<P> {
         self.with_active_connection(|conn| f(conn))
     }
 
+    /// Checks if the platform's memory permissions allow access to the specified range.
     fn has_real_permission(&self, base: *const u8, len: usize, is_write: bool) -> bool {
-        self.platform.has_real_permission(base, len, is_write)
+        self.platform.has_permission_on_memory(base, len, is_write)
     }
 }
