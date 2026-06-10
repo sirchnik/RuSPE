@@ -215,8 +215,8 @@
                     {
                         "comment_1": "First Section left with defaults for secure memory.",
                         "description": "Non-Secure Memory",
-                        "offset": "16 KB",
-                        "size": "44 KB",
+                        "offset": "22 KB",
+                        "size": "38 KB",
                         "attr": {
                             "value": {
                                 "pc0": "WR-",
@@ -255,8 +255,8 @@
                     {
                         "comment_1": "First Section left with defaults for secure flash.",
                         "description": "Non-Secure Flash + NSC Flash",
-                        "offset": "80 KB",
-                        "size": "176 KB",
+                        "offset": "96 KB",
+                        "size": "160 KB",
                         "attr": {
                             "value": {
                                 "pc0": "WR-",
