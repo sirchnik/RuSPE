@@ -61,8 +61,8 @@ fn map_cose_error(err: CoseSign1Error) -> StatusCode {
     }
 }
 
-fn encode_sw_components(
-    enc: &mut Encoder<Cursor<&mut [u8]>>,
+fn encode_sw_components<W: minicbor::encode::Write>(
+    enc: &mut Encoder<W>,
     components: &[SwComponent<'_>],
 ) -> Result<(), StatusCode> {
     enc.array(components.len() as u64)
@@ -92,8 +92,8 @@ fn encode_sw_components(
     Ok(())
 }
 
-fn encode_claim_value(
-    enc: &mut Encoder<Cursor<&mut [u8]>>,
+fn encode_claim_value<W: minicbor::encode::Write>(
+    enc: &mut Encoder<W>,
     value: AttestClaimValue<'_>,
 ) -> Result<(), StatusCode> {
     match value {
@@ -117,17 +117,25 @@ fn encode_claim_value(
     Ok(())
 }
 
-fn encode_payload(claims: &[AttestClaim<'_>], out: &mut [u8]) -> Result<usize, StatusCode> {
-    let mut enc = Encoder::new(Cursor::new(out));
+fn encode_payload_to<W: minicbor::encode::Write>(
+    claims: &[AttestClaim<'_>],
+    enc: &mut Encoder<W>,
+) -> Result<(), StatusCode> {
     enc.map(claims.len() as u64)
         .map_err(|_| StatusCode::BufferTooSmall)?;
 
     for claim in claims {
         enc.i32(claim.key as i32)
             .map_err(|_| StatusCode::BufferTooSmall)?;
-        encode_claim_value(&mut enc, claim.value)?;
+        encode_claim_value(enc, claim.value)?;
     }
 
+    Ok(())
+}
+
+fn encode_payload(claims: &[AttestClaim<'_>], out: &mut [u8]) -> Result<usize, StatusCode> {
+    let mut enc = Encoder::new(Cursor::new(out));
+    encode_payload_to(claims, &mut enc)?;
     Ok(enc.writer().position())
 }
 
@@ -190,12 +198,53 @@ pub fn encode_initial_attestation_token(
     Ok(encoded.encoded_len)
 }
 
+#[derive(Default)]
+struct SizeCounter {
+    len: usize,
+}
+
+impl minicbor::encode::Write for SizeCounter {
+    type Error = core::convert::Infallible;
+
+    fn write_all(&mut self, buf: &[u8]) -> Result<(), Self::Error> {
+        self.len = self.len.saturating_add(buf.len());
+        Ok(())
+    }
+}
+
 pub fn compute_initial_attestation_token_size(
     claims: &[AttestClaim<'_>],
-    key_id: u32,
+    _key_id: u32,
 ) -> Result<usize, StatusCode> {
-    let mut token = [0u8; crate::attest::attest_service::PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE];
-    encode_initial_attestation_token(claims, &mut token, key_id)
+    let mut counter = SizeCounter::default();
+    let mut enc = Encoder::new(&mut counter);
+    encode_payload_to(claims, &mut enc)?;
+
+    let payload_len = counter.len;
+
+    // CBOR bstr header length for the payload
+    let bstr_header_len = if payload_len <= 23 {
+        1
+    } else if payload_len <= 0xff {
+        2
+    } else if payload_len <= 0xffff {
+        3
+    } else if payload_len <= 0xffff_ffff {
+        5
+    } else {
+        9
+    };
+
+    let payload_bstr_len = payload_len
+        .checked_add(bstr_header_len)
+        .ok_or(StatusCode::BufferTooSmall)?;
+
+    // COSE_Sign1 overhead without kid (tag 18 + array + protected + unprotected + signature + sig bstr header) = 73 bytes
+    let total_len = payload_bstr_len
+        .checked_add(73)
+        .ok_or(StatusCode::BufferTooSmall)?;
+
+    Ok(total_len)
 }
 
 #[cfg(test)]
@@ -206,7 +255,6 @@ mod tests {
     };
     use cose::cose_sign1::CoseSign1Error;
     use minicbor::Decoder;
-    use psa_interface::status::StatusCode;
 
     // ── encode_payload: single-claim cases ──────────────────────────────
 
@@ -610,5 +658,83 @@ mod tests {
         let _ = dec.bytes().unwrap();
         assert_eq!(dec.i32().unwrap(), IatClaim::ClientId as i32);
         assert_eq!(dec.i64().unwrap(), 42);
+    }
+
+    #[test]
+    fn test_compute_initial_attestation_token_size_matches_actual() {
+        use cose::cose_sign1::{CoseSign1, RustCryptoBackend, Sign1Options, encode_payload_bstr_in_place};
+        use super::compute_initial_attestation_token_size;
+
+        // Dummy EC2KpD private key for testing
+        const TEST_PRIVATE_KEY: &[u8] = &[
+            0x3d, 0x42, 0x9a, 0x83, 0xef, 0xe3, 0x87, 0x10, 0xab, 0x9a, 0xb4, 0xc0, 0x2c, 0xcb, 0xbe,
+            0x0b, 0x87, 0xab, 0x69, 0x36, 0xdd, 0xf4, 0x14, 0x57, 0xea, 0x30, 0xf9, 0x6c, 0xa6, 0xf2,
+            0xcd, 0xee,
+        ];
+
+        let nonce = [0x11; 32];
+        let boot_seed = [0x22; 32];
+        let impl_id = b"acme-implementation-id-00000001\x00";
+        let sw = [SwComponent {
+            measurement_type: None,
+            measurement_value: &[0x03],
+            signer_id: &[0x08],
+        }];
+        let claims = [
+            AttestClaim {
+                key: IatClaim::Nonce,
+                value: AttestClaimValue::Bytes(&nonce),
+            },
+            AttestClaim {
+                key: IatClaim::ProfileDefinition,
+                value: AttestClaimValue::Text("tag:psacertified.org,2023:psa#tfm"),
+            },
+            AttestClaim {
+                key: IatClaim::ClientId,
+                value: AttestClaimValue::Signed(1),
+            },
+            AttestClaim {
+                key: IatClaim::SecurityLifecycle,
+                value: AttestClaimValue::Unsigned(12288),
+            },
+            AttestClaim {
+                key: IatClaim::BootSeed,
+                value: AttestClaimValue::Bytes(&boot_seed),
+            },
+            AttestClaim {
+                key: IatClaim::SwComponents,
+                value: AttestClaimValue::SwComponents(&sw),
+            },
+            AttestClaim {
+                key: IatClaim::CertificationReference,
+                value: AttestClaimValue::Text("1234567890123-12345"),
+            },
+            AttestClaim {
+                key: IatClaim::ImplementationId,
+                value: AttestClaimValue::Bytes(impl_id),
+            },
+            AttestClaim {
+                key: IatClaim::VerificationService,
+                value: AttestClaimValue::Text("https://psa-verifier.org"),
+            },
+        ];
+
+        // Predict the token size without allocating
+        let predicted_size = compute_initial_attestation_token_size(&claims, 0).unwrap();
+
+        // Actually encode the token
+        let mut out = [0u8; 1024];
+        let payload_len = encode_payload(&claims, &mut out).unwrap();
+        let payload_bstr_len = encode_payload_bstr_in_place(payload_len, &mut out).unwrap();
+
+        let backend = RustCryptoBackend::new(TEST_PRIVATE_KEY);
+        let signer = CoseSign1::new(backend, Sign1Options::default());
+        let encoded = signer.encode_from_payload_bstr_in_place(payload_bstr_len, &mut out).unwrap();
+
+        assert_eq!(
+            predicted_size, encoded.encoded_len,
+            "Predicted size {} does not match actual encoded token size {}",
+            predicted_size, encoded.encoded_len
+        );
     }
 }
