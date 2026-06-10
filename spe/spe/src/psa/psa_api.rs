@@ -63,16 +63,22 @@ impl PsaApiCallInterface for InternalPsaClient {
             out_vec.as_mut_ptr()
         };
 
-        crate::into_psa_status(unsafe {
-            psa_call::psa_call(
-                handle,
-                ctrl_param,
-                in_vec_ptr,
-                out_vec_ptr,
-                get_spm(),
-                CallerAttributes::SECURE_PRIVILEGED,
-            )
-        })
+        if let Some(spm) = try_get_spm() {
+            crate::into_psa_status(unsafe {
+                psa_call::psa_call(
+                    handle,
+                    ctrl_param,
+                    in_vec_ptr,
+                    out_vec_ptr,
+                    spm,
+                    CallerAttributes::SECURE_PRIVILEGED,
+                )
+            })
+        } else {
+            crate::into_psa_status(unsafe {
+                psa_svc_api::psa_call(handle, ctrl_param, in_vec_ptr, out_vec_ptr)
+            })
+        }
     }
 }
 
