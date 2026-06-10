@@ -1,6 +1,9 @@
 use core::{panic, slice};
 
-use crate::spm::{Connection, PSA_MAX_IOVEC, SpmCall, SpmError};
+use crate::{
+    StatusCode,
+    spm::{Connection, PSA_MAX_IOVEC, SpmCall, SpmError},
+};
 
 use crate::psa::psa_call::CallerAttributes;
 use psa_interface::types::ServiceHandle;
@@ -270,6 +273,111 @@ pub fn psa_map_invec_outvec<R>(
 
         result
     })
+}
+
+#[derive(Clone, Copy, Debug)]
+#[repr(C)]
+pub struct RawVec {
+    pub base: *mut u8,
+    pub len: usize,
+}
+
+pub fn psa_prepare_invec(
+    spm: &dyn SpmCall,
+    msg_handle: ServiceHandle,
+    invec_idx: u32,
+) -> Result<RawVec, StatusCode> {
+    let mut raw = None;
+    match spm.with_active_connection(&mut |connection| {
+        if (connection.msg.handle as isize) != (msg_handle as isize) {
+            panic!("invalid message handle for active connection");
+        }
+
+        if connection.msg.msg_type < 0 {
+            panic!("message handle does not refer to a request message");
+        }
+
+        let (_, in_len, base) = prepare_invec(spm, connection, invec_idx);
+        raw = Some(RawVec {
+            base: base as *mut u8,
+            len: in_len,
+        });
+    }) {
+        Ok(()) => Ok(raw.expect("no active SPM connection")),
+        Err(SpmError::NoActiveConnection) => Err(StatusCode::CommunicationFailure),
+        Err(_) => Err(StatusCode::CommunicationFailure),
+    }
+}
+
+pub fn psa_finish_invec(
+    spm: &dyn SpmCall,
+    msg_handle: ServiceHandle,
+    invec_idx: u32,
+) -> Result<(), StatusCode> {
+    match spm.with_active_connection(&mut |connection| {
+        if (connection.msg.handle as isize) != (msg_handle as isize) {
+            panic!("invalid message handle for active connection");
+        }
+
+        if connection.msg.msg_type < 0 {
+            panic!("message handle does not refer to a request message");
+        }
+
+        mark_invec_unmapped(connection, invec_idx as usize);
+    }) {
+        Ok(()) => Ok(()),
+        Err(SpmError::NoActiveConnection) => Err(StatusCode::CommunicationFailure),
+        Err(_) => Err(StatusCode::CommunicationFailure),
+    }
+}
+
+pub fn psa_prepare_outvec(
+    spm: &dyn SpmCall,
+    msg_handle: ServiceHandle,
+    outvec_idx: u32,
+) -> Result<RawVec, StatusCode> {
+    let mut raw = None;
+    match spm.with_active_connection(&mut |connection| {
+        if (connection.msg.handle as isize) != (msg_handle as isize) {
+            panic!("invalid message handle for active connection");
+        }
+
+        if connection.msg.msg_type < 0 {
+            panic!("message handle does not refer to a request message");
+        }
+
+        let (_, out_len, base) = prepare_outvec(spm, connection, outvec_idx);
+        raw = Some(RawVec { base, len: out_len });
+    }) {
+        Ok(()) => Ok(raw.expect("no active SPM connection")),
+        Err(SpmError::NoActiveConnection) => Err(StatusCode::CommunicationFailure),
+        Err(_) => Err(StatusCode::CommunicationFailure),
+    }
+}
+
+pub fn psa_finish_outvec(
+    spm: &dyn SpmCall,
+    msg_handle: ServiceHandle,
+    outvec_idx: u32,
+    written_len: usize,
+) -> Result<(), StatusCode> {
+    match spm.with_active_connection(&mut |connection| {
+        if (connection.msg.handle as isize) != (msg_handle as isize) {
+            panic!("invalid message handle for active connection");
+        }
+
+        if connection.msg.msg_type < 0 {
+            panic!("message handle does not refer to a request message");
+        }
+
+        let index = outvec_idx as usize;
+        let out_len = connection.msg.out_size[index].unwrap_or(0);
+        commit_outvec_write(connection, index, out_len, written_len);
+    }) {
+        Ok(()) => Ok(()),
+        Err(SpmError::NoActiveConnection) => Err(StatusCode::CommunicationFailure),
+        Err(_) => Err(StatusCode::CommunicationFailure),
+    }
 }
 
 #[cfg(test)]

@@ -6,8 +6,12 @@
         "editor.defaultFormatter": "rust-lang.rust-analyzer"
     },
     "rust-analyzer.server.extraEnv": {
-        "RUSTUP_TOOLCHAIN": "nightly-2026-04-21"
+        "RUSTUP_TOOLCHAIN": "nightly-2026-04-21",
+        "LIBTOCK_LINKER_FLASH": "0x00000000",
+        "LIBTOCK_LINKER_FLASH_LENGTH": "512K",
+        "LIBTOCK_LINKER_RAM": "0x20000000",
+        "LIBTOCK_LINKER_RAM_LENGTH": "64K"
     },
     "rust-analyzer.check.allTargets": false,
-    "coverage-gutters.coverageBaseDir": "target/llvm-cov/",
+    "coverage-gutters.coverageBaseDir": "target/llvm-cov/"
 }

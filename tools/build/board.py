@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tomllib
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -8,6 +9,7 @@ from shutil import copy2
 from invoke.context import Context
 
 from tools.build.invoke_support import (
+    print_step,
     resolve_openocd,
     BuildError,
     resolve_objcopy,
@@ -47,12 +49,74 @@ class BoardConfig:
         return self.target_root(debug) / self.platform
 
 
+def _cargo_package_name(crate_dir: Path) -> str:
+    cargo_toml = crate_dir / "Cargo.toml"
+    if not cargo_toml.exists():
+        return crate_dir.name
+
+    try:
+        data = tomllib.loads(cargo_toml.read_text(encoding="utf-8"))
+        package = data.get("package", {})
+        name = package.get("name")
+        if isinstance(name, str) and name:
+            return name
+    except Exception:
+        pass
+
+    return crate_dir.name
+
+
+def _candidate_artifacts(target_dir: Path, build_type: str, binary_name: str) -> list[Path]:
+    names = [binary_name]
+    underscored = binary_name.replace("-", "_")
+    if underscored != binary_name:
+        names.append(underscored)
+
+    candidates: list[Path] = []
+    for name in names:
+        candidates.extend(
+            [
+                target_dir / "thumbv8m.main-none-eabi" / build_type / name,
+                target_dir / "thumbv8m.main-none-eabi" / build_type / f"{name}.elf",
+                target_dir / build_type / name,
+                target_dir / build_type / f"{name}.elf",
+                target_dir / build_type / f"{name}.exe",
+            ]
+        )
+    return candidates
+
+
+def _resolve_cargo_artifact(repo_root: Path, debug: bool, binary_name: str) -> Path:
+    build_type = "debug" if debug else "release"
+    target_dir = repo_root / "target"
+
+    for candidate in _candidate_artifacts(target_dir, build_type, binary_name):
+        if candidate.exists():
+            return candidate
+
+    # Fallback: cargo may place binaries under target/<build>/deps with hash suffixes.
+    search_root = target_dir / build_type
+    if search_root.exists():
+        for pattern in (
+            f"{binary_name}*",
+            f"{binary_name.replace('-', '_')}*",
+        ):
+            for match in search_root.rglob(pattern):
+                if match.is_file() and match.suffix in ("", ".elf", ".exe"):
+                    return match
+
+    raise BuildError(
+        f"Built artifact not found for '{binary_name}' in target directory: {target_dir}"
+    )
+
+
 def cargo_build(ctx: Context, board: BoardConfig, debug: bool) -> Path:
     command = ["cargo", "build"]
     if not debug:
         command.append("--release")
     run_command(command, cwd=board.board_dir)
-    return board.kernel_image(debug)
+    binary_name = _cargo_package_name(board.board_dir)
+    return _resolve_cargo_artifact(board.repo_root, debug, binary_name)
 
 
 def inject_app(ctx: Context, board: BoardConfig, debug: bool, app: str | None) -> Path:
@@ -122,11 +186,11 @@ def merge_hex_images(output_path: Path, input_paths: list[Path]) -> Path:
     except ImportError as error:
         raise BuildError("Python module 'intelhex' is not installed.") from error
 
-    print(f"Merging HEX images with intelhex into {output_path}")
+    print_step(f"Merging HEX images with intelhex into {output_path}")
 
     merged = IntelHex()
     for image_path in input_paths:
-        print(f"  - loading {image_path}")
+        print_step(f"  - loading {image_path}")
         image = IntelHex(str(image_path))
         merged.merge(image, overlap="ignore")
 

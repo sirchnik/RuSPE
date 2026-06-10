@@ -3,7 +3,7 @@ use crate::service::Service;
 use crate::spm::spm_fn::ConnectionArray;
 use crate::spm::{Connection, SpmCall, SpmError, SpmPlatform};
 use crate::{libs::mutex::Mutex, psa::psa_call::CallerAttributes, spm::call_unprivileged};
-use psa_interface::types::ServiceHandle;
+use psa_interface::types::{PsaStatus, ServiceHandle};
 
 /// A process that can be managed and dispatched by the SPM IPC mechanism.
 ///
@@ -37,7 +37,7 @@ pub unsafe trait IpcProcess: Sync {
 #[repr(C)]
 pub struct FlashProcessVectors {
     pub init: unsafe extern "C" fn(),
-    pub call: unsafe extern "C" fn(),
+    pub call: unsafe extern "C" fn(*const PsaMsg) -> PsaStatus,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -74,9 +74,13 @@ unsafe impl IpcProcess for FlashProcess {
         unsafe { ((*self.vectors).init)() };
     }
 
-    unsafe fn call(&self, _msg: PsaMsg) -> Result<(), crate::StatusCode> {
-        unsafe { ((*self.vectors).call)() };
-        Ok(())
+    unsafe fn call(&self, msg: PsaMsg) -> Result<(), crate::StatusCode> {
+        let status = unsafe { ((*self.vectors).call)(&msg as *const PsaMsg) };
+        match crate::StatusCode::try_from(status) {
+            Ok(crate::StatusCode::_Success) => Ok(()),
+            Ok(err) => Err(err),
+            Err(_) => Err(crate::StatusCode::CommunicationFailure),
+        }
     }
 }
 

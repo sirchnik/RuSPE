@@ -44,6 +44,10 @@ def build_task(_func=None, **task_kwargs):
 def _format_command(command: list[str]) -> str:
     return subprocess.list2cmdline(command)
 
+def print_step(message: str):
+    reset = "\x1b[0m"
+    grey = "\x1b[90m"
+    print(f"{grey}{message}{reset}")
 
 def _merge_env(extra_env: dict[str, str] | None) -> dict[str, str]:
     env = os.environ.copy()
@@ -87,14 +91,12 @@ def run_command(
         in_stream = not _is_sandbox()
 
     if verbose:
-        reset = "\x1b[0m"
-        grey = "\x1b[90m"
         envs = ""
         if env:
             items = [f"{k}={v}" for k, v in list(env.items())[:4]]
             envs = (" ".join(items) + ("..." if len(env) > 4 else "")) + " "
-        compact = f"{grey}cd {cwd or Path.cwd()} && {envs}{cmd_text} {reset}"
-        print(compact)
+        compact = f"cd {cwd or Path.cwd()} && {envs}{cmd_text}"
+        print_step(compact)
 
     stdin = None if in_stream else subprocess.DEVNULL
 

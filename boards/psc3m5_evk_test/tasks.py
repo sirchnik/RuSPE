@@ -9,11 +9,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from boards.psc3m5_evk_secure import tasks as secure_tasks  # noqa: E402
-from tools.build.invoke_support import (  # noqa: E402
+from boards.psc3m5_evk_secure import tasks as secure_tasks 
+from tools.build.invoke_support import ( 
     build_task,
 )
-from tools.build.board import (  # noqa: E402
+from tools.build.board import ( 
     BoardConfig,
     Manufacturer,
     build_non_secure,

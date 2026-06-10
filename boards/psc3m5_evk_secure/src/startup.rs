@@ -23,7 +23,6 @@ unsafe extern "C" {
 static mut STACK_MEMORY: [u8; 0x3200] = [0; 0x3200];
 
 /// Initializes RAM and jumps to main. This is the entry point of the secure firmware.
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn sec_initialize_ram_jump_to_main() {
@@ -79,11 +78,8 @@ pub unsafe extern "C" fn sec_initialize_ram_jump_to_main() {
     );
 }
 
-#[cfg_attr(
-    all(target_arch = "arm", target_os = "none"),
-    unsafe(link_section = ".vectors")
-)]
-#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
+#[unsafe(link_section = ".vectors")]
+#[used]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     _estack,
     sec_initialize_ram_jump_to_main,
@@ -103,14 +99,10 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     unhandled_interrupt, // SysTick
 ];
 
-#[cfg_attr(
-    all(target_arch = "arm", target_os = "none"),
-    unsafe(link_section = ".irqs")
-)]
-#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
+#[unsafe(link_section = ".irqs")]
+#[used]
 pub static IRQS: [unsafe extern "C" fn(); 140] = [unhandled_interrupt; 140];
 
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 pub unsafe extern "C" fn svc_handler() {
     use core::arch::naked_asm;
@@ -124,12 +116,6 @@ pub unsafe extern "C" fn svc_handler() {
     );
 }
 
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
-pub unsafe extern "C" fn svc_handler() {
-    unimplemented!()
-}
-
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 pub unsafe extern "C" fn hard_fault_handler() {
     use core::arch::naked_asm;
@@ -161,7 +147,6 @@ pub unsafe extern "C" fn hard_fault_handler_real(interrupt_number: u32, stack_ov
     );
 }
 
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn unhandled_interrupt() {
     use core::arch::asm;
 
@@ -171,9 +156,9 @@ pub unsafe extern "C" fn unhandled_interrupt() {
         // IPSR[8:0] holds the currently active interrupt
         asm!(
             "
-    mrs r0, ipsr
+    mrs {interrupt_number}, ipsr
         ",
-            out("r0") interrupt_number,
+            interrupt_number = out(reg) interrupt_number,
             options(nomem, nostack, preserves_flags),
         );
     }
@@ -181,19 +166,4 @@ pub unsafe extern "C" fn unhandled_interrupt() {
     interrupt_number &= 0x1ff;
 
     panic!("Unhandled Interrupt. ISR {} is active.", interrupt_number);
-}
-
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
-pub unsafe extern "C" fn unhandled_interrupt() {
-    unimplemented!()
-}
-
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
-pub unsafe extern "C" fn hard_fault_handler() {
-    unimplemented!()
-}
-
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
-pub unsafe extern "C" fn sec_initialize_ram_jump_to_main() {
-    unimplemented!()
 }
