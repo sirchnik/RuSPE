@@ -145,6 +145,7 @@ def _launch_payload(release: bool = False) -> dict[str, object]:
                 "preLaunchCommands": [
                     f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock",
                     f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure",
+                    f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psa_tock_app",
                 ],
                 "preLaunchTask": "build.psc3m5_evk_tock",
             },
