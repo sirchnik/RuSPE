@@ -85,7 +85,8 @@ pub unsafe extern "C" fn svc_handler() {
 202: // svc_psa_call
     mrs r2, msp
     mrs r3, CONTROL
-    stmdb r2!, {{r0, r3, lr}}
+    mrs r12, PSPLIM
+    stmdb r2!, {{r0, r3, r12, lr}}
     
     sub r2, r2, #32
     
@@ -132,13 +133,20 @@ pub unsafe extern "C" fn svc_handler() {
     
     add r2, r2, #32
     
-    ldmia r2!, {{r0, r3, lr}}
+    ldmia r2!, {{r0, r3, r12, lr}}
     msr msp, r2
     
     str r4, [r0, #0]
     str r5, [r0, #4]
     str r6, [r0, #8]
     str r7, [r0, #12]
+    
+    msr PSPLIM, r12
+    
+    tst lr, #4
+    beq 204f
+    msr psp, r0
+204:
     
     msr CONTROL, r3
     isb

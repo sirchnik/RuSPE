@@ -67,9 +67,10 @@ def _inv_executable() -> str:
     return "${workspaceFolder}/.venv/bin/inv"
 
 
-def _tasks_payload(release: bool = False) -> dict[str, object]:
+def _tasks_targets(release: bool = False) -> list[dict]:
     inv_executable = _inv_executable()
     debug_arg = "" if release else " --debug"
+    profile_short_snake = "_r" if release else "_d"
     if os.name == "nt":
         build_command = f'& "{inv_executable}" build{debug_arg}'
         build_with_app_command = f'$app = \'${{config:tock.app}}\'; if ($app) {{ & "{inv_executable}" build{debug_arg} --app "$app" }} else {{ & "{inv_executable}" build{debug_arg} }}'
@@ -88,33 +89,36 @@ def _tasks_payload(release: bool = False) -> dict[str, object]:
         "group": "build",
     }
 
-    return {
-        "version": "2.0.0",
-        "tasks": [
-            {
-                **common_task,
-                "label": "build.psc3m5_evk_test",
-                "options": {"cwd": "${workspaceFolder}/boards/psc3m5_evk_test"},
-                "command": build_command,
-            },
-            {
-                **common_task,
-                "label": "build.psc3m5_evk_tock",
-                "options": {"cwd": "${workspaceFolder}/boards/tock/psc3m5_evk_tock"},
-                "command": build_with_app_command,
-            },
-            {
-                **common_task,
-                "label": "build.psc3m5_evk_secure_ipc",
-                "options": {"cwd": "${workspaceFolder}/boards/psc3m5_evk_secure_ipc"},
-                "command": build_command,
-            },
-        ],
-    }
+    return [
+        {
+            **common_task,
+            "label": f"build{profile_short_snake}.psc3m5_evk_test",
+            "options": {"cwd": "${workspaceFolder}/boards/psc3m5_evk_test"},
+            "command": build_command,
+        },
+        {
+            **common_task,
+            "label": f"build{profile_short_snake}.psc3m5_evk_tock",
+            "options": {"cwd": "${workspaceFolder}/boards/tock/psc3m5_evk_tock"},
+            "command": build_with_app_command,
+        },
+        {
+            **common_task,
+            "label": f"build{profile_short_snake}.psc3m5_evk_secure_ipc",
+            "options": {"cwd": "${workspaceFolder}/boards/psc3m5_evk_secure_ipc"},
+            "command": build_command,
+        },
+    ]
 
 
-def _launch_payload(release: bool = False) -> dict[str, object]:
+def _tasks_conf(targets: list[dict]) -> dict[str, object]:
+    return {"version": "2.0.0", "tasks": targets}
+
+
+def _launch_targets(release: bool = False) -> list[dict]:
     profile = "release" if release else "debug"
+    profile_short = "(R)" if release else "(D)"
+    profile_short_snake = "_r" if release else "_d"
     psc3m5_base_conf = {
         "type": "cortex-debug",
         "servertype": "openocd",
@@ -125,42 +129,46 @@ def _launch_payload(release: bool = False) -> dict[str, object]:
         "svdFile": "${workspaceFolder}/.local/svds/psc3.svd",
         "configFiles": ["${workspaceFolder}/boards/psc3m5_evk_test/openocd.tcl"],
     }
+    return [
+        {
+            "name": f"PSC3-Test {profile_short}",
+            **psc3m5_base_conf,
+            "executable": f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test_merged.hex",
+            "preLaunchCommands": [
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure",
+            ],
+            "preLaunchTask": f"build{profile_short_snake}.psc3m5_evk_test",
+        },
+        {
+            "name": f"PSC3-Tock {profile_short}",
+            **psc3m5_base_conf,
+            "executable": f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock_merged.hex",
+            "preLaunchCommands": [
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psa_tock_app",
+            ],
+            "preLaunchTask": f"build{profile_short_snake}.psc3m5_evk_tock",
+        },
+        {
+            "name": f"PSC3-IPC {profile_short}",
+            **psc3m5_base_conf,
+            "executable": f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure_ipc_merged.hex",
+            "preLaunchCommands": [
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure_ipc",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_attest",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_crypto",
+            ],
+            "preLaunchTask": f"build{profile_short_snake}.psc3m5_evk_secure_ipc",
+        },
+    ]
+
+
+def _launch_conf(targets: list[dict]) -> dict[str, object]:
     return {
         "version": "0.2.0",
-        "configurations": [
-            {
-                "name": "PSC3-Test",
-                **psc3m5_base_conf,
-                "executable": f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test_merged.hex",
-                "preLaunchCommands": [
-                    f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test",
-                    f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure",
-                ],
-                "preLaunchTask": "build.psc3m5_evk_test",
-            },
-            {
-                "name": "PSC3-Tock",
-                **psc3m5_base_conf,
-                "executable": f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock_merged.hex",
-                "preLaunchCommands": [
-                    f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock",
-                    f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure",
-                    f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psa_tock_app",
-                ],
-                "preLaunchTask": "build.psc3m5_evk_tock",
-            },
-            {
-                "name": "PSC3-IPC",
-                **psc3m5_base_conf,
-                "executable": f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure_ipc_merged.hex",
-                "preLaunchCommands": [
-                    f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure_ipc",
-                    f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_attest",
-                    f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_crypto",
-                ],
-                "preLaunchTask": "build.psc3m5_evk_secure_ipc",
-            },
-        ],
+        "configurations": targets,
     }
 
 
@@ -188,9 +196,18 @@ def vscode(ctx: Context, force=False, release_debug_config=False):
 
     if not PSC3_SVD.exists() or force:
         _download(PSC3_SVD_URL, PSC3_SVD)
-
-    _write_json(TASKS_JSON, _tasks_payload(release_debug_config))
-    _write_json(LAUNCH_JSON, _launch_payload(release_debug_config))
+    _write_json(
+        TASKS_JSON,
+        _tasks_conf(_tasks_targets())
+        if not release_debug_config
+        else _tasks_conf(_tasks_targets(True) + _tasks_targets(False)),
+    )
+    _write_json(
+        LAUNCH_JSON,
+        _launch_conf(_launch_targets())
+        if not release_debug_config
+        else _launch_conf(_launch_targets(True) + _launch_targets(False)),
+    )
 
 
 @build_task
@@ -259,12 +276,11 @@ def fmt(ctx: Context, check=False):
         capture_output=True,
     )
     tracked_files = result.stdout.splitlines()
-    
+
     rust_files = [
-        f for f in tracked_files 
-        if f.endswith(".rs") and not f.startswith("tock/")
+        f for f in tracked_files if f.endswith(".rs") and not f.startswith("tock/")
     ]
-    
+
     if not rust_files:
         print("No Rust files found to format.")
         return
@@ -273,7 +289,7 @@ def fmt(ctx: Context, check=False):
     if check:
         cmd.append("--check")
     cmd.extend(rust_files)
-    
+
     run_command(cmd, shorten_args=True)
 
 
@@ -290,10 +306,13 @@ def reuse(ctx: Context):
     """Run reuse linting"""
     run_command("reuse lint")
 
+
 @build_task
 def reuse_annotate(ctx: Context, comment: str):
     """Run reuse annotate to add missing SPDX headers"""
-    run_command(f'reuse annotate -l MIT -c "{comment}" --recursive . --skip-unrecognised --exclude-year --skip-existing"')
+    run_command(
+        f'reuse annotate -l MIT -c "{comment}" --recursive . --skip-unrecognised --exclude-year --skip-existing"'
+    )
 
 
 @build_task

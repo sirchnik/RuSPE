@@ -150,36 +150,37 @@ pub fn handle_svc(svc_num: u8, frame: &mut SvcStackFrame) -> bool {
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[unsafe(no_mangle)]
+#[unsafe(naked)]
 pub unsafe extern "C" fn psa_call_thunk(
-    handle: usize,
-    ctrl_param: usize,
-    in_vec: usize,
-    out_vec: usize,
+    _handle: usize,
+    _ctrl_param: usize,
+    _in_vec: usize,
+    _out_vec: usize,
 ) -> ! {
-    let mut frame = SvcStackFrame {
-        r0: handle,
-        r1: ctrl_param,
-        r2: in_vec,
-        r3: out_vec,
-        r12: 0,
-        lr: 0,
-        pc: 0,
-        xpsr: 0,
-    };
-
-    handle_svc(SVC_PSA_CALL, &mut frame);
-
-    unsafe {
-        core::arch::asm!(
-            "svc {svc_num}",
-            svc_num = const SVC_PSA_RETURN,
-            in("r0") frame.r0,
-            in("r1") frame.r1,
-            in("r2") frame.r2,
-            in("r3") frame.r3,
-            options(noreturn)
-        );
-    }
+    core::arch::naked_asm!(
+        "sub sp, sp, #32",
+        "str r0, [sp, #0]",
+        "str r1, [sp, #4]",
+        "str r2, [sp, #8]",
+        "str r3, [sp, #12]",
+        "movs r0, #0",
+        "str r0, [sp, #16]",
+        "str r0, [sp, #20]",
+        "str r0, [sp, #24]",
+        "str r0, [sp, #28]",
+        "movs r0, #{SVC_PSA_CALL}",
+        "mov r1, sp",
+        "bl {handle_svc}",
+        "ldr r0, [sp, #0]",
+        "ldr r1, [sp, #4]",
+        "ldr r2, [sp, #8]",
+        "ldr r3, [sp, #12]",
+        "add sp, sp, #32",
+        "svc {SVC_PSA_RETURN}",
+        SVC_PSA_CALL = const SVC_PSA_CALL,
+        SVC_PSA_RETURN = const SVC_PSA_RETURN,
+        handle_svc = sym handle_svc,
+    )
 }
 
 #[cfg(not(all(target_arch = "arm", target_os = "none")))]
