@@ -4,6 +4,9 @@ mod spm_ipc;
 pub use spm_fn::{Connection, PSA_MAX_IOVEC, SpmCall, SpmError, SpmFn, SpmPlatform};
 pub use spm_ipc::{EmbeddedProcess, FlashProcess, FlashProcessVectors, IpcProcess, SpmIpc};
 
+pub(crate) const SVC_ELEVATE: u8 = 0;
+pub(crate) const SVC_CALL_UNPRIV: u8 = 5;
+
 /// Call a function in unprivileged Thread mode via SVC, using PSP.
 ///
 /// Before issuing `SVC #5` (`SVC_CALL_UNPRIV`), this function:
@@ -11,7 +14,7 @@ pub use spm_ipc::{EmbeddedProcess, FlashProcess, FlashProcessVectors, IpcProcess
 ///    the target `fn_ptr`, `arg`, and `thunk` (return address).
 /// 2. Sets PSP to that frame base.
 ///
-/// The SVC handler (fully in assembly, Tock-style) then:
+/// The SVC handler then:
 /// - Sets `CONTROL.nPRIV = 1`
 /// - Sets EXC_RETURN SPSEL bit → exception return unstacks from PSP
 /// - `bx lr` → hardware pops frame from PSP → service runs unprivileged.
@@ -34,7 +37,6 @@ pub(crate) unsafe fn svc_call_unpriv(
     thunk: usize,
     stack_top: usize,
 ) -> usize {
-    use crate::psa::psa_svc_api::SVC_CALL_UNPRIV;
     use core::arch::asm;
 
     // Build a fake exception frame at (stack_top - 32).
@@ -60,7 +62,7 @@ pub(crate) unsafe fn svc_call_unpriv(
         );
     }
 
-    // Issue SVC_CALL_UNPRIV.  The handler returns via PSP (service runs).
+    // Issue SVC_CALL_UNPRIV. The handler returns via PSP (service runs).
     // When the service finishes → thunk → SVC_ELEVATE → handler returns via
     // MSP → we land back here with the return value in R0.
     let ret: usize;

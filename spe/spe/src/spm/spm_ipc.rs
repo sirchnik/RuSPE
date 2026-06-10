@@ -13,7 +13,7 @@ use psa_interface::types::{PsaStatus, ServiceHandle};
 /// # Safety
 ///
 /// Implementors must ensure that `init()` and `call()` are safe to invoke
-/// in the unprivileged execution context provided by `call_unprivileged`.
+/// in the unprivileged execution context provided by the SPM.
 pub unsafe trait IpcProcess: Sync {
     fn handle(&self) -> ServiceHandle;
 

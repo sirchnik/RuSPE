@@ -15,6 +15,8 @@ unsafe extern "C" {
     static _erelocate: *const u32;
 }
 
+use crate::arch_v7m;
+
 #[unsafe(link_section = ".stack_buffer")]
 #[unsafe(no_mangle)]
 static mut STACK_MEMORY: [u8; 0x3200] = [0; 0x3200];
@@ -124,14 +126,14 @@ pub unsafe extern "C" fn svc_handler() {
     cmp r1, #0
     beq 201f
 
-    // --- All other SVCs: delegate to Rust handler --------------------------
-    b {svc_handler_rust}
+    // --- All other SVCs: delegate to upstream handler ---------------------
+    b {svc_handler_v7m}
 
 200: // svc_call_unpriv
     // The caller prepared PSP with a fake exception frame before issuing this
     // SVC. We just flip CONTROL and EXC_RETURN to return via PSP unprivileged.
     mov r0, #1
-    msr CONTROL, r0             // nPRIV=1 (Thread unprivileged)
+    msr CONTROL, r0             // nPRIV=1
     isb
     orr lr, lr, #4              // EXC_RETURN bit2=1 → unstack from PSP
     bx lr                       // exception return → service runs
@@ -150,25 +152,9 @@ pub unsafe extern "C" fn svc_handler() {
     bic lr, lr, #4             // EXC_RETURN bit2=0 → unstack from MSP
     bx lr                      // exception return → back in privileged caller
         ",
-        svc_handler_rust = sym svc_handler_rust,
+        svc_handler_v7m = sym arch_v7m::svc_handler_arm_v7m,
     );
 }
-
-unsafe extern "C" fn svc_handler_rust(frame: *mut spe::psa::psa_svc_api::SvcStackFrame) {
-    use core::ptr;
-
-    let frame = unsafe { &mut *frame };
-    let pc = frame.pc as *const u16;
-    let svc_instr = unsafe { ptr::read(pc.offset(-1)) };
-    let svc_num = (svc_instr & 0xff) as u8;
-
-    if spe::psa::psa_svc_api::handle_svc(svc_num, frame) {
-        return;
-    }
-
-    panic!("Unhandled SVC {}", svc_num);
-}
-
 
 #[unsafe(naked)]
 pub unsafe extern "C" fn hard_fault_handler() {

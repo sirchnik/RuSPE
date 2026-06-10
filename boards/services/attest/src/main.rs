@@ -2,12 +2,7 @@
 #![no_main]
 
 use ruspe_psc3::services::attest::{InitialAttestation, Psc3AttestPlatform};
-use spe::{
-    psa::psa_call::PsaMsg,
-    service::Service,
-    spm::FlashProcessVectors,
-    into_psa_status,
-};
+use spe::{into_psa_status, psa::psa_call::PsaMsg, service::Service, spm::FlashProcessVectors};
 
 static SERVICE: InitialAttestation = InitialAttestation::new(Psc3AttestPlatform);
 

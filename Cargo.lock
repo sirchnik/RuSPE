@@ -645,8 +645,10 @@ name = "psc3m5_evk_secure_ipc"
 version = "0.1.0"
 dependencies = [
  "cortex_m",
+ "cortexm",
  "cortexm33",
  "helpers",
+ "kernel",
  "psa_interface",
  "psc3 0.1.0",
  "psc3 0.2.3-dev",
