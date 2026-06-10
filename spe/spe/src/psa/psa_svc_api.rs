@@ -12,6 +12,7 @@ pub const SVC_PSA_PREPARE_INVEC: u8 = 1;
 pub const SVC_PSA_FINISH_INVEC: u8 = 2;
 pub const SVC_PSA_PREPARE_OUTVEC: u8 = 3;
 pub const SVC_PSA_FINISH_OUTVEC: u8 = 4;
+pub const SVC_CALL_UNPRIV: u8 = 5;
 
 #[repr(C)]
 pub struct SvcStackFrame {

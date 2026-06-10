@@ -2,7 +2,7 @@ use crate::psa::psa_call::PsaMsg;
 use crate::service::Service;
 use crate::spm::spm_fn::ConnectionArray;
 use crate::spm::{Connection, SpmCall, SpmError, SpmPlatform};
-use crate::{libs::mutex::Mutex, psa::psa_call::CallerAttributes, spm::call_unprivileged};
+use crate::{libs::mutex::Mutex, psa::psa_call::CallerAttributes, spm::svc_call_unpriv};
 use psa_interface::types::{PsaStatus, ServiceHandle};
 
 /// A process that can be managed and dispatched by the SPM IPC mechanism.
@@ -38,7 +38,18 @@ pub unsafe trait IpcProcess: Sync {
 pub struct FlashProcessVectors {
     pub init: unsafe extern "C" fn(),
     pub call: unsafe extern "C" fn(*const PsaMsg) -> PsaStatus,
+    /// A minimal thunk in the service's flash region that executes `svc #0`
+    /// to re-elevate after the unprivileged service function returns.
+    pub svc_return: unsafe extern "C" fn(),
+    /// Top of the service's stack in RAM (8-byte aligned).
+    /// Used to place the PSP exception frame before each unprivileged call.
+    pub stack_top: *const u8,
 }
+
+// # Safety
+// FlashProcessVectors contains a raw pointer (`stack_top`) which points to a
+// fixed RAM address that is immutable for the lifetime of the program.
+unsafe impl Sync for FlashProcessVectors {}
 
 #[derive(Clone, Copy, Debug)]
 pub struct FlashProcess {
@@ -71,11 +82,27 @@ unsafe impl IpcProcess for FlashProcess {
     }
 
     unsafe fn init(&self) {
-        unsafe { ((*self.vectors).init)() };
+        let vectors = unsafe { &*self.vectors };
+        unsafe {
+            svc_call_unpriv(
+                vectors.init as usize,
+                0,
+                vectors.svc_return as usize,
+                vectors.stack_top as usize,
+            );
+        }
     }
 
     unsafe fn call(&self, msg: PsaMsg) -> Result<(), crate::StatusCode> {
-        let status = unsafe { ((*self.vectors).call)(&msg as *const PsaMsg) };
+        let vectors = unsafe { &*self.vectors };
+        let status = unsafe {
+            svc_call_unpriv(
+                vectors.call as usize,
+                &msg as *const PsaMsg as usize,
+                vectors.svc_return as usize,
+                vectors.stack_top as usize,
+            )
+        } as PsaStatus;
         match crate::StatusCode::try_from(status) {
             Ok(crate::StatusCode::_Success) => Ok(()),
             Ok(err) => Err(err),
@@ -218,20 +245,15 @@ impl<P: SpmPlatform + 'static, const N: usize, Proc: IpcProcess> SpmCall for Spm
             Err(()) => panic!("SPM connection stack busy"),
         };
 
-        let mut result = Ok(());
-        call_unprivileged(|| {
-            if should_init {
-                // # Safety:
-                // Process init is safe per the IpcProcess safety contract.
-                unsafe { self.processes[process_index].init() };
-            }
-
+        if should_init {
             // # Safety:
-            // Process call is safe per the IpcProcess safety contract.
-            result = unsafe { self.processes[process_index].call(msg) };
-        });
+            // Process init is safe per the IpcProcess safety contract.
+            unsafe { self.processes[process_index].init() };
+        }
 
-        result
+        // # Safety:
+        // Process call is safe per the IpcProcess safety contract.
+        unsafe { self.processes[process_index].call(msg) }
     }
 
     fn with_active_connection(&self, f: &mut dyn FnMut(&mut Connection)) -> Result<(), SpmError> {

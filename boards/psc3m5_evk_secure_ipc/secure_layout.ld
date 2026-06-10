@@ -165,7 +165,7 @@ SECTIONS
 
         . = ALIGN(4);
         _erelocate = .;
-    } > ram
+    } > priv_ram
 
     .stack (NOLOAD) :
     {
@@ -183,7 +183,7 @@ SECTIONS
         KEEP(*(.stack_buffer))
         . = ALIGN(8);
         _estack = .;
-    } > ram AT> ram
+    } > priv_ram AT> priv_ram
 
 	.bss (NOLOAD) :
 	{
@@ -193,5 +193,5 @@ SECTIONS
 		*(COMMON)
 		. = ALIGN(4);
 		_ezero = .;
-	} > ram
+    } > priv_ram
 }
