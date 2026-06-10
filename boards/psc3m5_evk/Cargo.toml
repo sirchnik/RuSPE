@@ -10,24 +10,24 @@ edition.workspace = true
 build = "./build.rs"
 
 [dependencies]
-cortexm33 = { path = "../../arch/cortex-m33" }
-kernel = { path = "../../kernel" }
-psc3 = { path = "../../chips/psc3" }
-components = { path = "../components" }
+cortexm33 = { path = "../../tock/arch/cortex-m33" }
+kernel = { path = "../../tock/kernel" }
+psc3 = { path = "../../tock/chips/psc3" }
+components = { path = "../../tock/boards/components" }
 
-capsules-core = { path = "../../capsules/core" }
-capsules-extra = { path = "../../capsules/extra" }
-capsules-system = { path = "../../capsules/system" }
+capsules-core = { path = "../../tock/capsules/core" }
+capsules-extra = { path = "../../tock/capsules/extra" }
+capsules-system = { path = "../../tock/capsules/system" }
 
-psa_veneer_client = { path = "../../libraries/psa_veneer_client" }
-psa_interface = { path = "../../libraries/psa_interface" }
+psa_veneer_client = { path = "../../spe/psa_veneer_client" }
+psa_interface = { path = "../../spe/psa_interface" }
 
 [features]
 # Build the kernel with non-secure trustzone world linker layout and linking to veneers.
 non_secure_tz = []
 
 [build-dependencies]
-tock_build_scripts = { path = "../build_scripts" }
+tock_build_scripts = { path = "../../tock/boards/build_scripts" }
 
 [lints]
 workspace = true

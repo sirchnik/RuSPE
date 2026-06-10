@@ -4,15 +4,13 @@
 
 use core::{fmt::Write, panic::PanicInfo};
 
-use tock_cells::optional_cell::OptionalCell;
-
 pub struct Writer {
-    serial: OptionalCell<&'static psc3::scb::Scb<'static>>,
+    serial: Cell<Option<&'static psc3::scb::Scb<'static>>>,
 }
 
 impl Writer {
     pub fn set_serial(&self, scb: &'static psc3::scb::Scb) {
-        self.serial.set(scb);
+        self.serial.set(Some(scb));
     }
 }
 
@@ -25,7 +23,7 @@ impl core::fmt::Write for Writer {
 }
 
 pub static mut WRITER: Writer = Writer {
-    serial: OptionalCell::empty(),
+    serial: Cell::new(None),
 };
 
 /// This function is called on panic, and it will attempt to print the panic message to the serial port.

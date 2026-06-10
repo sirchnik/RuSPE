@@ -3,16 +3,21 @@
 # Copyright Infineon Technologies AG 2026.
 
 include = [
-"../../cargo/tock_flags.toml",
-"../../cargo/unstable_flags.toml",
+  "../../../tock/boards/cargo/tock_flags.toml",
+  "../../../tock/boards/cargo/unstable_flags.toml",
 ]
 
 [build]
 target = "thumbv8m.main-none-eabi"
 rustflags = [
+  # # todo required for build_scripts but should work without / does work inside the tock repo
+  "-C",
+  "embed-bitcode=yes",
   # Output secure veneer library
-  "-C", "link-arg=--cmse-implib",
-  "-C", "link-arg=--out-implib=target/thumbv8m.main-none-eabi/psc3m5_secure-veneers.o",
+  "-C",
+  "link-arg=--cmse-implib",
+  "-C",
+  "link-arg=--out-implib=target/thumbv8m.main-none-eabi/psc3m5_secure-veneers.o",
 ]
 
 [unstable]
