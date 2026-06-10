@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: Infineon Technologies AG
+//
+// SPDX-License-Identifier: MIT
+
 document.addEventListener('DOMContentLoaded', () => {
     const fetchBtn = document.getElementById('fetch-btn');
     const statusText = document.getElementById('status-text');

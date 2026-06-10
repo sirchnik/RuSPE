@@ -168,7 +168,7 @@ MEMORY
     RAM (rwx) : ORIGIN = {}, LENGTH = {}
 }}
 
-INCLUDE ../shared/service_layout.ld
+INCLUDE ../../../shared/linker/service_layout.ld
 "#,
         flash_origin, flash_length, ram_origin, ram_length
     );
@@ -181,33 +181,12 @@ INCLUDE ../shared/service_layout.ld
 """
 
 
-def _render_layout_ld() -> str:
-    return """/*
- * SPDX-FileCopyrightText: Infineon Technologies AG
- *
- * SPDX-License-Identifier: MIT
- */
-
-/**
- * Configuration for memory is for secure app with non-secure app
- * Documentation in ./mem-conf.md
-**/
-MEMORY
-{
-    ROM (rx)  : ORIGIN = 0x32010000, LENGTH = 0x3F00
-    RAM (rwx) : ORIGIN = 0x34002F00, LENGTH = 0x1100
-}
-
-INCLUDE ../shared/service_layout.ld
-"""
-
-
 def _render_cargo_config_toml() -> str:
     return """# SPDX-FileCopyrightText: Infineon Technologies AG
 #
 # SPDX-License-Identifier: MIT
 
-include = [\"../../../cargo/embedded_flags.toml\"]
+include = [\"../../../../shared/cargo/embedded_flags.toml\"]
 
 [build]
 target = \"thumbv8m.main-none-eabi\"
@@ -233,7 +212,6 @@ def generate_service_crate(repo_root: Path, spec: ServiceSpec, force: bool = Fal
 
     (service_dir / "Cargo.toml").write_text(_render_cargo_toml(spec), encoding="utf-8")
     (service_dir / "build.rs").write_text(_render_build_rs(), encoding="utf-8")
-    (service_dir / "layout.ld").write_text(_render_layout_ld(), encoding="utf-8")
     (service_dir / ".cargo" / "config.toml").write_text(
         _render_cargo_config_toml(),
         encoding="utf-8",

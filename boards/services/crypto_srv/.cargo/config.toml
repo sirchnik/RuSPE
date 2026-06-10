@@ -1,8 +1,0 @@
-# SPDX-FileCopyrightText: Infineon Technologies AG
-#
-# SPDX-License-Identifier: MIT
-
-include = ["../../../cargo/embedded_flags.toml"]
-
-[build]
-target = "thumbv8m.main-none-eabi"

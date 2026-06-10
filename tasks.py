@@ -345,7 +345,7 @@ def reuse(ctx: Context):
 def reuse_annotate(ctx: Context, comment: str):
     """Run reuse annotate to add missing SPDX headers"""
     run_command(
-        f'reuse annotate -l MIT -c "{comment}" --recursive . --skip-unrecognised --exclude-year --skip-existing"'
+        f'reuse annotate -l MIT -c "{comment}" --recursive . --skip-unrecognised --exclude-year --skip-existing'
     )
 
 

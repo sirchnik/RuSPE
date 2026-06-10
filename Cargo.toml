@@ -17,12 +17,12 @@ members = [
     "spe/psa_veneer_client",
     "spe/spe",
     "spe/spe_services",
-    "boards/psc3m5_evk_secure",
-    "boards/psc3m5_evk_secure_ipc",
-    "boards/psc3m5_evk_test",
-    "boards/tock/psc3m5_evk_tock",
-    "boards/tock/psa_tock_app",
-    "boards/services/*_srv"
+    "boards/psc3m5_evk/secure",
+    "boards/psc3m5_evk/secure_ipc",
+    "boards/psc3m5_evk/test",
+    "boards/psc3m5_evk/tock/kernel",
+    "boards/psc3m5_evk/tock/app",
+    "boards/psc3m5_evk/services/*_srv"
 ]
 exclude = ["tock"]
 resolver = "3"
