@@ -17,10 +17,27 @@ from tools.build.invoke_support import BuildError, run_command
 class ServiceConfig:
     repo_root: Path
     service_dir: Path
+    flash_origin: str = "0x32010000"
+    flash_length: str = "0x3F00"
+    ram_origin: str = "0x34002F00"
+    ram_length: str = "0x1100"
 
     @property
     def service(self) -> str:
         return self.service_dir.name
+
+    def linker_env(self) -> dict[str, str]:
+        """Return environment variables for linker script generation.
+        
+        Used by cargo build scripts (e.g. attest/build.rs) to generate
+        the concrete linker script with configured memory regions.
+        """
+        return {
+            "SERVICE_FLASH_ORIGIN": self.flash_origin,
+            "SERVICE_FLASH_LENGTH": self.flash_length,
+            "SERVICE_RAM_ORIGIN": self.ram_origin,
+            "SERVICE_RAM_LENGTH": self.ram_length,
+        }
 
 
 def _cargo_package_name(crate_dir: Path) -> str:
@@ -84,10 +101,14 @@ def _resolve_cargo_artifact(repo_root: Path, debug: bool, binary_name: str) -> P
     )
 
 
-def cargo_build_service(ctx: Context, service: ServiceConfig, debug: bool) -> Path:
+def cargo_build_service(ctx: Context, service: ServiceConfig, debug: bool, env: dict[str, str] | None = None) -> Path:
     command = ["cargo", "build"]
     if not debug:
         command.append("--release")
-    run_command(command, cwd=service.service_dir)
+    # Merge provided env with service linker env
+    merged_env = service.linker_env()
+    if env:
+        merged_env.update(env)
+    run_command(command, cwd=service.service_dir, env=merged_env)
     binary_name = _cargo_package_name(service.service_dir)
     return _resolve_cargo_artifact(service.repo_root, debug, binary_name)

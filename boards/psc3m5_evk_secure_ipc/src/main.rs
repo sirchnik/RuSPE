@@ -31,6 +31,10 @@ unsafe extern "C" {
     static _sstack: u8;
 }
 
+mod service_config {
+    include!(concat!(env!("OUT_DIR"), "/service_config.rs"));
+}
+
 mod faults;
 mod io;
 mod startup;
@@ -165,7 +169,8 @@ pub unsafe fn main() {
 
     // Attest service binary is placed in its dedicated secure flash slot.
     // Its vector table (FlashProcessVectors) is at the start of its ROM region.
-    const ATTEST_VECTORS: *const FlashProcessVectors = 0x3201_0000 as *const FlashProcessVectors;
+    // The service address is configured at build time from the secure IPC board configuration.
+    const ATTEST_VECTORS: *const FlashProcessVectors = service_config::ATTEST_SERVICE_ADDR as *const FlashProcessVectors;
 
     let processes: [FlashProcess; 1] = [FlashProcess::new(
         ServiceHandle::AttestationService,

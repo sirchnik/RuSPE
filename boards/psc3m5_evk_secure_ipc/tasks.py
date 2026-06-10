@@ -37,6 +37,10 @@ NON_SECURE_DIR = REPO_ROOT / "boards" / "psc3m5_evk_test"
 ATTEST_SERVICE = ServiceConfig(
     service_dir=SERVICES_DIR / "attest",
     repo_root=REPO_ROOT,
+    flash_origin="0x3201_0000",
+    flash_length="0x3F00",
+    ram_origin="0x3400_2F00",
+    ram_length="0x1100",
 )
 
 NON_SECURE_BOARD = BoardConfig(
@@ -57,8 +61,8 @@ def build(ctx: Context, debug=False):
     # 1. Build the attest service binary
     attest_elf = cargo_build_service(ctx, ATTEST_SERVICE, debug)
 
-    # 2. Build the secure IPC kernel
-    kernel_elf = cargo_build(ctx, BOARD, debug)
+    # 2. Build the secure IPC kernel with service address in environment
+    kernel_elf = cargo_build(ctx, BOARD, debug, env=ATTEST_SERVICE.linker_env())
 
     # 3. Build the non-secure test image
     non_secure_elf = build_non_secure(ctx, NON_SECURE_BOARD, debug, app=None)

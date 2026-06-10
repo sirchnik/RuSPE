@@ -11,6 +11,18 @@ This document summarizes the TrustZone memory split used by the
 
 See also standard [secure board docs](../psc3m5_evk_secure/mem-conf.md) for general information.
 
+## Configuration
+
+**Service placement is configurable at build time** via Python configuration in [tasks.py](./tasks.py).
+The `ATTEST_SERVICE` ServiceConfig object controls the service flash origin, flash length, SRAM origin, and SRAM length.
+Both the attest service and secure IPC board are compiled from the same configuration, ensuring a coherent merged image.
+
+Default values (current configuration):
+- Flash: `0x3201_0000` - `0x3201_3F00` (31.75 KB)
+- SRAM: `0x3400_2F00` - `0x3400_4000` (8.7 KB)
+
+To change service placement, update the `ATTEST_SERVICE` ServiceConfig in [tasks.py](./tasks.py) and rebuild.
+
 ## Regions Overview
 
 ### SRAM
