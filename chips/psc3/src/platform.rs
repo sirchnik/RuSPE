@@ -14,6 +14,32 @@ use spe::{
 };
 use tock_psc3::cryptolite;
 
+const NS_FLASH_START: usize = 0x2201_4000;
+const NS_FLASH_END: usize = 0x2204_0000;
+const NS_RAM_START: usize = 0x2400_4000;
+const NS_RAM_END: usize = 0x2400_F000;
+const SHARED_RAM_START: usize = 0x2400_F000;
+const SHARED_RAM_END: usize = 0x2401_0000;
+
+fn range_is_within(start: usize, end_exclusive: usize, base: *const u8, len: usize) -> bool {
+    let Some(end) = (base as usize).checked_add(len) else {
+        return false;
+    };
+
+    base as usize >= start && end <= end_exclusive
+}
+
+fn range_is_readable_by_nonsecure(base: *const u8, len: usize) -> bool {
+    range_is_within(NS_FLASH_START, NS_FLASH_END, base, len)
+        || range_is_within(NS_RAM_START, NS_RAM_END, base, len)
+        || range_is_within(SHARED_RAM_START, SHARED_RAM_END, base, len)
+}
+
+fn range_is_writable_by_nonsecure(base: *const u8, len: usize) -> bool {
+    range_is_within(NS_RAM_START, NS_RAM_END, base, len)
+        || range_is_within(SHARED_RAM_START, SHARED_RAM_END, base, len)
+}
+
 pub struct Psc3AttestPlatform;
 
 impl attest_service::AttestPlatform for Psc3AttestPlatform {
@@ -93,6 +119,18 @@ impl SpmPlatform for Psc3SecPlatform {
             }
             psa_interface::types::ServiceHandle::Crypto => self.crypto.call(msg),
             _ => Err(spe::StatusCode::NotSupported),
+        }
+    }
+
+    fn has_real_permission(&self, base: *const u8, len: usize, is_write: bool) -> bool {
+        if len == 0 {
+            return true;
+        }
+
+        if is_write {
+            range_is_writable_by_nonsecure(base, len)
+        } else {
+            range_is_readable_by_nonsecure(base, len)
         }
     }
 }
