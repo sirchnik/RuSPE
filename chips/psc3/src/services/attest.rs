@@ -1,12 +1,37 @@
 use core::cmp;
 use spe_services::attest::attest_service::{self, CERTIFICATION_REF_MAX_SIZE};
 use tock_psc3::cryptolite;
+use tock_psc3::efuse::{SyslibLcsMode, get_device_lifecycle};
+
+#[repr(u32)]
+enum PsaLifecycle {
+    Unknown = 0x0000,
+    AssemblyAndTest = 0x1000,
+    PsaRotProvisioning = 0x2000,
+    Secured = 0x3000,
+    // NonPsaRotDebug = 0x4000,
+    // RecoverablePsaRotDebug = 0x5000,
+    Decommissioned = 0x6000,
+}
 
 pub struct Psc3AttestPlatform;
 
 impl attest_service::AttestPlatform for Psc3AttestPlatform {
     fn security_lifecycle(&self) -> Result<u32, spe::StatusCode> {
-        Ok(12288)
+        let lcs = get_device_lifecycle();
+        let lifecycle = match lcs {
+            SyslibLcsMode::Virgin
+            | SyslibLcsMode::Sort
+            | SyslibLcsMode::Provisioned
+            | SyslibLcsMode::Normal
+            | SyslibLcsMode::NormalNoSecure => PsaLifecycle::AssemblyAndTest,
+            SyslibLcsMode::NormalProvisioned => PsaLifecycle::PsaRotProvisioning,
+            SyslibLcsMode::Secure => PsaLifecycle::Secured,
+            SyslibLcsMode::Rma => PsaLifecycle::Decommissioned,
+            SyslibLcsMode::Corrupted => PsaLifecycle::Unknown,
+        };
+
+        Ok(lifecycle as u32)
     }
 
     fn verification_service(&self, buf: &mut [u8]) -> Result<usize, spe::StatusCode> {
