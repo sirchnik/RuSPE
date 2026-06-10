@@ -126,28 +126,40 @@ pub unsafe extern "C" fn svc_handler() {
 203: // svc_psa_return
     mrs r2, msp
     
-    ldr r4, [r2, #0]
-    ldr r5, [r2, #4]
-    ldr r6, [r2, #8]
-    ldr r7, [r2, #12]
+    // Load the original r0 (caller's exception frame pointer) into r0.
+    // It is located at offset 32 from the current msp.
+    ldr r0, [r2, #32]
     
-    add r2, r2, #32
+    // Copy the return values r0-r3 from the current exception frame to the caller's exception frame.
+    // We use r1 as a scratch register.
+    ldr r1, [r2, #0]
+    str r1, [r0, #0]
+    ldr r1, [r2, #4]
+    str r1, [r0, #4]
+    ldr r1, [r2, #8]
+    str r1, [r0, #8]
+    ldr r1, [r2, #12]
+    str r1, [r0, #12]
     
-    ldmia r2!, {{r0, r3, r12, lr}}
+    // Load the original CONTROL, PSPLIM, and EXC_RETURN.
+    ldr r3, [r2, #36]
+    ldr r1, [r2, #40]
+    ldr lr, [r2, #44]
+    
+    // Adjust MSP (pop the exception frame + saved state).
+    add r2, r2, #48
     msr msp, r2
     
-    str r4, [r0, #0]
-    str r5, [r0, #4]
-    str r6, [r0, #8]
-    str r7, [r0, #12]
+    // Restore PSPLIM.
+    msr PSPLIM, r1
     
-    msr PSPLIM, r12
-    
+    // If returning to Thread using PSP, set PSP to the caller's exception frame pointer.
     tst lr, #4
     beq 204f
     msr psp, r0
 204:
     
+    // Restore CONTROL.
     msr CONTROL, r3
     isb
     
