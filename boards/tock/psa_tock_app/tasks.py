@@ -108,9 +108,9 @@ APP = AppConfig(
     repo_root=REPO_ROOT,
     app_dir=APP_DIR,
     flash_start="0x22036000",
-    flash_length="0xA000",
-    ram_start="0x24008000",
-    ram_length="0x5800",
+    flash_length="0x3000",
+    ram_start="0x2400A000",
+    ram_length="0x3000",
     app_name="psa_tock_app",
 )
 
