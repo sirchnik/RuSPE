@@ -2,7 +2,9 @@ mod spm_fn;
 mod spm_ipc;
 
 pub use spm_fn::{Connection, PSA_MAX_IOVEC, SpmCall, SpmError, SpmFn, SpmPlatform};
-pub use spm_ipc::{EmbeddedProcess, FlashProcess, FlashProcessVectors, IpcProcess, SpmIpc};
+pub use spm_ipc::{
+    EmbeddedProcess, FlashProcess, FlashProcessVectors, IpcProcess, IpcProcessPlatform, SpmIpc,
+};
 
 pub(crate) const SVC_ELEVATE: u8 = 0;
 pub(crate) const SVC_CALL_UNPRIV: u8 = 5;
