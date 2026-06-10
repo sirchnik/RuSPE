@@ -762,6 +762,7 @@ dependencies = [
  "cortexm33",
  "cose",
  "helpers",
+ "kernel",
  "minicbor",
  "p256",
  "psa_interface",

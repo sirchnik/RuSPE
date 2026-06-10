@@ -145,9 +145,11 @@ unsafe impl IpcProcess for FlashProcess {
         self.handle
     }
 
-    unsafe fn init(&self, platform: &dyn IpcProcessPlatform) {
+    unsafe fn init(&self, _platform: &dyn IpcProcessPlatform) {
         let vectors = unsafe { &*self.vectors };
-        platform.prepare_process(vectors);
+        unsafe {
+            crate::mpu::configure_process_mpu(vectors);
+        }
         unsafe {
             svc_call_unpriv(
                 vectors.init as usize,
@@ -161,11 +163,13 @@ unsafe impl IpcProcess for FlashProcess {
 
     unsafe fn call(
         &self,
-        platform: &dyn IpcProcessPlatform,
+        _platform: &dyn IpcProcessPlatform,
         msg: PsaMsg,
     ) -> Result<(), crate::StatusCode> {
         let vectors = unsafe { &*self.vectors };
-        platform.prepare_process(vectors);
+        unsafe {
+            crate::mpu::configure_process_mpu(vectors);
+        }
         let (staged_msg, stack_top) = Self::stage_msg_mailbox(vectors, msg);
         let status = unsafe {
             svc_call_unpriv(
