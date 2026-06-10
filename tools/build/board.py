@@ -169,7 +169,7 @@ def build_non_secure(
 
 
 def elf_to_hex(
-    ctx: Context, input_image: Path, output_hex: Path, board_dir: Path
+    ctx: Context, input_image: Path, output_hex: Path
 ) -> Path:
     objcopy = resolve_objcopy(ctx)
     if objcopy is None:
@@ -179,7 +179,7 @@ def elf_to_hex(
 
     output_hex.parent.mkdir(parents=True, exist_ok=True)
     run_command(
-        [str(objcopy), "-O", "ihex", str(input_image), str(output_hex)], cwd=board_dir
+        [str(objcopy), "-O", "ihex", str(input_image), str(output_hex)]
     )
     return output_hex
 
@@ -226,13 +226,11 @@ def merge_secure_non_secure_hex(
         ctx,
         secure_elf,
         target_root / f"{secure_board.platform}.hex",
-        secure_board.board_dir,
     )
     non_secure_hex = elf_to_hex(
         ctx,
         non_secure_elf,
         target_root / f"{non_secure_board.platform}-app.hex",
-        secure_board.board_dir,
     )
     merged_hex = target_root / f"{non_secure_board.platform}_merged.hex"
     merge_hex_images(merged_hex, [secure_hex, non_secure_hex])
