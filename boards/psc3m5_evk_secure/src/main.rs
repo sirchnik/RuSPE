@@ -20,7 +20,7 @@ use tock_psc3::{chip, chip_init, gpio, icache, peri_clk, scb};
 
 use ruspe_psc3::{Psc3SecPlatform, configure_security, services::attest::Psc3AttestPlatform};
 
-const NONSECURE_FLASH_START: u32 = 0x2201_8000;
+const NONSECURE_FLASH_START: u32 = 0x2202_0000;
 const NONSECURE_FLASH_LIMIT: u32 = 0x2203_FFFF;
 const NONSECURE_RAM_START: u32 = 0x2400_4000;
 const NONSECURE_RAM_LIMIT: u32 = 0x2400_EFFF;

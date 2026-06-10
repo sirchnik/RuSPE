@@ -41,9 +41,9 @@ To change service placement or switch services, update `tools/build/service_cata
 | Region                      |     Size |             Configuration |
 | --------------------------- | -------: | ------------------------: |
 | `0x3200_0000`-`0x3201_0000` |    64 KB |     Secure Privileged (S) |
-| `0x3201_0000`-`0x3201_7F00` | 31.75 KB |   Secure Unprivileged (S) |
-| `0x3201_7F00`-`0x3201_8000` |    256 B | Non-Secure Callable (NSC) |
-| `0x2201_8000`-`0x2204_0000` |   160 KB |           Non-Secure (NS) |
+| `0x3201_0000`-`0x3201_FF00` | 63.75 KB |   Secure Unprivileged (S) |
+| `0x3201_FF00`-`0x3202_0000` |    256 B | Non-Secure Callable (NSC) |
+| `0x2202_0000`-`0x2204_0000` |   128 KB |           Non-Secure (NS) |
 
 ## Files
 
