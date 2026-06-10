@@ -48,16 +48,16 @@ pub static mut WRITER: Writer = Writer {
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     use core::ptr::addr_of_mut;
-    let writer = &mut *addr_of_mut!(WRITER);
+    let writer = unsafe { &mut *addr_of_mut!(WRITER) };
 
     let led_kernel_pin = &GpioPin::new(gpio::PsocPin::P8_5);
     let led = &mut LedHigh::new(led_kernel_pin);
 
-    debug::panic(
+    unsafe { debug::panic(
         &mut [led],
         writer,
         pi,
         &cortexm33::support::nop,
         crate::PANIC_RESOURCES.get(),
-    );
+    ) };
 }

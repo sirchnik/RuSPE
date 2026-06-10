@@ -10,11 +10,10 @@
 
 use core::ptr::addr_of_mut;
 
-use psc3::chip::{Psc3, Psc3DefaultPeripherals};
-use psc3::tcpwm::Tcpwm0;
+use psc3::chip::{Psc3DefaultPeripherals};
 #[allow(unused)]
 use psc3::{BASE_VECTORS, IRQS};
-use psc3::{chip_init, gpio};
+use psc3::{chip_init};
 
 use kernel::static_init;
 
@@ -25,7 +24,9 @@ use psa_veneer_client::{self, PsaVeneerClient};
 mod io;
 
 // Allocate memory for the stack
-kernel::stack_size! {0x1000}
+#[unsafe(link_section = ".stack_buffer")]
+#[unsafe(no_mangle)]
+static mut STACK_MEMORY: [u8; 0x3000] = [0; 0x3000];
 
 // These symbols are defined in the linker script.
 unsafe extern "C" {
@@ -46,19 +47,19 @@ unsafe extern "C" {
 pub unsafe fn main() {
     cortexm33::support::dmb();
     // set vector-table when coming from secure world
-    cortexm33::scb::set_vector_table_offset(BASE_VECTORS.as_ptr().cast::<()>());
+    unsafe { cortexm33::scb::set_vector_table_offset(BASE_VECTORS.as_ptr().cast::<()>()) };
 
     cortexm33::support::set_msplim(core::ptr::addr_of!(_sstack) as u32);
 
     /* !Only after chip_init::preinit_peripherals() was called peripheral view for debugging works! */
     chip_init::preinit_peripherals();
 
-    let peripherals = static_init!(Psc3DefaultPeripherals, Psc3DefaultPeripherals::new());
+    let peripherals = unsafe{ static_init!(Psc3DefaultPeripherals, Psc3DefaultPeripherals::new())};
 
     peripherals.init();
 
     // Set the UART used for panic
-    (*addr_of_mut!(io::WRITER)).set_scb(&peripherals.scb3);
+    unsafe { (*addr_of_mut!(io::WRITER)).set_scb(&peripherals.scb3)};
 
     let challenge = [0u8; 32];
     let mut token_buf = [0u8; 512];

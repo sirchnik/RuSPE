@@ -342,10 +342,6 @@ dependencies = [
 name = "psc3m5_evk"
 version = "0.1.0"
 dependencies = [
- "capsules-core",
- "capsules-extra",
- "capsules-system",
- "components",
  "cortexm33",
  "kernel",
  "psa_interface",
@@ -362,6 +358,22 @@ dependencies = [
  "psa_interface",
  "psc3",
  "spe",
+ "tock_build_scripts",
+]
+
+[[package]]
+name = "psc3m5_evk_tock"
+version = "0.1.0"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexm33",
+ "kernel",
+ "psa_interface",
+ "psa_veneer_client",
+ "psc3",
  "tock_build_scripts",
 ]
 

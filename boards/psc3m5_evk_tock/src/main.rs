@@ -27,6 +27,7 @@ use psc3::{chip_init, gpio};
 use psc3::{BASE_VECTORS, IRQS};
 
 mod io;
+mod spe_adapter;
 
 // Allocate memory for the stack
 kernel::stack_size! {0x2000}
@@ -66,7 +67,7 @@ pub struct Psc3Plattform {
     button: &'static capsules_core::button::Button<'static, gpio::GpioPin<'static>>,
     gpio: &'static capsules_core::gpio::GPIO<'static, gpio::GpioPin<'static>>,
     #[cfg(feature = "non_secure_tz")]
-    spe_client: &'static capsules_extra::spe_adapter::SpeAdapter,
+    spe_client: &'static crate::spe_adapter::SpeAdapter,
 }
 
 impl SyscallDriverLookup for Psc3Plattform {
@@ -82,7 +83,7 @@ impl SyscallDriverLookup for Psc3Plattform {
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             #[cfg(feature = "non_secure_tz")]
-            capsules_extra::spe_adapter::DRIVER_NUM => f(Some(self.spe_client)),
+            crate::spe_adapter::DRIVER_NUM => f(Some(self.spe_client)),
             _ => f(None),
         }
     }
@@ -121,7 +122,7 @@ impl KernelResources<Psc3<'static, Psc3DefaultPeripherals<'static>>> for Psc3Pla
 }
 
 // These symbols are defined in the linker script.
-extern "C" {
+unsafe extern "C" {
     /// Beginning of the ROM region containing app images.
     static _sapps: u8;
     /// End of the ROM region containing app images.
@@ -135,7 +136,7 @@ extern "C" {
 }
 
 /// Main function called after RAM initialized.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe fn main() {
     cortexm33::support::dmb();
     // set vector-table when coming from secure world
@@ -181,9 +182,9 @@ pub unsafe fn main() {
         .preconfigure(&GPIO_CONFIG);
 
     // Set the UART used for panic
-    (*addr_of_mut!(io::WRITER)).set_scb(&peripherals.scb3);
+    unsafe{(*addr_of_mut!(io::WRITER)).set_scb(&peripherals.scb3)};
 
-    let chip = static_init!(Psc3<Psc3DefaultPeripherals>, Psc3::new(peripherals));
+    let chip = unsafe {static_init!(Psc3<Psc3DefaultPeripherals>, Psc3::new(peripherals))};
     PANIC_RESOURCES.get().map(|resources| {
         resources.chip.put(chip);
     });
@@ -343,7 +344,7 @@ pub unsafe fn main() {
         led,
         button,
         #[cfg(feature = "non_secure_tz")]
-        spe_client: &capsules_extra::spe_adapter::SpeAdapter,
+        spe_client: &crate::spe_adapter::SpeAdapter,
         gpio,
     };
 
@@ -352,14 +353,14 @@ pub unsafe fn main() {
     kernel::process::load_processes(
         board_kernel,
         chip,
-        core::slice::from_raw_parts(
+        unsafe { core::slice::from_raw_parts(
             core::ptr::addr_of!(_sapps),
             core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-        ),
-        core::slice::from_raw_parts_mut(
+        ) },
+        unsafe { core::slice::from_raw_parts_mut(
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-        ),
+        ) },
         &FAULT_RESPONSE,
         &process_management_capability,
     )
