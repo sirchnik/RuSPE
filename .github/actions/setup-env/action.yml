@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: Infineon Technologies AG
+#
+# SPDX-License-Identifier: MIT
+
+name: 'Setup Environment'
+description: 'Checkout repository, setup Rust cache, Python, uv and install dependencies'
+runs:
+  using: 'composite'
+  steps:
+    - name: Rust Cache
+      uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+    - name: Setup Python
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      with:
+        python-version: "3.x"
+    - name: Setup uv
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      with:
+        enable-cache: true
+    - name: Install dependencies
+      shell: bash
+      run: |
+        uv sync
+        echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
+        uv run inv install

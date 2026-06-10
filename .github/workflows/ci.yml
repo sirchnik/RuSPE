@@ -21,21 +21,11 @@ jobs:
     name: Format & Clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           submodules: recursive
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.x"
-      - uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-      - name: Install dependencies
-        run: |
-          uv sync
-          echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
-          uv run inv install
+      - uses: ./.github/actions/setup-env
       - name: Check formatting
         run: inv fmt --check
       - name: Run clippy
@@ -51,21 +41,11 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           submodules: recursive
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.x"
-      - uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-      - name: Install dependencies
-        run: |
-          uv sync
-          echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
-          uv run inv install
+      - uses: ./.github/actions/setup-env
       - name: Build all board and app targets
         run: inv build
 
@@ -73,21 +53,11 @@ jobs:
     name: Tests & Coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           submodules: recursive
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.x"
-      - uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-      - name: Install dependencies
-        run: |
-          uv sync
-          echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
-          uv run inv install
+      - uses: ./.github/actions/setup-env
       - name: Run tests
         run: inv test
       - name: Generate coverage
@@ -102,22 +72,10 @@ jobs:
     name: Miri
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           submodules: recursive
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
-        with:
-          cache-on-failure: true
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.x"
-      - uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-      - name: Install dependencies
-        run: |
-          uv sync
-          echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
-          uv run inv install
+      - uses: ./.github/actions/setup-env
       - name: Run Miri
         run: inv miri
