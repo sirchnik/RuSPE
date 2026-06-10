@@ -44,10 +44,12 @@ def build_task(_func=None, **task_kwargs):
 def _format_command(command: list[str]) -> str:
     return subprocess.list2cmdline(command)
 
+
 def print_step(message: str):
     reset = "\x1b[0m"
     grey = "\x1b[90m"
     print(f"{grey}{message}{reset}")
+
 
 def _merge_env(extra_env: dict[str, str] | None) -> dict[str, str]:
     env = os.environ.copy()
@@ -124,7 +126,7 @@ def run_command(
         ) from error
 
 
-def _command_path(command_name: str) -> Path | None:
+def resolve_cmd(command_name: str) -> Path | None:
     add_paths = [str(Path.home() / ".cargo" / "bin")]
     path = path = (os.environ.get("PATH") or "") + ":" + (":".join(add_paths))
     resolved = which(command_name, path=path)
@@ -159,7 +161,7 @@ def resolve_openocd(version="default") -> Path | None:
             (root_path / "bin" / "openocd.exe", root_path / "bin" / "openocd")
         )
 
-    path_candidate = _command_path("openocd")
+    path_candidate = resolve_cmd("openocd")
     if path_candidate is not None:
         candidates.append(path_candidate)
 
@@ -173,7 +175,7 @@ def resolve_openocd(version="default") -> Path | None:
 
 
 def _rust_sysroot_objcopy_candidates(ctx: Context) -> list[Path]:
-    rustc = _command_path("rustc")
+    rustc = resolve_cmd("rustc")
     if rustc is None:
         return []
 
@@ -207,7 +209,7 @@ def resolve_objcopy(ctx: Context) -> Path | None:
     candidates: list[Path] = []
 
     for command_name in ("rust-objcopy", "llvm-objcopy"):
-        candidate = _command_path(command_name)
+        candidate = resolve_cmd(command_name)
         if candidate is not None:
             candidates.append(candidate)
 
