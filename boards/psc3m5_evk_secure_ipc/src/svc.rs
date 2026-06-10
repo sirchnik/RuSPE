@@ -20,6 +20,10 @@ unsafe extern "C" fn svc_handler_dispatch(
     unsafe { svc_handler_arm_v7m() };
 }
 
+unsafe extern "C" {
+    fn psa_call_thunk();
+}
+
 #[unsafe(naked)]
 pub unsafe extern "C" fn svc_handler() {
     use core::arch::naked_asm;
@@ -36,13 +40,21 @@ pub unsafe extern "C" fn svc_handler() {
     ldrh r1, [r1, #-2]         // r1 = SVC instruction halfword
     uxtb r1, r1                // r1 = SVC number
 
-    // --- SVC_CALL_UNPRIV (5): switch to unprivileged Thread + PSP ----------
-    cmp r1, #5
+    // --- SVC_CALL_UNPRIV: switch to unprivileged Thread + PSP ----------
+    cmp r1, {SVC_CALL_UNPRIV}
     beq 200f
 
-    // --- SVC_ELEVATE (0): return to privileged Thread + MSP ----------------
-    cmp r1, #0
+    // --- SVC_ELEVATE: return to privileged Thread + MSP ----------------
+    cmp r1, {SVC_ELEVATE}
     beq 201f
+
+    // --- SVC_PSA_CALL: execute psa_call in privileged Thread + MSP ---
+    cmp r1, {SVC_PSA_CALL}
+    beq 202f
+    
+    // --- SVC_PSA_RETURN: return from psa_call ---
+    cmp r1, {SVC_PSA_RETURN}
+    beq 203f
 
     // --- PSA SVCs and any fallback handling --------------------------------
     b {svc_handler_dispatch}
@@ -69,8 +81,76 @@ pub unsafe extern "C" fn svc_handler() {
     isb
     bic lr, lr, #4             // EXC_RETURN bit2=0 -> unstack from MSP
     bx lr                      // exception return -> back in privileged caller
+
+202: // svc_psa_call
+    mrs r2, msp
+    mrs r3, CONTROL
+    stmdb r2!, {{r0, r3, lr}}
+    
+    sub r2, r2, #32
+    
+    ldr r3, [r0, #0]
+    str r3, [r2, #0]
+    ldr r3, [r0, #4]
+    str r3, [r2, #4]
+    ldr r3, [r0, #8]
+    str r3, [r2, #8]
+    ldr r3, [r0, #12]
+    str r3, [r2, #12]
+    
+    mov r3, #0
+    str r3, [r2, #16]
+    str r3, [r2, #20]
+    
+    ldr r3, 300f
+    str r3, [r2, #24]
+    
+    mov r3, #1
+    lsl r3, r3, #24
+    str r3, [r2, #28]
+    
+    msr msp, r2
+    
+    mov r3, #0
+    msr CONTROL, r3
+    isb
+    
+    ldr lr, 301f
+    bx lr
+
+    .align 2
+300: .word {psa_call_thunk}
+301: .word 0xFFFFFFF9
+
+203: // svc_psa_return
+    mrs r2, msp
+    
+    ldr r4, [r2, #0]
+    ldr r5, [r2, #4]
+    ldr r6, [r2, #8]
+    ldr r7, [r2, #12]
+    
+    add r2, r2, #32
+    
+    ldmia r2!, {{r0, r3, lr}}
+    msr msp, r2
+    
+    str r4, [r0, #0]
+    str r5, [r0, #4]
+    str r6, [r0, #8]
+    str r7, [r0, #12]
+    
+    msr CONTROL, r3
+    isb
+    
+    bx lr
         ",
         svc_handler_dispatch = sym svc_handler_dispatch,
+        psa_call_thunk = sym psa_call_thunk,
+        SVC_CALL_UNPRIV = const spe::psa::psa_svc_api::SVC_CALL_UNPRIV,
+        SVC_ELEVATE = const spe::psa::psa_svc_api::SVC_ELEVATE,
+        SVC_PSA_CALL = const spe::psa::psa_svc_api::SVC_PSA_CALL,
+        SVC_PSA_RETURN = const spe::psa::psa_svc_api::SVC_PSA_RETURN,
     );
 }
 

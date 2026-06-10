@@ -10,11 +10,9 @@ pub use spm_ipc::{
     EmbeddedProcess, FlashProcess, FlashProcessVectors, IpcProcess, IpcProcessPlatform, SpmIpc,
 };
 
-pub(crate) const SVC_CALL_UNPRIV: u8 = 5;
-
 /// Call a function in unprivileged Thread mode via SVC, using PSP.
 ///
-/// Before issuing `SVC #5` (`SVC_CALL_UNPRIV`), this function:
+/// Before issuing `SVC_CALL_UNPRIV`, this function:
 /// 1. Writes a fabricated exception frame at `stack_top - 32` containing
 ///    the target `fn_ptr`, `arg`, and `thunk` (return address).
 /// 2. Sets PSP to that frame base.

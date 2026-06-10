@@ -122,7 +122,6 @@ def _launch_payload(release: bool = False) -> dict[str, object]:
         "request": "launch",
         "cwd": "${workspaceFolder}",
         "openOCDLaunchCommands": ["init; reset init;"],
-        "overrideRestartCommands": ["starti"],
         "svdFile": "${workspaceFolder}/.local/svds/psc3.svd",
         "configFiles": ["${workspaceFolder}/boards/psc3m5_evk_test/openocd.tcl"],
     }
@@ -130,8 +129,8 @@ def _launch_payload(release: bool = False) -> dict[str, object]:
         "version": "0.2.0",
         "configurations": [
             {
-                **psc3m5_base_conf,
                 "name": "PSC3-Test",
+                **psc3m5_base_conf,
                 "executable": f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test_merged.hex",
                 "preLaunchCommands": [
                     f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test",
@@ -140,8 +139,8 @@ def _launch_payload(release: bool = False) -> dict[str, object]:
                 "preLaunchTask": "build.psc3m5_evk_test",
             },
             {
-                **psc3m5_base_conf,
                 "name": "PSC3-Tock",
+                **psc3m5_base_conf,
                 "executable": f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock_merged.hex",
                 "preLaunchCommands": [
                     f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock",
@@ -150,8 +149,8 @@ def _launch_payload(release: bool = False) -> dict[str, object]:
                 "preLaunchTask": "build.psc3m5_evk_tock",
             },
             {
-                **psc3m5_base_conf,
                 "name": "PSC3-IPC",
+                **psc3m5_base_conf,
                 "executable": f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure_ipc_merged.hex",
                 "preLaunchCommands": [
                     f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure_ipc",

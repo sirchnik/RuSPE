@@ -16,6 +16,7 @@ pub const SVC_PSA_MAP_VEC: u8 = 1;
 pub const SVC_PSA_UNMAP_VEC: u8 = 2;
 pub const SVC_CALL_UNPRIV: u8 = 3;
 pub const SVC_PSA_CALL: u8 = 4;
+pub const SVC_PSA_RETURN: u8 = 7;
 
 #[repr(C)]
 pub struct SvcStackFrame {
@@ -98,7 +99,12 @@ fn handle_svc_with_spm(
                 crate::psa::psa_iovec_api::psa_prepare_invec(spm, handle, frame.r1 as u32)
             };
             match result {
-                Ok(raw) => set_raw_vec(frame, raw),
+                Ok(raw) => {
+                    unsafe {
+                        crate::mpu::mpu_map_vec(is_outvec, frame.r1 as u32, raw.base, raw.len);
+                    }
+                    set_raw_vec(frame, raw)
+                }
                 Err(status) => set_error(frame, status),
             }
         }
@@ -110,7 +116,12 @@ fn handle_svc_with_spm(
                 crate::psa::psa_iovec_api::psa_finish_invec(spm, handle, frame.r1 as u32)
             };
             match result {
-                Ok(()) => set_success(frame),
+                Ok(()) => {
+                    unsafe {
+                        crate::mpu::mpu_unmap_vec(is_outvec, frame.r1 as u32);
+                    }
+                    set_success(frame)
+                }
                 Err(status) => set_error(frame, status),
             }
         }
@@ -139,6 +150,51 @@ fn handle_svc_with_spm(
 
 pub fn handle_svc(svc_num: u8, frame: &mut SvcStackFrame) -> bool {
     handle_svc_with_spm(svc_num, frame, psa_api::try_get_spm())
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn psa_call_thunk(
+    handle: usize,
+    ctrl_param: usize,
+    in_vec: usize,
+    out_vec: usize,
+) -> ! {
+    let mut frame = SvcStackFrame {
+        r0: handle,
+        r1: ctrl_param,
+        r2: in_vec,
+        r3: out_vec,
+        r12: 0,
+        lr: 0,
+        pc: 0,
+        xpsr: 0,
+    };
+
+    handle_svc(SVC_PSA_CALL, &mut frame);
+
+    unsafe {
+        core::arch::asm!(
+            "svc {svc_num}",
+            svc_num = const SVC_PSA_RETURN,
+            in("r0") frame.r0,
+            in("r1") frame.r1,
+            in("r2") frame.r2,
+            in("r3") frame.r3,
+            options(noreturn)
+        );
+    }
+}
+
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn psa_call_thunk(
+    _handle: usize,
+    _ctrl_param: usize,
+    _in_vec: usize,
+    _out_vec: usize,
+) -> ! {
+    panic!("psa_call_thunk only available on ARM");
 }
 
 fn status_from_raw(raw: usize) -> Result<(), StatusCode> {
