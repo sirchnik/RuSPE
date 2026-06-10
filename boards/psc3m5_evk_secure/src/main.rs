@@ -20,6 +20,11 @@ use tock_psc3::{chip, chip_init, gpio, icache, peri_clk, scb};
 
 use ruspe_psc3::{Psc3SecPlatform, configure_security, services::attest::Psc3AttestPlatform};
 
+const NONSECURE_FLASH_START: u32 = 0x2201_4000;
+const NONSECURE_FLASH_LIMIT: u32 = 0x2203_FFFF;
+const NONSECURE_RAM_START: u32 = 0x2400_4000;
+const NONSECURE_RAM_LIMIT: u32 = 0x2400_EFFF;
+
 unsafe extern "Rust" {
     static __veneer_base: ();
     static __veneer_limit: ();
@@ -95,7 +100,12 @@ pub unsafe fn main() {
     let led_pin = gpio.get_pin(gpio::PsocPin::P8_4);
     led_pin.preconfigure(&GPIO_CONFIG);
 
-    configure_security();
+    configure_security(
+        NONSECURE_FLASH_START,
+        NONSECURE_FLASH_LIMIT,
+        NONSECURE_RAM_START,
+        NONSECURE_RAM_LIMIT,
+    );
 
     let sec_platform = unsafe {
         static_init!(

@@ -231,7 +231,14 @@ const NONSECURE_PRIV: &[PpcRegion] = &[
     PpcRegion::ProtMcpass,
 ];
 
-pub fn configure_security() {
+pub fn configure_security(
+    nonsecure_flash_start: u32,
+    nonsecure_flash_limit: u32,
+    nonsecure_ram_start: u32,
+    nonsecure_ram_limit: u32,
+) {
+    let nsc_start = nonsecure_flash_start.wrapping_add(0x1000_0000).wrapping_sub(0x100);
+
     // Sometimes while debugging no BUS_ERROR is generated and the debugger just hangs. Change to RZWI then.
     ppc::set_viloation_response(ppc::PPC_CTL::RESP_CFG::RZWI);
 
@@ -251,8 +258,8 @@ pub fn configure_security() {
     sau.set_region(
         0,
         sau::SauRegion {
-            base_address: 0x2201_4000,
-            limit_address: 0x2203_FFFF,
+            base_address: nonsecure_flash_start,
+            limit_address: nonsecure_flash_limit,
             attribute: sau::SauRegionAttribute::NonSecure,
         },
     )
@@ -261,8 +268,8 @@ pub fn configure_security() {
     sau.set_region(
         1,
         sau::SauRegion {
-            base_address: 0x3201_3F00,
-            limit_address: 0x3201_3FFF,
+            base_address: nsc_start,
+            limit_address: nsc_start + 0xFF,
             attribute: sau::SauRegionAttribute::NonSecureCallable,
         },
     )
@@ -271,8 +278,8 @@ pub fn configure_security() {
     sau.set_region(
         2,
         sau::SauRegion {
-            base_address: 0x2400_4000,
-            limit_address: 0x2400_EFFF,
+            base_address: nonsecure_ram_start,
+            limit_address: nonsecure_ram_limit,
             attribute: sau::SauRegionAttribute::NonSecure,
         },
     )
