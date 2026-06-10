@@ -6,7 +6,7 @@
 
 #![no_std]
 #![no_main]
-#![feature(abi_cmse_nonsecure_call, cmse_nonsecure_entry)]
+#![feature(abi_cmse_nonsecure_call)]
 
 use core::ptr::addr_of_mut;
 
