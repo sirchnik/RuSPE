@@ -67,17 +67,18 @@ def _inv_executable() -> str:
     return "${workspaceFolder}/.venv/bin/inv"
 
 
-def _tasks_payload() -> dict[str, object]:
+def _tasks_payload(release: bool = False) -> dict[str, object]:
     inv_executable = _inv_executable()
+    debug_arg = "" if release else " --debug"
     if os.name == "nt":
-        build_command = f'& "{inv_executable}" build --debug'
-        build_with_app_command = f'$app = \'${{config:tock.app}}\'; if ($app) {{ & "{inv_executable}" build --debug --app "$app" }} else {{ & "{inv_executable}" build --debug }}'
+        build_command = f'& "{inv_executable}" build{debug_arg}'
+        build_with_app_command = f'$app = \'${{config:tock.app}}\'; if ($app) {{ & "{inv_executable}" build{debug_arg} --app "$app" }} else {{ & "{inv_executable}" build{debug_arg} }}'
     else:
-        build_command = f'"{inv_executable}" build --debug'
+        build_command = f'"{inv_executable}" build{debug_arg}'
         build_with_app_command = (
             "app='${config:tock.app}'; "
-            f'if [ -n "$app" ]; then "{inv_executable}" build --debug --app "$app"; '
-            f'else "{inv_executable}" build --debug; fi'
+            f'if [ -n "$app" ]; then "{inv_executable}" build{debug_arg} --app "$app"; '
+            f'else "{inv_executable}" build{debug_arg}; fi'
         )
 
     common_task = {
@@ -112,7 +113,8 @@ def _tasks_payload() -> dict[str, object]:
     }
 
 
-def _launch_payload() -> dict[str, object]:
+def _launch_payload(release: bool = False) -> dict[str, object]:
+    profile = "release" if release else "debug"
     psc3m5_base_conf = {
         "type": "cortex-debug",
         "servertype": "openocd",
@@ -130,30 +132,31 @@ def _launch_payload() -> dict[str, object]:
             {
                 **psc3m5_base_conf,
                 "name": "PSC3-Test",
-                "executable": "target/thumbv8m.main-none-eabi/debug/psc3m5_evk_test_merged.hex",
+                "executable": f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test_merged.hex",
                 "preLaunchCommands": [
-                    "add-symbol-file target/thumbv8m.main-none-eabi/debug/psc3m5_evk_test",
-                    "add-symbol-file target/thumbv8m.main-none-eabi/debug/psc3m5_evk_secure",
+                    f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test",
+                    f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure",
                 ],
                 "preLaunchTask": "build.psc3m5_evk_test",
             },
             {
                 **psc3m5_base_conf,
                 "name": "PSC3-Tock",
-                "executable": "target/thumbv8m.main-none-eabi/debug/psc3m5_evk_tock_merged.hex",
+                "executable": f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock_merged.hex",
                 "preLaunchCommands": [
-                    "add-symbol-file target/thumbv8m.main-none-eabi/debug/psc3m5_evk_tock",
-                    "add-symbol-file target/thumbv8m.main-none-eabi/debug/psc3m5_evk_secure",
+                    f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock",
+                    f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure",
                 ],
                 "preLaunchTask": "build.psc3m5_evk_tock",
             },
             {
                 **psc3m5_base_conf,
                 "name": "PSC3-IPC",
-                "executable": "target/thumbv8m.main-none-eabi/debug/psc3m5_evk_secure_ipc_merged.hex",
+                "executable": f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure_ipc_merged.hex",
                 "preLaunchCommands": [
-                    "add-symbol-file target/thumbv8m.main-none-eabi/debug/psc3m5_evk_secure_ipc",
-                    "add-symbol-file target/thumbv8m.main-none-eabi/debug/psc3m5_evk_attest",
+                    f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure_ipc",
+                    f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_attest",
+                    f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_crypto",
                 ],
                 "preLaunchTask": "build.psc3m5_evk_secure_ipc",
             },
@@ -168,7 +171,7 @@ def _download(url: str, destination: Path) -> None:
 
 
 @build_task(default=True)
-def vscode(ctx: Context, force=False):
+def vscode(ctx: Context, force=False, release_debug_config=False):
     """Set up the VS Code workspace files."""
 
     if not (REPO_ROOT / ".venv").exists():
@@ -186,8 +189,8 @@ def vscode(ctx: Context, force=False):
     if not PSC3_SVD.exists() or force:
         _download(PSC3_SVD_URL, PSC3_SVD)
 
-    _write_json(TASKS_JSON, _tasks_payload())
-    _write_json(LAUNCH_JSON, _launch_payload())
+    _write_json(TASKS_JSON, _tasks_payload(release_debug_config))
+    _write_json(LAUNCH_JSON, _launch_payload(release_debug_config))
 
 
 @build_task
