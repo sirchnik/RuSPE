@@ -38,30 +38,83 @@ impl<T> Mutex<T> {
             Err(())
         }
     }
+}
 
-    /// Sets the value if the lock is available.
-    pub fn try_set(&self, value: T) -> Result<(), ()> {
-        self.try_lock(|inner| *inner = value)
+#[cfg(test)]
+mod tests {
+    extern crate std;
+    use super::*;
+    use std::sync::Arc;
+
+    #[test]
+    fn try_lock_provides_mutable_access() {
+        let m = Mutex::new(0u32);
+        let result = m.try_lock(|v| {
+            *v = 42;
+        });
+        assert!(result.is_ok());
+        assert_eq!(m.try_lock(|v| *v), Ok(42));
     }
 
-    /// Returns a copy of the value if the lock is available.
-    pub fn try_get(&self) -> Option<T>
-    where
-        T: Copy,
-    {
-        self.try_lock(|inner| *inner).ok()
+    #[test]
+    fn try_lock_returns_closure_result() {
+        let m = Mutex::new(10u32);
+        let result = m.try_lock(|v| *v + 5);
+        assert_eq!(result, Ok(15));
     }
 
-    /// Replaces the value and returns the old one if the lock is available.
-    pub fn try_replace(&self, value: T) -> Result<T, ()> {
-        self.try_lock(|inner| core::mem::replace(inner, value))
+    #[test]
+    fn try_lock_fails_when_already_held() {
+        let m = Arc::new(Mutex::new(()));
+        let m2 = Arc::clone(&m);
+
+        // Hold the lock from another thread while we try to acquire it.
+        let barrier = Arc::new(std::sync::Barrier::new(2));
+        let b2 = Arc::clone(&barrier);
+
+        let handle = std::thread::spawn(move || {
+            m2.try_lock(|_| {
+                b2.wait(); // signal: lock is held
+                b2.wait(); // wait for main thread to finish its attempt
+            })
+            .unwrap();
+        });
+
+        barrier.wait(); // wait until lock is held
+        let result = m.try_lock(|_| ());
+        assert!(result.is_err());
+        barrier.wait(); // release the spawned thread
+        handle.join().unwrap();
     }
 
-    /// Takes the value, leaving Default::default() in its place.
-    pub fn try_take(&self) -> Option<T>
-    where
-        T: Default,
-    {
-        self.try_lock(|inner| core::mem::take(inner)).ok()
+    #[test]
+    fn lock_is_released_after_closure() {
+        let m = Mutex::new(1u32);
+        m.try_lock(|v| *v = 2).unwrap();
+        // Lock should be free again.
+        assert_eq!(m.try_lock(|v| *v), Ok(2));
+    }
+
+    #[test]
+    fn concurrent_mutations_are_serialized() {
+        let m = Arc::new(Mutex::new(0u32));
+        let threads: std::vec::Vec<_> = (0..8)
+            .map(|_| {
+                let m = Arc::clone(&m);
+                std::thread::spawn(move || {
+                    for _ in 0..1000 {
+                        while m.try_lock(|v| *v += 1).is_err() {
+                            std::hint::spin_loop();
+                        }
+                    }
+                })
+            })
+            .collect();
+
+        for t in threads {
+            t.join().unwrap();
+        }
+
+        assert_eq!(m.try_lock(|v| *v), Ok(8000));
     }
 }

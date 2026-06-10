@@ -157,3 +157,119 @@ impl TfmCryptoPackIovec {
 
 /// TF-M function SID for `psa_sign_hash` (group 7 = ASYM_SIGN, index 2).
 pub const TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID: u16 = 0x0702;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn service_handle_values() {
+        assert_eq!(ServiceHandle::InternalTrustedStorageService as u32, 0x40000102);
+        assert_eq!(ServiceHandle::Crypto as u32, 0x40000100);
+        assert_eq!(ServiceHandle::AttestationService as u32, 0x40000103);
+    }
+
+    #[test]
+    fn ctrl_param_type_only() {
+        let cp = CtrlParam::new(42, 0, false, 0, false);
+        assert_eq!(cp.unpack_type(), 42);
+        assert!(!cp.has_iovec());
+        assert_eq!(cp.in_len(), 0);
+        assert_eq!(cp.out_len(), 0);
+        assert!(!cp.is_ns_ivec());
+        assert!(!cp.is_ns_ovec());
+        assert!(!cp.is_ns_vec());
+    }
+
+    #[test]
+    fn ctrl_param_with_iovecs() {
+        let cp = CtrlParam::new(1, 2, false, 1, false);
+        assert_eq!(cp.unpack_type(), 1);
+        assert!(cp.has_iovec());
+        assert_eq!(cp.in_len(), 2);
+        assert_eq!(cp.out_len(), 1);
+    }
+
+    #[test]
+    fn ctrl_param_ns_flags() {
+        let cp = CtrlParam::new(0, 1, true, 1, true);
+        assert!(cp.is_ns_ivec());
+        assert!(cp.is_ns_ovec());
+    }
+
+    #[test]
+    fn ctrl_param_ns_ivec_only() {
+        let cp = CtrlParam::new(0, 1, true, 1, false);
+        assert!(cp.is_ns_ivec());
+        assert!(!cp.is_ns_ovec());
+    }
+
+    #[test]
+    fn ctrl_param_ns_ovec_only() {
+        let cp = CtrlParam::new(0, 1, false, 1, true);
+        assert!(!cp.is_ns_ivec());
+        assert!(cp.is_ns_ovec());
+    }
+
+    #[test]
+    fn ctrl_param_set_ns_vec() {
+        let mut cp = CtrlParam::new(0, 0, false, 0, false);
+        assert!(!cp.is_ns_vec());
+        cp.set_ns_vec();
+        assert!(cp.is_ns_vec());
+    }
+
+    #[test]
+    fn ctrl_param_negative_type() {
+        // Negative types encoded via i16 should round-trip
+        let cp = CtrlParam::new(-1, 0, false, 0, false);
+        assert_eq!(cp.unpack_type(), -1);
+    }
+
+    #[test]
+    fn ctrl_param_max_iovec_lengths() {
+        // in_len and out_len are 3-bit fields, max value 7
+        let cp = CtrlParam::new(0, 7, false, 7, false);
+        assert_eq!(cp.in_len(), 7);
+        assert_eq!(cp.out_len(), 7);
+        assert!(cp.has_iovec());
+    }
+
+    #[test]
+    fn tfm_crypto_pack_iovec_for_sign_hash() {
+        let iov = TfmCryptoPackIovec::for_sign_hash(42, PSA_ALG_ECDSA_SHA256);
+        assert_eq!(iov.key_id, 42);
+        assert_eq!(iov.alg, PSA_ALG_ECDSA_SHA256);
+        assert_eq!(iov.function_id, TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID);
+        assert_eq!(iov.op_handle, 0);
+        assert_eq!(iov.step, 0);
+    }
+
+    #[test]
+    fn psa_alg_ecdsa_sha256_value() {
+        assert_eq!(PSA_ALG_ECDSA_SHA256, 0x0600_0609);
+    }
+
+    #[test]
+    fn ff_in_vec_layout() {
+        // Verify FFInVec can hold a pointer and length
+        let data = [1u8, 2, 3];
+        let iv = FFInVec {
+            base: data.as_ptr(),
+            len: data.len(),
+        };
+        assert_eq!(iv.len, 3);
+        assert!(!iv.base.is_null());
+    }
+
+    #[test]
+    fn ff_out_vec_layout() {
+        let mut data = [0u8; 4];
+        let ov = FFOutVec {
+            base: data.as_mut_ptr(),
+            len: data.len(),
+        };
+        assert_eq!(ov.len, 4);
+        assert!(!ov.base.is_null());
+    }
+}

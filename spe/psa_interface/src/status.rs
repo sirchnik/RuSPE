@@ -113,3 +113,107 @@ pub fn into_psa_status(r: Result<(), StatusCode>) -> isize {
         Err(e) => e as isize,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn status_code_to_psa_status_success() {
+        let psa: PsaStatus = StatusCode::_Success.into();
+        assert_eq!(psa, 0);
+    }
+
+    #[test]
+    fn status_code_to_psa_status_all_variants() {
+        let cases: &[(StatusCode, isize)] = &[
+            (StatusCode::_Success, 0),
+            (StatusCode::ProgrammerError, -129),
+            (StatusCode::ConnectionRefused, -130),
+            (StatusCode::ConnectionBusy, -131),
+            (StatusCode::GenericError, -132),
+            (StatusCode::NotPermitted, -133),
+            (StatusCode::NotSupported, -134),
+            (StatusCode::InvalidArgument, -135),
+            (StatusCode::InvalidHandle, -136),
+            (StatusCode::BadState, -137),
+            (StatusCode::BufferTooSmall, -138),
+            (StatusCode::AlreadyExists, -139),
+            (StatusCode::DoesNotExist, -140),
+            (StatusCode::InsufficientMemory, -141),
+            (StatusCode::InsufficientStorage, -142),
+            (StatusCode::InsufficientData, -143),
+            (StatusCode::ServiceFailure, -144),
+            (StatusCode::CommunicationFailure, -145),
+            (StatusCode::StorageFailure, -146),
+            (StatusCode::HardwareFailure, -147),
+            (StatusCode::InvalidSignature, -149),
+            (StatusCode::CorruptionDetected, -151),
+            (StatusCode::DataCorrupt, -152),
+            (StatusCode::DataInvalid, -153),
+            (StatusCode::OperationIncomplete, -248),
+        ];
+
+        for &(code, expected) in cases {
+            let psa: PsaStatus = code.into();
+            assert_eq!(psa, expected, "StatusCode::{code:?} should map to {expected}");
+        }
+    }
+
+    #[test]
+    fn psa_status_to_status_code_roundtrip() {
+        let codes = [
+            StatusCode::_Success,
+            StatusCode::ProgrammerError,
+            StatusCode::ConnectionRefused,
+            StatusCode::ConnectionBusy,
+            StatusCode::GenericError,
+            StatusCode::NotPermitted,
+            StatusCode::NotSupported,
+            StatusCode::InvalidArgument,
+            StatusCode::InvalidHandle,
+            StatusCode::BadState,
+            StatusCode::BufferTooSmall,
+            StatusCode::AlreadyExists,
+            StatusCode::DoesNotExist,
+            StatusCode::InsufficientMemory,
+            StatusCode::InsufficientStorage,
+            StatusCode::InsufficientData,
+            StatusCode::ServiceFailure,
+            StatusCode::CommunicationFailure,
+            StatusCode::StorageFailure,
+            StatusCode::HardwareFailure,
+            StatusCode::InvalidSignature,
+            StatusCode::CorruptionDetected,
+            StatusCode::DataCorrupt,
+            StatusCode::DataInvalid,
+            StatusCode::OperationIncomplete,
+        ];
+
+        for code in codes {
+            let psa: PsaStatus = code.into();
+            let back = StatusCode::try_from(psa).expect("round-trip should succeed");
+            assert_eq!(back, code);
+        }
+    }
+
+    #[test]
+    fn psa_status_try_from_unknown_returns_err() {
+        assert_eq!(StatusCode::try_from(1_isize), Err(1));
+        assert_eq!(StatusCode::try_from(-999_isize), Err(-999));
+        assert_eq!(StatusCode::try_from(-148_isize), Err(-148)); // gap between -147 and -149
+        assert_eq!(StatusCode::try_from(-150_isize), Err(-150)); // gap between -149 and -151
+    }
+
+    #[test]
+    fn into_psa_status_ok_returns_zero() {
+        assert_eq!(into_psa_status(Ok(())), 0);
+    }
+
+    #[test]
+    fn into_psa_status_err_returns_negative() {
+        assert_eq!(into_psa_status(Err(StatusCode::GenericError)), -132);
+        assert_eq!(into_psa_status(Err(StatusCode::InvalidArgument)), -135);
+        assert_eq!(into_psa_status(Err(StatusCode::OperationIncomplete)), -248);
+    }
+}

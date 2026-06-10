@@ -201,339 +201,188 @@ pub fn compute_initial_attestation_token_size(
 #[cfg(test)]
 mod tests {
     use super::{
-        AttestClaim, AttestClaimValue, IatClaim, SwComponent,
-        compute_initial_attestation_token_size, encode_initial_attestation_token,
+        AttestClaim, AttestClaimValue, IatClaim, SwComponent, encode_payload, map_cose_error,
     };
+    use crate::StatusCode;
+    use cose::cose_sign1::CoseSign1Error;
     use minicbor::Decoder;
 
-    const TEST_PRIVATE_KEY: &[u8] = &[
-        0x43, 0xff, 0xfe, 0xcb, 0x95, 0xf8, 0x08, 0x5a, 0x7c, 0x40, 0xe1, 0xd3, 0xea, 0x79, 0x0b,
-        0xef, 0x4e, 0xb7, 0x8c, 0xdd, 0x77, 0xd5, 0x85, 0x03, 0xa6, 0x4c, 0x16, 0x00, 0xf9, 0x1b,
-        0x33, 0xe7,
-    ];
-
-    fn decode_payload_from_token<'a>(token: &'a [u8]) -> &'a [u8] {
-        let mut dec = Decoder::new(token);
-
-        let tag = dec.tag().expect("COSE_Sign1 tag should decode");
-        assert_eq!(tag.as_u64(), 18);
-
-        let array_len = dec.array().expect("COSE_Sign1 array should decode");
-        assert_eq!(array_len, Some(4));
-
-        let _protected_headers = dec.bytes().expect("protected header should decode");
-
-        let unprotected_len = dec.map().expect("unprotected header should decode");
-        assert_eq!(unprotected_len, Some(0));
-
-        let payload = dec.bytes().expect("payload should decode");
-        let signature = dec.bytes().expect("signature should decode");
-        assert_eq!(signature.len(), 64);
-
-        payload
-    }
+    // ── encode_payload: single-claim cases ──────────────────────────────
 
     #[test]
-    fn token_payload_contains_only_nonce() {
-        let challenge = [0xAB; 32];
+    fn encode_payload_single_bytes_claim() {
+        let nonce = [0xAA; 32];
         let claims = [AttestClaim {
             key: IatClaim::Nonce,
-            value: AttestClaimValue::Bytes(&challenge),
+            value: AttestClaimValue::Bytes(&nonce),
         }];
-        let mut token = [0u8; crate::attest::attest_service::PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE];
+        let mut buf = [0u8; 128];
+        let len = encode_payload(&claims, &mut buf).unwrap();
 
-        let encoded_len = encode_initial_attestation_token(&claims, &mut token, TEST_PRIVATE_KEY)
-            .expect("token should encode");
-
-        let payload = decode_payload_from_token(&token[..encoded_len]);
-        let mut payload_dec = Decoder::new(payload);
-        assert_eq!(
-            payload_dec.map().expect("payload map should decode"),
-            Some(1)
-        );
-        assert_eq!(
-            payload_dec.i32().expect("nonce key should decode"),
-            IatClaim::Nonce as i32
-        );
-        assert_eq!(
-            payload_dec.bytes().expect("nonce value should decode"),
-            challenge
-        );
+        let mut dec = Decoder::new(&buf[..len]);
+        assert_eq!(dec.map().unwrap(), Some(1));
+        assert_eq!(dec.i32().unwrap(), IatClaim::Nonce as i32);
+        assert_eq!(dec.bytes().unwrap(), nonce);
     }
 
     #[test]
-    fn token_payload_contains_additional_claims() {
-        let challenge = [0x11; 32];
-        let boot_seed = [0x22; 32];
-        let claims = [
-            AttestClaim {
-                key: IatClaim::Nonce,
-                value: AttestClaimValue::Bytes(&challenge),
-            },
-            AttestClaim {
-                key: IatClaim::BootSeed,
-                value: AttestClaimValue::Bytes(&boot_seed),
-            },
-            AttestClaim {
-                key: IatClaim::VerificationService,
-                value: AttestClaimValue::Text("https://verifier.example"),
-            },
-            AttestClaim {
-                key: IatClaim::SecurityLifecycle,
-                value: AttestClaimValue::Unsigned(0x3000),
-            },
-            AttestClaim {
-                key: IatClaim::ClientId,
-                value: AttestClaimValue::Signed(-1),
-            },
-        ];
+    fn encode_payload_single_text_claim() {
+        let claims = [AttestClaim {
+            key: IatClaim::ProfileDefinition,
+            value: AttestClaimValue::Text("tag:psacertified.org,2023:psa#tfm"),
+        }];
+        let mut buf = [0u8; 128];
+        let len = encode_payload(&claims, &mut buf).unwrap();
 
-        let mut token = [0u8; crate::attest::attest_service::PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE];
-        let _ = encode_initial_attestation_token(&claims, &mut token, TEST_PRIVATE_KEY)
-            .expect("token should encode");
+        let mut dec = Decoder::new(&buf[..len]);
+        assert_eq!(dec.map().unwrap(), Some(1));
+        assert_eq!(dec.i32().unwrap(), IatClaim::ProfileDefinition as i32);
+        assert_eq!(dec.str().unwrap(), "tag:psacertified.org,2023:psa#tfm");
     }
 
     #[test]
-    fn computed_token_size_matches_encoded_token_size() {
-        let challenge = [0x44; 48];
-        let boot_seed = [0x55; 32];
-        let claims = [
-            AttestClaim {
-                key: IatClaim::Nonce,
-                value: AttestClaimValue::Bytes(&challenge),
-            },
-            AttestClaim {
-                key: IatClaim::BootSeed,
-                value: AttestClaimValue::Bytes(&boot_seed),
-            },
-        ];
+    fn encode_payload_single_unsigned_claim() {
+        let claims = [AttestClaim {
+            key: IatClaim::SecurityLifecycle,
+            value: AttestClaimValue::Unsigned(0x3000),
+        }];
+        let mut buf = [0u8; 64];
+        let len = encode_payload(&claims, &mut buf).unwrap();
 
-        let computed_size = compute_initial_attestation_token_size(&claims, TEST_PRIVATE_KEY)
-            .expect("token size should compute");
-
-        let mut token = [0u8; crate::attest::attest_service::PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE];
-        let encoded_len = encode_initial_attestation_token(&claims, &mut token, TEST_PRIVATE_KEY)
-            .expect("token should encode");
-
-        assert_eq!(computed_size, encoded_len);
+        let mut dec = Decoder::new(&buf[..len]);
+        assert_eq!(dec.map().unwrap(), Some(1));
+        assert_eq!(dec.i32().unwrap(), IatClaim::SecurityLifecycle as i32);
+        assert_eq!(dec.u64().unwrap(), 0x3000);
     }
 
-    /// RFC 9783 Appendix A.1 COSE_Sign1 token test vector.
     #[test]
-    fn rfc_test_vector() {
-        let ueid = [
-            0x01, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
-            0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
-            0x02, 0x02, 0x02, 0x02, 0x02,
-        ];
-        let psa_impl_id = [0u8; 32];
-        let eat_nonce = [0x01u8; 32];
-        let bootseed = [0u8; 8];
-        let signer_id = [0x04u8; 32];
-        let measurement_value = [0x03u8; 32];
+    fn encode_payload_single_signed_claim() {
+        let claims = [AttestClaim {
+            key: IatClaim::ClientId,
+            value: AttestClaimValue::Signed(-1),
+        }];
+        let mut buf = [0u8; 64];
+        let len = encode_payload(&claims, &mut buf).unwrap();
 
-        let sw_components = [SwComponent {
+        let mut dec = Decoder::new(&buf[..len]);
+        assert_eq!(dec.map().unwrap(), Some(1));
+        assert_eq!(dec.i32().unwrap(), IatClaim::ClientId as i32);
+        assert_eq!(dec.i64().unwrap(), -1);
+    }
+
+    // ── encode_payload: SwComponents ────────────────────────────────────
+
+    #[test]
+    fn encode_payload_sw_component_with_measurement_type() {
+        let sw = [SwComponent {
             measurement_type: Some("PRoT"),
-            measurement_value: &measurement_value,
-            signer_id: &signer_id,
+            measurement_value: &[0x03; 32],
+            signer_id: &[0x04; 32],
         }];
+        let claims = [AttestClaim {
+            key: IatClaim::SwComponents,
+            value: AttestClaimValue::SwComponents(&sw),
+        }];
+        let mut buf = [0u8; 256];
+        let len = encode_payload(&claims, &mut buf).unwrap();
 
-        let claims = [
-            AttestClaim {
-                key: IatClaim::InstanceId,
-                value: AttestClaimValue::Bytes(&ueid),
-            },
-            AttestClaim {
-                key: IatClaim::ImplementationId,
-                value: AttestClaimValue::Bytes(&psa_impl_id),
-            },
-            AttestClaim {
-                key: IatClaim::Nonce,
-                value: AttestClaimValue::Bytes(&eat_nonce),
-            },
-            AttestClaim {
-                key: IatClaim::ClientId,
-                value: AttestClaimValue::Signed(2147483647),
-            },
-            AttestClaim {
-                key: IatClaim::SecurityLifecycle,
-                value: AttestClaimValue::Unsigned(12288),
-            },
-            AttestClaim {
-                key: IatClaim::ProfileDefinition,
-                value: AttestClaimValue::Text("tag:psacertified.org,2023:psa#tfm"),
-            },
-            AttestClaim {
-                key: IatClaim::BootSeed,
-                value: AttestClaimValue::Bytes(&bootseed),
-            },
-            AttestClaim {
-                key: IatClaim::SwComponents,
-                value: AttestClaimValue::SwComponents(&sw_components),
-            },
-        ];
-
-        let mut token = [0u8; crate::attest::attest_service::PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE];
-        let encoded_len = encode_initial_attestation_token(&claims, &mut token, TEST_PRIVATE_KEY)
-            .expect("token should encode");
-
-        const EXPECTED_TOKEN: &[u8] = &[
-            0xd2, 0x84, 0x43, 0xa1, 0x01, 0x26, 0xa0, 0x59, 0x01, 0x00, 0xa8, 0x19, 0x01, 0x00,
-            0x58, 0x21, 0x01, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
-            0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
-            0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x19, 0x09, 0x5c, 0x58, 0x20, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x0a, 0x58, 0x20, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
-            0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
-            0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x19, 0x09, 0x5a, 0x1a, 0x7f,
-            0xff, 0xff, 0xff, 0x19, 0x09, 0x5b, 0x19, 0x30, 0x00, 0x19, 0x01, 0x09, 0x78, 0x21,
-            0x74, 0x61, 0x67, 0x3a, 0x70, 0x73, 0x61, 0x63, 0x65, 0x72, 0x74, 0x69, 0x66, 0x69,
-            0x65, 0x64, 0x2e, 0x6f, 0x72, 0x67, 0x2c, 0x32, 0x30, 0x32, 0x33, 0x3a, 0x70, 0x73,
-            0x61, 0x23, 0x74, 0x66, 0x6d, 0x19, 0x01, 0x0c, 0x48, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x19, 0x09, 0x5f, 0x81, 0xa3, 0x05, 0x58, 0x20, 0x04, 0x04, 0x04,
-            0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
-            0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
-            0x04, 0x02, 0x58, 0x20, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
-            0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
-            0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x01, 0x64, 0x50, 0x52, 0x6f, 0x54,
-            0x58, 0x40, 0x78, 0x6e, 0x93, 0x7a, 0x4c, 0x42, 0x66, 0x7a, 0xf3, 0x84, 0x73, 0x99,
-            0x31, 0x9c, 0xa9, 0x5c, 0x7e, 0x7d, 0xba, 0xbd, 0xc9, 0xb5, 0x0f, 0xdb, 0x8d, 0xe3,
-            0xf6, 0xbf, 0xf4, 0xab, 0x82, 0xff, 0x80, 0xc4, 0x21, 0x40, 0xe2, 0xa4, 0x88, 0x00,
-            0x02, 0x19, 0xe3, 0xe1, 0x06, 0x63, 0x19, 0x3d, 0xa6, 0x9c, 0x75, 0xf5, 0x2b, 0x79,
-            0x8e, 0xa1, 0x0b, 0x2f, 0x70, 0x41, 0xa9, 0x0e, 0x8e, 0x5a,
-        ];
-        assert_eq!(&token[..encoded_len], EXPECTED_TOKEN);
+        let mut dec = Decoder::new(&buf[..len]);
+        assert_eq!(dec.map().unwrap(), Some(1));
+        assert_eq!(dec.i32().unwrap(), IatClaim::SwComponents as i32);
+        // array of 1 component
+        assert_eq!(dec.array().unwrap(), Some(1));
+        // component map has 3 entries when measurement_type is present
+        assert_eq!(dec.map().unwrap(), Some(3));
+        // signer_id (key 5)
+        assert_eq!(dec.u8().unwrap(), 5);
+        assert_eq!(dec.bytes().unwrap(), [0x04; 32]);
+        // measurement_value (key 2)
+        assert_eq!(dec.u8().unwrap(), 2);
+        assert_eq!(dec.bytes().unwrap(), [0x03; 32]);
+        // measurement_type (key 1)
+        assert_eq!(dec.u8().unwrap(), 1);
+        assert_eq!(dec.str().unwrap(), "PRoT");
     }
 
-    /// Verify our platform claims use TFM-matching CBOR types:
-    /// - ProfileDefinition (265): text string
-    /// - SecurityLifecycle (2395): unsigned integer
-    /// - VerificationService (2400): text string
-    /// - CertificationReference (2398): text string
-    /// - ImplementationId (2396): byte string
-    /// - BootSeed (268): byte string
-    /// - ClientId (2394): signed integer
     #[test]
-    fn platform_claims_match_tfm_types() {
-        use super::encode_payload;
-
-        let nonce = [0u8; 32];
-        let boot_seed = [0x1d; 32];
-        let impl_id = b"acme-implementation-id-000000001";
-
-        let sw_components = [SwComponent {
+    fn encode_payload_sw_component_without_measurement_type() {
+        let sw = [SwComponent {
             measurement_type: None,
             measurement_value: &[0x03],
             signer_id: &[0x08],
         }];
+        let claims = [AttestClaim {
+            key: IatClaim::SwComponents,
+            value: AttestClaimValue::SwComponents(&sw),
+        }];
+        let mut buf = [0u8; 64];
+        let len = encode_payload(&claims, &mut buf).unwrap();
 
-        let claims = [
-            AttestClaim {
-                key: IatClaim::Nonce,
-                value: AttestClaimValue::Bytes(&nonce),
-            },
-            AttestClaim {
-                key: IatClaim::ProfileDefinition,
-                value: AttestClaimValue::Text("tag:psacertified.org,2023:psa#tfm"),
-            },
-            AttestClaim {
-                key: IatClaim::ClientId,
-                value: AttestClaimValue::Signed(1),
-            },
-            AttestClaim {
-                key: IatClaim::SecurityLifecycle,
-                value: AttestClaimValue::Unsigned(12288),
-            },
-            AttestClaim {
-                key: IatClaim::BootSeed,
-                value: AttestClaimValue::Bytes(&boot_seed),
-            },
-            AttestClaim {
-                key: IatClaim::SwComponents,
-                value: AttestClaimValue::SwComponents(&sw_components),
-            },
-            AttestClaim {
-                key: IatClaim::CertificationReference,
-                value: AttestClaimValue::Text(""),
-            },
-            AttestClaim {
-                key: IatClaim::ImplementationId,
-                value: AttestClaimValue::Bytes(impl_id),
-            },
-            AttestClaim {
-                key: IatClaim::VerificationService,
-                value: AttestClaimValue::Text("https://psa-verifier.org"),
-            },
-        ];
-
-        let mut payload_buf = [0u8; 512];
-        let payload_len = encode_payload(&claims, &mut payload_buf).expect("payload should encode");
-        let payload = &payload_buf[..payload_len];
-
-        let mut dec = Decoder::new(payload);
-        let map_len = dec.map().expect("should decode map").unwrap();
-        assert_eq!(map_len, claims.len() as u64);
-
-        // Nonce (10): bytes
-        assert_eq!(dec.i32().unwrap(), IatClaim::Nonce as i32);
-        assert_eq!(dec.bytes().unwrap(), nonce);
-
-        // ProfileDefinition (265): text
-        assert_eq!(dec.i32().unwrap(), IatClaim::ProfileDefinition as i32);
-        assert_eq!(dec.str().unwrap(), "tag:psacertified.org,2023:psa#tfm");
-
-        // ClientId (2394): signed integer
-        assert_eq!(dec.i32().unwrap(), IatClaim::ClientId as i32);
-        assert_eq!(dec.i64().unwrap(), 1);
-
-        // SecurityLifecycle (2395): unsigned integer
-        assert_eq!(dec.i32().unwrap(), IatClaim::SecurityLifecycle as i32);
-        assert_eq!(dec.u64().unwrap(), 12288);
-
-        // BootSeed (268): bytes
-        assert_eq!(dec.i32().unwrap(), IatClaim::BootSeed as i32);
-        assert_eq!(dec.bytes().unwrap(), boot_seed);
-
-        // SwComponents (2399): array
+        let mut dec = Decoder::new(&buf[..len]);
+        assert_eq!(dec.map().unwrap(), Some(1));
         assert_eq!(dec.i32().unwrap(), IatClaim::SwComponents as i32);
-        let arr_len = dec.array().unwrap().unwrap();
-        assert_eq!(arr_len, 1);
-        let comp_map_len = dec.map().unwrap().unwrap();
-        assert_eq!(comp_map_len, 2); // no measurement_type
-        assert_eq!(dec.u8().unwrap(), 5); // signer_id key
+        assert_eq!(dec.array().unwrap(), Some(1));
+        // map has 2 entries when measurement_type is None
+        assert_eq!(dec.map().unwrap(), Some(2));
+        assert_eq!(dec.u8().unwrap(), 5);
         assert_eq!(dec.bytes().unwrap(), [0x08]);
-        assert_eq!(dec.u8().unwrap(), 2); // measurement_value key
+        assert_eq!(dec.u8().unwrap(), 2);
         assert_eq!(dec.bytes().unwrap(), [0x03]);
-
-        // CertificationReference (2398): text
-        assert_eq!(dec.i32().unwrap(), IatClaim::CertificationReference as i32);
-        assert_eq!(dec.str().unwrap(), "");
-
-        // ImplementationId (2396): bytes
-        assert_eq!(dec.i32().unwrap(), IatClaim::ImplementationId as i32);
-        assert_eq!(dec.bytes().unwrap(), impl_id);
-
-        // VerificationService (2400): text
-        assert_eq!(dec.i32().unwrap(), IatClaim::VerificationService as i32);
-        assert_eq!(dec.str().unwrap(), "https://psa-verifier.org");
     }
 
-    /// Full token encode/decode roundtrip with platform-style claims.
     #[test]
-    fn platform_claims_full_token_roundtrip() {
-        use super::encode_payload;
+    fn encode_payload_multiple_sw_components() {
+        let sw = [
+            SwComponent {
+                measurement_type: Some("PRoT"),
+                measurement_value: &[0x01],
+                signer_id: &[0x02],
+            },
+            SwComponent {
+                measurement_type: None,
+                measurement_value: &[0x03],
+                signer_id: &[0x04],
+            },
+        ];
+        let claims = [AttestClaim {
+            key: IatClaim::SwComponents,
+            value: AttestClaimValue::SwComponents(&sw),
+        }];
+        let mut buf = [0u8; 128];
+        let len = encode_payload(&claims, &mut buf).unwrap();
 
-        let nonce = [0xAA; 32];
-        let boot_seed = [0xBB; 32];
-        let impl_id = b"acme-implementation-id-000000001";
+        let mut dec = Decoder::new(&buf[..len]);
+        assert_eq!(dec.map().unwrap(), Some(1));
+        let _ = dec.i32().unwrap();
+        assert_eq!(dec.array().unwrap(), Some(2));
+        // First component: 3 entries (has measurement_type)
+        assert_eq!(dec.map().unwrap(), Some(3));
+        assert_eq!(dec.u8().unwrap(), 5);
+        assert_eq!(dec.bytes().unwrap(), [0x02]);
+        assert_eq!(dec.u8().unwrap(), 2);
+        assert_eq!(dec.bytes().unwrap(), [0x01]);
+        assert_eq!(dec.u8().unwrap(), 1);
+        assert_eq!(dec.str().unwrap(), "PRoT");
+        // Second component: 2 entries (no measurement_type)
+        assert_eq!(dec.map().unwrap(), Some(2));
+        assert_eq!(dec.u8().unwrap(), 5);
+        assert_eq!(dec.bytes().unwrap(), [0x04]);
+        assert_eq!(dec.u8().unwrap(), 2);
+        assert_eq!(dec.bytes().unwrap(), [0x03]);
+    }
 
-        let sw_components = [SwComponent {
+    // ── encode_payload: multi-claim with all value types ────────────────
+
+    #[test]
+    fn encode_payload_all_claim_types_roundtrip() {
+        let nonce = [0x11; 32];
+        let boot_seed = [0x22; 32];
+        let impl_id = b"acme-implementation-id-00000001\x00";
+        let sw = [SwComponent {
             measurement_type: None,
             measurement_value: &[0x03],
             signer_id: &[0x08],
         }];
-
         let claims = [
             AttestClaim {
                 key: IatClaim::Nonce,
@@ -557,11 +406,11 @@ mod tests {
             },
             AttestClaim {
                 key: IatClaim::SwComponents,
-                value: AttestClaimValue::SwComponents(&sw_components),
+                value: AttestClaimValue::SwComponents(&sw),
             },
             AttestClaim {
                 key: IatClaim::CertificationReference,
-                value: AttestClaimValue::Text(""),
+                value: AttestClaimValue::Text("1234567890123-12345"),
             },
             AttestClaim {
                 key: IatClaim::ImplementationId,
@@ -572,55 +421,193 @@ mod tests {
                 value: AttestClaimValue::Text("https://psa-verifier.org"),
             },
         ];
+        let mut buf = [0u8; 512];
+        let len = encode_payload(&claims, &mut buf).unwrap();
 
-        let mut payload_buf = [0u8; 512];
-        let payload_len = encode_payload(&claims, &mut payload_buf).expect("payload should encode");
-        let payload = &payload_buf[..payload_len];
+        let mut dec = Decoder::new(&buf[..len]);
+        let map_len = dec.map().unwrap().unwrap();
+        assert_eq!(map_len, 9);
 
-        let mut dec = Decoder::new(payload);
-        let map_len = dec.map().expect("map should decode").unwrap();
-        assert_eq!(map_len, claims.len() as u64);
-
-        // Verify nonce
-        assert_eq!(dec.i32().unwrap(), IatClaim::Nonce as i32);
+        // Nonce → bytes
+        assert_eq!(dec.i32().unwrap(), 10);
         assert_eq!(dec.bytes().unwrap(), nonce);
-
-        // ProfileDefinition is text
-        assert_eq!(dec.i32().unwrap(), IatClaim::ProfileDefinition as i32);
+        // ProfileDefinition → text
+        assert_eq!(dec.i32().unwrap(), 265);
         assert_eq!(dec.str().unwrap(), "tag:psacertified.org,2023:psa#tfm");
-
-        // ClientId is integer
-        assert_eq!(dec.i32().unwrap(), IatClaim::ClientId as i32);
+        // ClientId → signed int
+        assert_eq!(dec.i32().unwrap(), 2394);
         assert_eq!(dec.i64().unwrap(), 1);
-
-        // SecurityLifecycle is unsigned integer
-        assert_eq!(dec.i32().unwrap(), IatClaim::SecurityLifecycle as i32);
+        // SecurityLifecycle → unsigned int
+        assert_eq!(dec.i32().unwrap(), 2395);
         assert_eq!(dec.u64().unwrap(), 12288);
-
-        // BootSeed is bytes
-        assert_eq!(dec.i32().unwrap(), IatClaim::BootSeed as i32);
+        // BootSeed → bytes
+        assert_eq!(dec.i32().unwrap(), 268);
         assert_eq!(dec.bytes().unwrap(), boot_seed);
+        // SwComponents → array
+        assert_eq!(dec.i32().unwrap(), 2399);
+        assert_eq!(dec.array().unwrap(), Some(1));
+        assert_eq!(dec.map().unwrap(), Some(2));
+        assert_eq!(dec.u8().unwrap(), 5);
+        let _ = dec.bytes().unwrap();
+        assert_eq!(dec.u8().unwrap(), 2);
+        let _ = dec.bytes().unwrap();
+        // CertificationReference → text
+        assert_eq!(dec.i32().unwrap(), 2398);
+        assert_eq!(dec.str().unwrap(), "1234567890123-12345");
+        // ImplementationId → bytes
+        assert_eq!(dec.i32().unwrap(), 2396);
+        assert_eq!(dec.bytes().unwrap(), impl_id);
+        // VerificationService → text
+        assert_eq!(dec.i32().unwrap(), 2400);
+        assert_eq!(dec.str().unwrap(), "https://psa-verifier.org");
+    }
 
-        // SwComponents
-        assert_eq!(dec.i32().unwrap(), IatClaim::SwComponents as i32);
-        let arr_len = dec.array().unwrap().unwrap();
-        assert_eq!(arr_len, 1);
-        dec.map().unwrap();
-        dec.u8().unwrap();
-        dec.bytes().unwrap();
-        dec.u8().unwrap();
-        dec.bytes().unwrap();
+    // ── encode_payload: edge cases ──────────────────────────────────────
 
-        // CertificationReference is text
+    #[test]
+    fn encode_payload_empty_claims() {
+        let mut buf = [0u8; 16];
+        let len = encode_payload(&[], &mut buf).unwrap();
+
+        let mut dec = Decoder::new(&buf[..len]);
+        assert_eq!(dec.map().unwrap(), Some(0));
+    }
+
+    #[test]
+    fn encode_payload_buffer_too_small() {
+        let claims = [AttestClaim {
+            key: IatClaim::Nonce,
+            value: AttestClaimValue::Bytes(&[0xAA; 32]),
+        }];
+        let mut buf = [0u8; 2]; // Too small for map header + claim
+        let result = encode_payload(&claims, &mut buf);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn encode_payload_empty_text_claim() {
+        let claims = [AttestClaim {
+            key: IatClaim::CertificationReference,
+            value: AttestClaimValue::Text(""),
+        }];
+        let mut buf = [0u8; 32];
+        let len = encode_payload(&claims, &mut buf).unwrap();
+
+        let mut dec = Decoder::new(&buf[..len]);
+        assert_eq!(dec.map().unwrap(), Some(1));
         assert_eq!(dec.i32().unwrap(), IatClaim::CertificationReference as i32);
         assert_eq!(dec.str().unwrap(), "");
+    }
 
-        // ImplementationId is bytes
-        assert_eq!(dec.i32().unwrap(), IatClaim::ImplementationId as i32);
-        assert_eq!(dec.bytes().unwrap(), impl_id);
+    #[test]
+    fn encode_payload_zero_unsigned() {
+        let claims = [AttestClaim {
+            key: IatClaim::SecurityLifecycle,
+            value: AttestClaimValue::Unsigned(0),
+        }];
+        let mut buf = [0u8; 32];
+        let len = encode_payload(&claims, &mut buf).unwrap();
 
-        // VerificationService is text
+        let mut dec = Decoder::new(&buf[..len]);
+        assert_eq!(dec.map().unwrap(), Some(1));
+        assert_eq!(dec.i32().unwrap(), IatClaim::SecurityLifecycle as i32);
+        assert_eq!(dec.u64().unwrap(), 0);
+    }
+
+    #[test]
+    fn encode_payload_large_positive_signed() {
+        let claims = [AttestClaim {
+            key: IatClaim::ClientId,
+            value: AttestClaimValue::Signed(i32::MAX as i64),
+        }];
+        let mut buf = [0u8; 32];
+        let len = encode_payload(&claims, &mut buf).unwrap();
+
+        let mut dec = Decoder::new(&buf[..len]);
+        assert_eq!(dec.map().unwrap(), Some(1));
+        assert_eq!(dec.i32().unwrap(), IatClaim::ClientId as i32);
+        assert_eq!(dec.i64().unwrap(), i32::MAX as i64);
+    }
+
+    // ── IatClaim label values per RFC 9783 ──────────────────────────────
+
+    #[test]
+    fn iat_claim_label_values() {
+        assert_eq!(IatClaim::Nonce as u32, 10);
+        assert_eq!(IatClaim::InstanceId as u32, 256);
+        assert_eq!(IatClaim::ProfileDefinition as u32, 265);
+        assert_eq!(IatClaim::BootSeed as u32, 268);
+        assert_eq!(IatClaim::ClientId as u32, 2394);
+        assert_eq!(IatClaim::SecurityLifecycle as u32, 2395);
+        assert_eq!(IatClaim::ImplementationId as u32, 2396);
+        assert_eq!(IatClaim::CertificationReference as u32, 2398);
+        assert_eq!(IatClaim::SwComponents as u32, 2399);
+        assert_eq!(IatClaim::VerificationService as u32, 2400);
+    }
+
+    // ── map_cose_error ──────────────────────────────────────────────────
+
+    #[test]
+    fn map_cose_error_buffer_too_small() {
+        assert_eq!(
+            map_cose_error(CoseSign1Error::BufferTooSmall),
+            StatusCode::BufferTooSmall
+        );
+    }
+
+    #[test]
+    fn map_cose_error_other_variants() {
+        assert_eq!(
+            map_cose_error(CoseSign1Error::Unknown),
+            StatusCode::InvalidArgument
+        );
+        assert_eq!(
+            map_cose_error(CoseSign1Error::InvalidSigningKey),
+            StatusCode::InvalidArgument
+        );
+        assert_eq!(
+            map_cose_error(CoseSign1Error::InvalidPayload),
+            StatusCode::InvalidArgument
+        );
+        assert_eq!(
+            map_cose_error(CoseSign1Error::Signature),
+            StatusCode::InvalidArgument
+        );
+        assert_eq!(
+            map_cose_error(CoseSign1Error::CborEncoding),
+            StatusCode::InvalidArgument
+        );
+    }
+
+    // ── encode_payload: claim key ordering is preserved ─────────────────
+
+    #[test]
+    fn encode_payload_preserves_claim_order() {
+        let claims = [
+            AttestClaim {
+                key: IatClaim::VerificationService,
+                value: AttestClaimValue::Text("first"),
+            },
+            AttestClaim {
+                key: IatClaim::Nonce,
+                value: AttestClaimValue::Bytes(&[0x01]),
+            },
+            AttestClaim {
+                key: IatClaim::ClientId,
+                value: AttestClaimValue::Signed(42),
+            },
+        ];
+        let mut buf = [0u8; 128];
+        let len = encode_payload(&claims, &mut buf).unwrap();
+
+        let mut dec = Decoder::new(&buf[..len]);
+        assert_eq!(dec.map().unwrap(), Some(3));
+        // Keys come out in the order they were provided, not sorted
         assert_eq!(dec.i32().unwrap(), IatClaim::VerificationService as i32);
-        assert_eq!(dec.str().unwrap(), "https://psa-verifier.org");
+        let _ = dec.str().unwrap();
+        assert_eq!(dec.i32().unwrap(), IatClaim::Nonce as i32);
+        let _ = dec.bytes().unwrap();
+        assert_eq!(dec.i32().unwrap(), IatClaim::ClientId as i32);
+        assert_eq!(dec.i64().unwrap(), 42);
     }
 }

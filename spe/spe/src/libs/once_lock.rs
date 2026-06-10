@@ -4,7 +4,7 @@ use core::{
     sync::atomic::{AtomicU8, Ordering},
 };
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 #[repr(u8)]
 pub enum OnceLockState {
     Uninitialized,
@@ -99,6 +99,105 @@ impl<T> Drop for OnceLock<T> {
             unsafe {
                 self.value.get_mut().assume_init_drop();
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate std;
+    use super::*;
+    use std::sync::{
+        Arc,
+    };
+    use core::sync::atomic::{AtomicUsize, Ordering as StdOrdering};
+
+    #[test]
+    fn try_get_uninitialized_returns_err() {
+        let lock = OnceLock::<u32>::new();
+        assert!(matches!(
+            lock.try_get(),
+            Err(OnceLockState::Uninitialized)
+        ));
+    }
+
+    #[test]
+    fn try_set_then_try_get() {
+        let lock = OnceLock::new();
+        assert!(lock.try_set(42u32).is_ok());
+        assert_eq!(lock.try_get(), Ok(&42));
+    }
+
+    #[test]
+    fn double_set_returns_value_back() {
+        let lock = OnceLock::new();
+        assert!(lock.try_set(1u32).is_ok());
+        assert_eq!(lock.try_set(2u32), Err(2));
+        // Original value unchanged.
+        assert_eq!(lock.try_get(), Ok(&1));
+    }
+
+    #[test]
+    fn drop_calls_destructor() {
+        static DROP_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+        #[derive(Debug)]
+        struct DropCounter;
+        impl Drop for DropCounter {
+            fn drop(&mut self) {
+                DROP_COUNT.fetch_add(1, StdOrdering::Relaxed);
+            }
+        }
+
+        DROP_COUNT.store(0, StdOrdering::Relaxed);
+        {
+            let lock = OnceLock::new();
+            lock.try_set(DropCounter).unwrap();
+        }
+        assert_eq!(DROP_COUNT.load(StdOrdering::Relaxed), 1);
+    }
+
+    #[test]
+    fn drop_without_set_is_safe() {
+        let _lock = OnceLock::<std::string::String>::new();
+        // Should not panic or UB on drop.
+    }
+
+    #[test]
+    fn concurrent_set_only_one_wins() {
+        let lock = Arc::new(OnceLock::new());
+        let barrier = Arc::new(std::sync::Barrier::new(8));
+
+        let threads: std::vec::Vec<_> = (0..8u32)
+            .map(|i| {
+                let lock = Arc::clone(&lock);
+                let barrier = Arc::clone(&barrier);
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    lock.try_set(i)
+                })
+            })
+            .collect();
+
+        let results: std::vec::Vec<_> = threads.into_iter().map(|t| t.join().unwrap()).collect();
+        let ok_count = results.iter().filter(|r| r.is_ok()).count();
+        assert_eq!(ok_count, 1);
+
+        // The stored value must match the winner.
+        let winner = results
+            .iter()
+            .enumerate()
+            .find_map(|(i, r)| if r.is_ok() { Some(i as u32) } else { None })
+            .unwrap();
+        assert_eq!(lock.try_get(), Ok(&winner));
+    }
+
+    #[test]
+    fn try_get_after_set_is_stable() {
+        let lock = OnceLock::new();
+        lock.try_set("hello").unwrap();
+        for _ in 0..100 {
+            assert_eq!(lock.try_get(), Ok(&"hello"));
         }
     }
 }

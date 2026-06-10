@@ -317,7 +317,10 @@ pub fn encode_payload_bstr(payload: &[u8], out: &mut [u8]) -> Result<usize, Cose
 
 #[cfg(test)]
 mod tests {
-    use super::{CoseSign1, RustCryptoBackend, Sign1Options, encode_payload_bstr};
+    use super::{
+        CoseSign1, CoseSign1Error, RustCryptoBackend, Sign1Options, encode_payload_bstr,
+        validate_payload_bstr, CBOR_TAG_COSE_SIGN1,
+    };
 
     const TEST_PAYLOAD: &[u8] = b"This is the content.";
     const TEST_KEY_ID: &[u8] = b"11";
@@ -341,10 +344,21 @@ mod tests {
         0xcd, 0xee,
     ];
 
+    fn make_signer<'a>() -> CoseSign1<'a, RustCryptoBackend<'a>> {
+        let backend = RustCryptoBackend { key: TEST_PRIVATE_KEY };
+        CoseSign1::new(backend, Sign1Options::default())
+    }
+
+    fn encode_test_payload_bstr() -> ([u8; 32], usize) {
+        let mut buf = [0u8; 32];
+        let len = encode_payload_bstr(TEST_PAYLOAD, &mut buf).unwrap();
+        (buf, len)
+    }
+
     #[test]
     fn encodes_test_vector_from_payload_bstr() {
-        let backend = RustCryptoBackend;
-        let signer = CoseSign1::new(backend, TEST_PRIVATE_KEY, Sign1Options::default())
+        let backend = RustCryptoBackend { key: TEST_PRIVATE_KEY };
+        let signer = CoseSign1::new(backend, Sign1Options::default())
             .with_key_id(TEST_KEY_ID);
         let mut payload_bstr = [0u8; 32];
         let payload_bstr_len = encode_payload_bstr(TEST_PAYLOAD, &mut payload_bstr)
@@ -358,5 +372,169 @@ mod tests {
         assert_eq!(encoded.encoded_len, EXPECTED_ENCODED_LEN);
         assert!(!encoded.payload_is_detached);
         assert_eq!(&out[..encoded.encoded_len], EXPECTED_ENCODED_COSE_SIGN1);
+    }
+
+    #[test]
+    fn encode_payload_bstr_empty() {
+        let mut buf = [0u8; 8];
+        let len = encode_payload_bstr(&[], &mut buf).unwrap();
+        // CBOR bstr of length 0 is 0x40
+        assert_eq!(len, 1);
+        assert_eq!(buf[0], 0x40);
+    }
+
+    #[test]
+    fn encode_payload_bstr_single_byte() {
+        let mut buf = [0u8; 8];
+        let len = encode_payload_bstr(&[0xAB], &mut buf).unwrap();
+        // CBOR bstr of length 1: 0x41 0xAB
+        assert_eq!(len, 2);
+        assert_eq!(&buf[..len], &[0x41, 0xAB]);
+    }
+
+    #[test]
+    fn encode_payload_bstr_buffer_too_small() {
+        let mut buf = [0u8; 1]; // Too small for the header + payload
+        let result = encode_payload_bstr(TEST_PAYLOAD, &mut buf);
+        assert_eq!(result, Err(CoseSign1Error::BufferTooSmall));
+    }
+
+    #[test]
+    fn validate_payload_bstr_rejects_empty_input() {
+        assert_eq!(validate_payload_bstr(&[]), Err(CoseSign1Error::InvalidPayload));
+    }
+
+    #[test]
+    fn validate_payload_bstr_rejects_non_bstr() {
+        // 0x01 is CBOR unsigned integer 1, not a bstr
+        assert_eq!(validate_payload_bstr(&[0x01]), Err(CoseSign1Error::InvalidPayload));
+    }
+
+    #[test]
+    fn validate_payload_bstr_rejects_trailing_bytes() {
+        // 0x40 is a valid empty bstr, but 0xFF is trailing
+        assert_eq!(validate_payload_bstr(&[0x40, 0xFF]), Err(CoseSign1Error::InvalidPayload));
+    }
+
+    #[test]
+    fn validate_payload_bstr_accepts_valid() {
+        let mut buf = [0u8; 32];
+        let len = encode_payload_bstr(TEST_PAYLOAD, &mut buf).unwrap();
+        assert!(validate_payload_bstr(&buf[..len]).is_ok());
+    }
+
+    #[test]
+    fn encode_without_cbor_tag() {
+        let backend = RustCryptoBackend { key: TEST_PRIVATE_KEY };
+        let opts = Sign1Options { omit_cbor_tag: true, detached_payload: false };
+        let signer = CoseSign1::new(backend, opts);
+        let (payload_bstr, payload_bstr_len) = encode_test_payload_bstr();
+        let mut out = [0u8; 256];
+
+        let encoded = signer
+            .encode_from_payload_bstr(&payload_bstr[..payload_bstr_len], &mut out)
+            .unwrap();
+
+        // Without tag, the first byte should be 0x84 (CBOR array of 4)
+        assert_eq!(out[0], 0x84);
+        // Should be shorter than the tagged version (tag d2 = 1 byte tag header)
+        assert!(encoded.encoded_len < EXPECTED_ENCODED_LEN);
+    }
+
+    #[test]
+    fn encode_with_detached_payload() {
+        let backend = RustCryptoBackend { key: TEST_PRIVATE_KEY };
+        let opts = Sign1Options { omit_cbor_tag: false, detached_payload: true };
+        let signer = CoseSign1::new(backend, opts).with_key_id(TEST_KEY_ID);
+        let (payload_bstr, payload_bstr_len) = encode_test_payload_bstr();
+        let mut out = [0u8; 256];
+
+        let encoded = signer
+            .encode_from_payload_bstr(&payload_bstr[..payload_bstr_len], &mut out)
+            .unwrap();
+
+        assert!(encoded.payload_is_detached);
+        // Detached payload should have null (0xf6) instead of the bstr
+        assert!(out[..encoded.encoded_len].contains(&0xf6));
+    }
+
+    #[test]
+    fn encode_without_key_id() {
+        let signer = make_signer();
+        let (payload_bstr, payload_bstr_len) = encode_test_payload_bstr();
+        let mut out = [0u8; 256];
+
+        let encoded = signer
+            .encode_from_payload_bstr(&payload_bstr[..payload_bstr_len], &mut out)
+            .unwrap();
+
+        // Should encode successfully without key_id (empty unprotected header map)
+        assert!(encoded.encoded_len > 0);
+        assert!(!encoded.payload_is_detached);
+    }
+
+    #[test]
+    fn encode_buffer_too_small() {
+        let signer = make_signer();
+        let (payload_bstr, payload_bstr_len) = encode_test_payload_bstr();
+        let mut out = [0u8; 4]; // Way too small for a COSE_Sign1
+
+        let result = signer.encode_from_payload_bstr(&payload_bstr[..payload_bstr_len], &mut out);
+
+        assert_eq!(result, Err(CoseSign1Error::BufferTooSmall));
+    }
+
+    #[test]
+    fn invalid_signing_key_returns_error() {
+        let backend = RustCryptoBackend { key: &[0xFF; 32] }; // Invalid P-256 key
+        let signer = CoseSign1::new(backend, Sign1Options::default());
+        let (payload_bstr, payload_bstr_len) = encode_test_payload_bstr();
+        let mut out = [0u8; 256];
+
+        let result = signer.encode_from_payload_bstr(&payload_bstr[..payload_bstr_len], &mut out);
+
+        assert_eq!(result, Err(CoseSign1Error::InvalidSigningKey));
+    }
+
+    #[test]
+    fn empty_signing_key_returns_error() {
+        let backend = RustCryptoBackend { key: &[] };
+        let signer = CoseSign1::new(backend, Sign1Options::default());
+        let (payload_bstr, payload_bstr_len) = encode_test_payload_bstr();
+        let mut out = [0u8; 256];
+
+        let result = signer.encode_from_payload_bstr(&payload_bstr[..payload_bstr_len], &mut out);
+
+        assert_eq!(result, Err(CoseSign1Error::InvalidSigningKey));
+    }
+
+    #[test]
+    fn sign1_options_default() {
+        let opts = Sign1Options::default();
+        assert!(!opts.omit_cbor_tag);
+        assert!(!opts.detached_payload);
+    }
+
+    #[test]
+    fn with_external_aad() {
+        let backend = RustCryptoBackend { key: TEST_PRIVATE_KEY };
+        let signer = CoseSign1::new(backend, Sign1Options::default())
+            .with_external_aad(b"extra context");
+        let (payload_bstr, payload_bstr_len) = encode_test_payload_bstr();
+        let mut out = [0u8; 256];
+
+        let encoded = signer
+            .encode_from_payload_bstr(&payload_bstr[..payload_bstr_len], &mut out)
+            .unwrap();
+
+        // External AAD changes the signature but not the structure
+        assert!(encoded.encoded_len > 0);
+        // The encoding with AAD should differ from the baseline (different signature)
+        assert_ne!(&out[..encoded.encoded_len], EXPECTED_ENCODED_COSE_SIGN1);
+    }
+
+    #[test]
+    fn cbor_tag_value() {
+        assert_eq!(CBOR_TAG_COSE_SIGN1, 18);
     }
 }
