@@ -23,19 +23,100 @@ document.addEventListener('DOMContentLoaded', () => {
         node.classList.remove('active');
     };
 
+    const svg = document.getElementById('trail-svg');
+    const diagram = document.getElementById('arch-diagram');
+    let trailConnections = [];
+
+    const getCenter = (node) => {
+        const rect = node.getBoundingClientRect();
+        const diagRect = diagram.getBoundingClientRect();
+        return {
+            x: rect.left - diagRect.left + rect.width / 2,
+            y: rect.top - diagRect.top + rect.height / 2
+        };
+    };
+
+    const drawLine = (node1, node2, isBack = false) => {
+        const p1 = getCenter(node1);
+        const p2 = getCenter(node2);
+        
+        let x1 = p1.x;
+        let y1 = p1.y;
+        let x2 = p2.x;
+        let y2 = p2.y;
+
+        // Offset the line so forward and backward paths don't perfectly overlap
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        const length = Math.sqrt(dx * dx + dy * dy);
+        const nx = -dy / length;
+        const ny = dx / length;
+        
+        const offset = 8;
+        x1 += nx * offset;
+        y1 += ny * offset;
+        x2 += nx * offset;
+        y2 += ny * offset;
+        
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', x1);
+        line.setAttribute('y1', y1);
+        line.setAttribute('x2', x2);
+        line.setAttribute('y2', y2);
+        
+        if (isBack) {
+            line.setAttribute('stroke', '#10b981'); // Green for return
+        } else {
+            line.setAttribute('stroke', '#3b82f6'); // Blue for forward
+        }
+        
+        line.setAttribute('stroke-width', '4');
+        line.setAttribute('stroke-dasharray', '8 8');
+        line.classList.add('trail-line');
+        line.style.animation = 'dashAnim 1s linear infinite';
+        
+        svg.appendChild(line);
+    };
+
+    const redrawTrail = () => {
+        svg.innerHTML = '';
+        trailConnections.forEach(pair => {
+            drawLine(pair[0], pair[1], pair[2]);
+        });
+    };
+
+    window.addEventListener('resize', redrawTrail);
+
+    const addTrailSegment = (n1, n2, isBack = false) => {
+        trailConnections.push([n1, n2, isBack]);
+        drawLine(n1, n2, isBack);
+        n1.classList.add('trail');
+        n2.classList.add('trail');
+    };
+
+    const clearTrail = () => {
+        svg.innerHTML = '';
+        trailConnections = [];
+        Object.values(nodes).forEach(n => n.classList.remove('trail'));
+    };
+
     const playForwardAnimation = async () => {
         await activateNode(nodes.app, "Tock App requesting token...");
         deactivateNode(nodes.app);
 
+        addTrailSegment(nodes.app, nodes.kernel);
         await activateNode(nodes.kernel, "Kernel routing request to SPE...");
         deactivateNode(nodes.kernel);
 
+        addTrailSegment(nodes.kernel, nodes.spe);
         await activateNode(nodes.spe, "SPE delegating to Attestation Service...");
         deactivateNode(nodes.spe);
 
+        addTrailSegment(nodes.spe, nodes.attest);
         await activateNode(nodes.attest, "Attestation Service gathering claims...");
         deactivateNode(nodes.attest);
 
+        addTrailSegment(nodes.attest, nodes.crypto);
         await activateNode(nodes.crypto, "Crypto Service signing the token...");
         await sleep(400); // Simulating crypto work
     };
@@ -44,15 +125,19 @@ document.addEventListener('DOMContentLoaded', () => {
         statusText.innerText = "Signature generated, returning token...";
         deactivateNode(nodes.crypto);
 
+        addTrailSegment(nodes.crypto, nodes.attest, true);
         await activateNode(nodes.attest, "Attestation Service assembling token...");
         deactivateNode(nodes.attest);
 
+        addTrailSegment(nodes.attest, nodes.spe, true);
         await activateNode(nodes.spe, "SPE returning token to Kernel...");
         deactivateNode(nodes.spe);
 
+        addTrailSegment(nodes.spe, nodes.kernel, true);
         await activateNode(nodes.kernel, "Kernel passing token to User Space...");
         deactivateNode(nodes.kernel);
 
+        addTrailSegment(nodes.kernel, nodes.app, true);
         await activateNode(nodes.app, "Tock App received token!");
         await sleep(800);
         deactivateNode(nodes.app);
@@ -135,6 +220,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchBtn.addEventListener('click', async () => {
         fetchBtn.disabled = true;
         resultsSection.classList.add('hidden');
+        clearTrail();
         
         // Start forward animation
         const animPromise = playForwardAnimation();
@@ -158,5 +244,17 @@ document.addEventListener('DOMContentLoaded', () => {
         displayResults(data);
         
         fetchBtn.disabled = false;
+    });
+
+    document.addEventListener('keydown', async (e) => {
+        if (e.key === 'F' || e.key === 'f') {
+            try {
+                const res = await fetch('/api/switch-fake', { method: 'POST' });
+                const data = await res.json();
+                console.log(`Data source toggled to: ${data.state}`);
+            } catch (err) {
+                console.error('Failed to toggle data source:', err);
+            }
+        }
     });
 });

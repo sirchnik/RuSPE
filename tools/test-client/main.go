@@ -20,6 +20,11 @@ import (
 
 const tfmToken = "d28443a10126a0590100a8190100582101020202020202020202020202020202020202020202020202020202020202020219095c582000000000000000000000000000000000000000000000000000000000000000000a5820010101010101010101010101010101010101010101010101010101010101010119095a1a7fffffff19095b19300019010978217461673a7073616365727469666965642e6f72672c323032333a7073612374666d19010c48000000000000000019095f81a305582004040404040404040404040404040404040404040404040404040404040404040258200303030303030303030303030303030303030303030303030303030303030303016450526f545840786e937a4c42667af3847399319ca95c7e7dbabdc9b50fdb8de3f6bff4ab82ff80c42140e2a488000219e3e10663193da69c75f52b798ea10b2f7041a90e8e5a"
 
+const (
+	defaultPubKeyX = "hfymlL5b64lewHwPcn8S--u7Av9MKSy8rUiCnahzd3A"
+	defaultPubKeyY = "mGMp76ud1btPVE8SlFEf4-NUXQBPPp0Vxq6rsuw6VNw"
+)
+
 func defaultTTY() string {
 	switch runtime.GOOS {
 	case "windows":
@@ -33,7 +38,7 @@ func defaultTTY() string {
 }
 
 func main() {
-	tokenSrc := flag.String("token-src", "", "Token source: 'tty', 'tfm', or a raw hex token")
+	tokenSrc := flag.String("token-src", "tty", "Token source: 'tty', 'tfm', or a raw hex token")
 	ttyPath := flag.String("tty", defaultTTY(), "Serial port (Default: "+defaultTTY()+")")
 	baudRate := flag.Int("baud", 115200, "TTY baud rate")
 	nonce := flag.String("nonce", "", "Hex-encoded nonce (random if omitted)")
@@ -86,8 +91,8 @@ func main() {
 		tokenHex = *tokenSrc
 	}
 
-	xCoord := "hfymlL5b64lewHwPcn8S--u7Av9MKSy8rUiCnahzd3A"
-	yCoord := "mGMp76ud1btPVE8SlFEf4-NUXQBPPp0Vxq6rsuw6VNw"
+	xCoord := defaultPubKeyX
+	yCoord := defaultPubKeyY
 	if *tokenSrc == "tfm" {
 		xCoord = "Tl4iCZ47zrRbRG0TVf0dw7VFlHtv18HInYhnmMNybo8"
 		yCoord = "gNcLhAslaqw0pi7eEEM2TwRAlfADR0uR4Bggkq-xPy4"
@@ -98,6 +103,8 @@ func main() {
 	if *pubKeyY != "" {
 		yCoord = *pubKeyY
 	}
+	fmt.Printf("Debug: Using Public Key X: %s\n", xCoord)
+	fmt.Printf("Debug: Using Public Key Y: %s\n", yCoord)
 
 	decodeAndVerifyToken(tokenHex, xCoord, yCoord)
 }

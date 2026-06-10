@@ -77,13 +77,30 @@ fn create_psa_token(writer: &mut impl Write) -> Result<(), TokenError> {
     loop {
         writeln!(
             writer,
-            "{{ \"type\": \"enter_nonce\", \"msg\": \"Please enter a hex-encoded nonce (up to 32 bytes):\" }}"
+            "\n{{ \"type\": \"enter_nonce\", \"msg\": \"Please enter a hex-encoded nonce (up to 32 bytes):\" }}"
         )
         .map_err(|_| TokenError::WriteError)?;
-        let (len, stat) = Console::read(&mut nonce_hex);
-        if stat.is_err() {
-            return emit_json_error(writer, "console_read", TokenError::ConsoleRead);
-        }
+
+        let mut i = 0;
+        let len = loop {
+            let mut c = [0u8; 1];
+            let (l, stat) = Console::read(&mut c);
+            if stat.is_err() {
+                return emit_json_error(writer, "console_read", TokenError::ConsoleRead);
+            }
+            if l == 1 {
+                let byte = c[0];
+                if byte == b'\n' || byte == b'\r' {
+                    break i;
+                } else {
+                    if i < nonce_hex.len() {
+                        nonce_hex[i] = byte;
+                    }
+                    i += 1;
+                }
+            }
+        };
+
         if len != 64 {
             writeln!(
                 writer,
