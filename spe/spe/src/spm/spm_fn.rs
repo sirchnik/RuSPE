@@ -21,8 +21,6 @@ pub struct Connection {
     pub outvec_written: [usize; PSA_MAX_IOVEC],
     pub outvec_mapped: [bool; PSA_MAX_IOVEC],
     pub outvec_unmapped: [bool; PSA_MAX_IOVEC],
-    #[cfg(all(target_arch = "arm", target_os = "none"))]
-    pub mapped_regions: [Option<(bool, u32, usize, usize)>; PSA_MAX_IOVEC],
 }
 
 // # Safety
@@ -121,6 +119,13 @@ pub trait SpmPlatform: Sync {
         is_write: bool,
         caller: CallerAttributes,
     ) -> bool;
+
+    fn custom_mpu_regions(
+        &self,
+        _handle: psa_interface::types::ServiceHandle,
+    ) -> &[crate::spm::CustomMpuRegion] {
+        &[]
+    }
 }
 
 /// Object-safe trait for SPM operations, used for type-erased storage in statics.

@@ -392,7 +392,7 @@ mod tests {
         }
 
         fn last_connection(&self) -> Option<Connection> {
-            self.state.lock().unwrap().last_connection
+            self.state.lock().unwrap().last_connection.take()
         }
     }
 
@@ -452,8 +452,6 @@ mod tests {
             outvec_written: [0; crate::spm::PSA_MAX_IOVEC],
             outvec_mapped: [false; crate::spm::PSA_MAX_IOVEC],
             outvec_unmapped: [false; crate::spm::PSA_MAX_IOVEC],
-            #[cfg(all(target_arch = "arm", target_os = "none"))]
-            mapped_regions: [None; crate::spm::PSA_MAX_IOVEC],
         }
     }
 

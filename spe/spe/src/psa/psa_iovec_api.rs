@@ -431,6 +431,9 @@ mod tests {
                 self.allow_read
             }
         }
+
+        fn map_vec(&self, _is_outvec: bool, _vec_idx: u32, _base: *const u8, _size: usize) {}
+        fn unmap_vec(&self, _is_outvec: bool, _vec_idx: u32) {}
     }
 
     fn make_connection(

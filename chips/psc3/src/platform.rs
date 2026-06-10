@@ -6,7 +6,7 @@ use psa_interface;
 use spe::{
     psa::psa_call::{CallerAttributes, PsaMsg},
     service::Service,
-    spm::SpmPlatform,
+    spm::{CustomMpuRegion, Permissions, SpmPlatform},
 };
 
 use ruspe_cortexm::cmse;
@@ -74,6 +74,29 @@ impl SpmPlatform for Psc3SecPlatform {
             }
         } else {
             false
+        }
+    }
+
+    fn custom_mpu_regions(
+        &self,
+        handle: psa_interface::types::ServiceHandle,
+    ) -> &[CustomMpuRegion] {
+        if (handle as isize) == (psa_interface::types::ServiceHandle::AttestationService as isize) {
+            static REGIONS: [CustomMpuRegion; 2] = [
+                CustomMpuRegion {
+                    base: 0x4223_0000 as *const u8,
+                    size: 0x200,
+                    permissions: Permissions::ReadWriteOnly,
+                },
+                CustomMpuRegion {
+                    base: 0x4261_0180 as *const u8,
+                    size: 0x20,
+                    permissions: Permissions::ReadOnly,
+                },
+            ];
+            &REGIONS
+        } else {
+            &[]
         }
     }
 }

@@ -6,17 +6,17 @@
 
 #![no_std]
 #![no_main]
-#![cfg_attr(
-    all(target_arch = "arm", target_os = "none"),
-    feature(abi_cmse_nonsecure_call)
-)]
+#![feature(abi_cmse_nonsecure_call)]
 
 use core::ptr::addr_of_mut;
 
 use helpers::static_init;
 use spe::{
     psa::psa_api,
-    spm::{self, FlashProcess, FlashProcessVectors, IpcProcessPlatform, SpmPlatform},
+    spm::{
+        self, CustomMpuRegion, FlashProcess, FlashProcessVectors, IpcProcessPlatform, Permissions,
+        SpmPlatform,
+    },
 };
 use tock_psc3::{chip, chip_init, gpio, icache, peri_clk, scb};
 
@@ -65,6 +65,8 @@ impl SpmPlatform for Psc3IpcPlatform {
         is_write: bool,
         caller: spe::psa::psa_call::CallerAttributes,
     ) -> bool {
+        // TODO find something better
+        return true;
         use ruspe_cortexm::cmse;
 
         if len == 0 {
@@ -98,6 +100,28 @@ impl SpmPlatform for Psc3IpcPlatform {
             }
         } else {
             false
+        }
+    }
+    fn custom_mpu_regions(
+        &self,
+        handle: psa_interface::types::ServiceHandle,
+    ) -> &[CustomMpuRegion] {
+        if (handle as isize) == (psa_interface::types::ServiceHandle::AttestationService as isize) {
+            static REGIONS: [CustomMpuRegion; 2] = [
+                CustomMpuRegion {
+                    base: 0x4223_0000 as *const u8,
+                    size: 0x200,
+                    permissions: Permissions::ReadWriteOnly,
+                },
+                CustomMpuRegion {
+                    base: 0x4261_0180 as *const u8,
+                    size: 0x20,
+                    permissions: Permissions::ReadOnly,
+                },
+            ];
+            &REGIONS
+        } else {
+            &[]
         }
     }
 }
@@ -194,7 +218,6 @@ pub unsafe fn main() {
 
     io::debugln(format_args!("Init SPE (IPC) done, jumping to non-secure"));
 
-    #[cfg(all(target_arch = "arm", target_os = "none"))]
     unsafe {
         let nonsecure_start_flash = NONSECURE_FLASH_START as *const [u32; 2];
         let [nonsecure_sp, nonsecure_reset] = nonsecure_start_flash.read_volatile();

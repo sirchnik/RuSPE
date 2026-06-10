@@ -318,7 +318,6 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
         Ok(result)
     }
 
-    #[cfg(all(target_arch = "arm", target_os = "none"))]
     fn apply_mpu_config(&self, process_index: usize) {
         use cortexm33::mpu;
         use kernel::platform::mpu::{MPU as MpuTrait, Permissions};
@@ -341,11 +340,6 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
         let service_ram_size = (vectors.ram_limit as usize)
             .checked_sub(vectors.ram_start as usize)
             .unwrap();
-        let cryptolite_trng_start = 0x4223_0000 as *const u8;
-        let cryptolite_trng_size = 0x200;
-        let efuse_ctl3_start = 0x4261_0180 as *const u8;
-        let efuse_ctl3_size = 0x20;
-
         mpu.allocate_region(
             service_rom_start,
             service_rom_size,
@@ -362,42 +356,61 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
             &mut config,
         )
         .unwrap();
-        mpu.allocate_region(
-            cryptolite_trng_start,
-            cryptolite_trng_size,
-            cryptolite_trng_size,
-            Permissions::ReadWriteOnly,
-            &mut config,
-        )
-        .unwrap();
-        mpu.allocate_region(
-            efuse_ctl3_start,
-            efuse_ctl3_size,
-            efuse_ctl3_size,
-            Permissions::ReadOnly,
-            &mut config,
-        )
-        .unwrap();
+
+        let handle = self.processes[process_index].handle();
+        for region in self.platform.custom_mpu_regions(handle) {
+            mpu.allocate_region(
+                region.base,
+                region.size,
+                region.size,
+                region.permissions,
+                &mut config,
+            )
+            .unwrap();
+        }
 
         self.state
             .try_lock(|state| {
                 if let Ok(conn) = state.connections.peek_active_connection() {
                     if self.find_process_index(conn.msg.handle) == Some(process_index) {
-                        for slot in conn.mapped_regions.iter() {
-                            if let Some((is_outvec, _vec_idx, base_addr, size)) = slot {
-                                let permissions = if *is_outvec {
-                                    Permissions::ReadWriteOnly
-                                } else {
-                                    Permissions::ReadOnly
-                                };
-                                mpu.allocate_region(
-                                    *base_addr as *const u8,
-                                    *size,
-                                    *size,
-                                    permissions,
-                                    &mut config,
-                                )
-                                .unwrap();
+                        for (i, &is_mapped) in conn.invec_mapped.iter().enumerate() {
+                            if is_mapped && !conn.invec_unmapped[i] {
+                                if let Some(size) = conn.msg.in_size[i] {
+                                    if size > 0 {
+                                        let base_addr = conn.invec_base[i] as usize;
+                                        let aligned_base = base_addr & !0x1F;
+                                        let aligned_end = (base_addr + size + 0x1F) & !0x1F;
+                                        let aligned_size = aligned_end - aligned_base;
+                                        mpu.allocate_region(
+                                            aligned_base as *const u8,
+                                            aligned_size,
+                                            aligned_size,
+                                            Permissions::ReadOnly,
+                                            &mut config,
+                                        )
+                                        .unwrap();
+                                    }
+                                }
+                            }
+                        }
+                        for (i, &is_mapped) in conn.outvec_mapped.iter().enumerate() {
+                            if is_mapped && !conn.outvec_unmapped[i] {
+                                if let Some(size) = conn.msg.out_size[i] {
+                                    if size > 0 {
+                                        let base_addr = conn.outvec_base[i] as usize;
+                                        let aligned_base = base_addr & !0x1F;
+                                        let aligned_end = (base_addr + size + 0x1F) & !0x1F;
+                                        let aligned_size = aligned_end - aligned_base;
+                                        mpu.allocate_region(
+                                            aligned_base as *const u8,
+                                            aligned_size,
+                                            aligned_size,
+                                            Permissions::ReadWriteOnly,
+                                            &mut config,
+                                        )
+                                        .unwrap();
+                                    }
+                                }
                             }
                         }
                     }
@@ -410,9 +423,6 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
         }
         mpu.enable_app_mpu();
     }
-
-    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
-    fn apply_mpu_config(&self, _process_index: usize) {}
 }
 
 impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmCall
@@ -488,28 +498,19 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmCall
             .has_permission_on_memory(base, len, is_write, caller)
     }
 
-    #[cfg(all(target_arch = "arm", target_os = "none"))]
-    fn map_vec(&self, is_outvec: bool, vec_idx: u32, base: *const u8, size: usize) {
-        if size == 0 {
-            return;
-        }
-
+    fn map_vec(&self, is_outvec: bool, vec_idx: u32, _base: *const u8, _size: usize) {
         let mut process_index = 0;
         self.state
             .try_lock(|state| {
                 let (conn_idx, mut conn) = state.connections.take_active_connection().unwrap();
                 process_index = self.find_process_index(conn.msg.handle).unwrap();
 
-                let base_addr = base as usize;
-                let aligned_base = base_addr & !0x1F;
-                let aligned_end = (base_addr + size + 0x1F) & !0x1F;
-                let aligned_size = aligned_end - aligned_base;
-
-                for slot in conn.mapped_regions.iter_mut() {
-                    if slot.is_none() {
-                        *slot = Some((is_outvec, vec_idx, aligned_base, aligned_size));
-                        break;
-                    }
+                if is_outvec {
+                    conn.outvec_mapped[vec_idx as usize] = true;
+                    conn.outvec_unmapped[vec_idx as usize] = false;
+                } else {
+                    conn.invec_mapped[vec_idx as usize] = true;
+                    conn.invec_unmapped[vec_idx as usize] = false;
                 }
 
                 state
@@ -522,10 +523,6 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmCall
         self.apply_mpu_config(process_index);
     }
 
-    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
-    fn map_vec(&self, _is_outvec: bool, _vec_idx: u32, _base: *const u8, _size: usize) {}
-
-    #[cfg(all(target_arch = "arm", target_os = "none"))]
     fn unmap_vec(&self, is_outvec: bool, vec_idx: u32) {
         let mut process_index = 0;
         self.state
@@ -533,14 +530,14 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmCall
                 let (conn_idx, mut conn) = state.connections.take_active_connection().unwrap();
                 process_index = self.find_process_index(conn.msg.handle).unwrap();
 
-                for slot in conn.mapped_regions.iter_mut() {
-                    if let Some((mapped_is_outvec, mapped_vec_idx, _, _)) = *slot {
-                        if mapped_is_outvec == is_outvec && mapped_vec_idx == vec_idx {
-                            *slot = None;
-                            break;
-                        }
-                    }
+                if is_outvec {
+                    conn.outvec_mapped[vec_idx as usize] = false;
+                    conn.outvec_unmapped[vec_idx as usize] = true;
+                } else {
+                    conn.invec_mapped[vec_idx as usize] = false;
+                    conn.invec_unmapped[vec_idx as usize] = true;
                 }
+
                 state
                     .connections
                     .restore_active_connection(conn_idx, conn)
@@ -550,7 +547,4 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmCall
 
         self.apply_mpu_config(process_index);
     }
-
-    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
-    fn unmap_vec(&self, _is_outvec: bool, _vec_idx: u32) {}
 }

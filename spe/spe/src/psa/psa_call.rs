@@ -180,8 +180,6 @@ pub fn psa_call_from_slices(
         outvec_written,
         outvec_mapped: [false; PSA_MAX_IOVEC],
         outvec_unmapped: [false; PSA_MAX_IOVEC],
-        #[cfg(all(target_arch = "arm", target_os = "none"))]
-        mapped_regions: [const { None }; PSA_MAX_IOVEC],
     })
 }
 

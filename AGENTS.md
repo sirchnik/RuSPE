@@ -7,7 +7,7 @@ SPDX-License-Identifier: MIT
 # RuSPE AGENTS.md
 
 This project uses invoke for directory specific tasks make sure to change directory.
-Also you have to be in a venv.
+It should be found at `./.venv/bin/invoke`.
 
 Available tasks are:
 - `invoke build` - builds all projects

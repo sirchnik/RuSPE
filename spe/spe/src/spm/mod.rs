@@ -10,6 +10,19 @@ pub use spm_ipc::{
     EmbeddedProcess, FlashProcess, FlashProcessVectors, IpcProcess, IpcProcessPlatform, SpmIpc,
 };
 
+pub use kernel::platform::mpu::Permissions;
+
+#[derive(Clone, Copy)]
+pub struct CustomMpuRegion {
+    pub base: *const u8,
+    pub size: usize,
+    pub permissions: Permissions,
+}
+
+unsafe impl Send for CustomMpuRegion {}
+
+unsafe impl Sync for CustomMpuRegion {}
+
 /// Call a function in unprivileged Thread mode via SVC, using PSP.
 ///
 /// Before issuing `SVC_CALL_UNPRIV`, this function:
@@ -34,10 +47,8 @@ pub use spm_ipc::{
 /// - `stack_limit` must be the lowest permitted PSP value for the service.
 /// - `stack_top` must be an 8-byte aligned address at the top of RAM accessible
 ///   to unprivileged code (the service's stack).
-#[cfg(all(target_arch = "arm", target_os = "none"))]
 use crate::psa::psa_svc_api::SVC_CALL_UNPRIV;
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
 pub(crate) unsafe fn svc_call_unpriv(
     fn_ptr: usize,
     arg: usize,
@@ -98,15 +109,4 @@ pub(crate) unsafe fn svc_call_unpriv(
     }
 
     ret
-}
-
-#[cfg(not(all(target_arch = "arm", target_os = "none")))]
-pub(crate) unsafe fn svc_call_unpriv(
-    _fn_ptr: usize,
-    _arg: usize,
-    _thunk: usize,
-    _stack_limit: usize,
-    _stack_top: usize,
-) -> usize {
-    panic!("svc_call_unpriv is only available on ARM bare-metal targets")
 }

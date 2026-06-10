@@ -127,7 +127,6 @@ pub unsafe fn main() {
 
     io::debugln(format_args!("Init SPE done, jumping to non-secure"));
 
-    #[cfg(all(target_arch = "arm", target_os = "none"))]
     unsafe {
         let nonsecure_start_flash = NONSECURE_FLASH_START as *const [u32; 2];
         let [nonsecure_sp, nonsecure_reset] = nonsecure_start_flash.read_volatile();
