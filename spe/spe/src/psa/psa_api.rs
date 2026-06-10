@@ -149,15 +149,3 @@ pub fn psa_map_invec_outvec<R>(
         psa_svc_api::psa_map_invec_outvec(msg_handle, invec_idx, outvec_idx, f)
     }
 }
-
-pub fn psa_write(
-    msg_handle: ServiceHandle,
-    outvec_idx: u32,
-    buffer: &[u8],
-) -> Result<usize, StatusCode> {
-    if let Some(spm) = try_get_spm() {
-        psa_iovec_api::psa_write(spm, msg_handle, outvec_idx, buffer)
-    } else {
-        psa_svc_api::psa_write(msg_handle, outvec_idx, buffer)
-    }
-}

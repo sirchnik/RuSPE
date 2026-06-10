@@ -253,7 +253,15 @@ impl<P: AttestPlatform> Service for AttestService<P> {
                 }
                 self.initial_attest_get_token(challenge, &additional_claims, &mut token)
             })?;
-            psa_api::psa_write(msg.handle, 0, &token[..written_len])?;
+            psa_api::psa_map_outvec(msg.handle, 0, |outvec| {
+                if outvec.len() < written_len {
+                    outvec.fill(0);
+                    (Err(StatusCode::BufferTooSmall), 0)
+                } else {
+                    outvec[..written_len].copy_from_slice(&token[..written_len]);
+                    (Ok(()), written_len)
+                }
+            })?;
             Ok(())
         } else if msg.msg_type == psa_interface::types::AttestationServiceType::GetTokenSize as i32
         {
@@ -278,7 +286,15 @@ impl<P: AttestPlatform> Service for AttestService<P> {
                 self.initial_attest_get_token_size(challenge_size, &additional_claims)?;
 
             let token_size_bytes = token_size.to_ne_bytes();
-            psa_api::psa_write(msg.handle, 0, &token_size_bytes)?;
+            psa_api::psa_map_outvec(msg.handle, 0, |outvec| {
+                if outvec.len() < token_size_bytes.len() {
+                    outvec.fill(0);
+                    (Err(StatusCode::BufferTooSmall), 0)
+                } else {
+                    outvec[..token_size_bytes.len()].copy_from_slice(&token_size_bytes);
+                    (Ok(()), token_size_bytes.len())
+                }
+            })?;
             Ok(())
         } else {
             Err(psa_interface::status::StatusCode::NotSupported)
