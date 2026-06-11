@@ -16,7 +16,6 @@ if str(REPO_ROOT) not in sys.path:
 
 from tools.build.invoke_support import (
     BuildError,
-    build_task,
     run_command,
     resolve_cmd,
 )
@@ -117,7 +116,6 @@ APP = AppConfig(
 DEBUG_HELP = "Build the debug profile instead of release."
 
 
-@build_task(default=True, help={"debug": DEBUG_HELP})
 def build(ctx: Context, debug=False):
     """Build the Tock userland app and convert it to TBF."""
 

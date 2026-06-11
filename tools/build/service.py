@@ -29,6 +29,10 @@ class ServiceConfig(BaseServiceConfig):
     def service(self) -> str:
         return self.service_dir.name
 
+    @property
+    def crate_name(self) -> str:
+        return _cargo_package_name(self.service_dir)
+
     def _linker_env(self) -> dict[str, str]:
         """Return environment variables for linker script generation.
         

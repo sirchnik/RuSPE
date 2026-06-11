@@ -13,7 +13,21 @@ from shutil import copy2
 
 from invoke.context import Context
 
-from tools.build.invoke_support import resolve_openocd, build_task, run_command
+from tools.build.invoke_support import (
+    resolve_openocd,
+    build_task,
+    run_command,
+    VscodeLaunchTarget,
+    VscodeBuildTarget,
+)
+from boards.psc3m5_evk.secure.tasks import (
+    vscode_build_targets as secure_build_targets,
+    vscode_launch_targets as secure_launch_targets,
+)
+from boards.psc3m5_evk.secure_ipc.tasks import (
+    vscode_build_targets as secure_ipc_build_targets,
+    vscode_launch_targets as secure_ipc_launch_targets,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parent
@@ -62,145 +76,27 @@ def _write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload, indent=4) + "\n", encoding="utf-8")
 
 
-def _inv_executable() -> str:
-    if os.name == "nt":
-        return "${workspaceFolder}\\.venv\\Scripts\\inv.exe"
-    return "${workspaceFolder}/.venv/bin/inv"
+def _tasks_targets(release: bool = False) -> list[VscodeBuildTarget]:
+    targets: list[VscodeBuildTarget] = []
+    targets.extend(secure_build_targets(release))
+    targets.extend(secure_ipc_build_targets(release))
+    return targets
 
 
-def _tasks_targets(release: bool = False) -> list[dict]:
-    inv_executable = _inv_executable()
-    debug_arg = "" if release else " --debug"
-    profile_short_snake = "_r" if release else "_d"
-    if os.name == "nt":
-        build_command = f'& "{inv_executable}" build{debug_arg}'
-        build_ipc_command = f'& "{inv_executable}" build{debug_arg} --ipc'
-        build_with_app_command = f'$app = \'${{config:tock.app}}\'; if ($app) {{ & "{inv_executable}" build{debug_arg} --app "$app" }} else {{ & "{inv_executable}" build{debug_arg} }}'
-        build_with_app_ipc_command = f'$app = \'${{config:tock.app}}\'; if ($app) {{ & "{inv_executable}" build{debug_arg} --ipc --app "$app" }} else {{ & "{inv_executable}" build{debug_arg} --ipc }}'
-    else:
-        build_command = f'"{inv_executable}" build{debug_arg}'
-        build_ipc_command = f'"{inv_executable}" build{debug_arg} --ipc'
-        build_with_app_command = (
-            "app='${config:tock.app}'; "
-            f'if [ -n "$app" ]; then "{inv_executable}" build{debug_arg} --app "$app"; '
-            f'else "{inv_executable}" build{debug_arg}; fi'
-        )
-        build_with_app_ipc_command = (
-            "app='${config:tock.app}'; "
-            f'if [ -n "$app" ]; then "{inv_executable}" build{debug_arg} --ipc --app "$app"; '
-            f'else "{inv_executable}" build{debug_arg} --ipc; fi'
-        )
-
-    common_task = {
-        "type": "shell",
-        "args": [],
-        "presentation": {"reveal": "silent"},
-        "group": "build",
-    }
-
-    return [
-        {
-            **common_task,
-            "label": f"build{profile_short_snake}.psc3m5_evk_test",
-            "options": {"cwd": "${workspaceFolder}/boards/psc3m5_evk/test"},
-            "command": build_command,
-        },
-        {
-            **common_task,
-            "label": f"build{profile_short_snake}.psc3m5_evk_test_ipc",
-            "options": {"cwd": "${workspaceFolder}/boards/psc3m5_evk/test"},
-            "command": build_ipc_command,
-        },
-        {
-            **common_task,
-            "label": f"build{profile_short_snake}.psc3m5_evk_tock",
-            "options": {"cwd": "${workspaceFolder}/boards/psc3m5_evk/tock/kernel"},
-            "command": build_with_app_command,
-        },
-        {
-            **common_task,
-            "label": f"build{profile_short_snake}.psc3m5_evk_tock_ipc",
-            "options": {"cwd": "${workspaceFolder}/boards/psc3m5_evk/tock/kernel"},
-            "command": build_with_app_ipc_command,
-        },
-        {
-            **common_task,
-            "label": f"build{profile_short_snake}.psc3m5_evk_secure_ipc",
-            "options": {"cwd": "${workspaceFolder}/boards/psc3m5_evk/secure_ipc"},
-            "command": build_command,
-        },
-    ]
-
-
-def _tasks_conf(targets: list[dict]) -> dict[str, object]:
+def _tasks_conf(targets: list[VscodeBuildTarget]) -> dict[str, object]:
     return {"version": "2.0.0", "tasks": targets}
 
 
-def _launch_targets(release: bool = False) -> list[dict]:
-    profile = "release" if release else "debug"
-    profile_short = "(R)" if release else "(D)"
-    profile_short_snake = "_r" if release else "_d"
-    psc3m5_base_conf = {
-        "type": "cortex-debug",
-        "servertype": "openocd",
-        "serverpath": str(resolve_openocd(version="infineon")),
-        "request": "launch",
-        "cwd": "${workspaceFolder}",
-        "openOCDLaunchCommands": ["init; reset init;"],
-        "svdFile": "${workspaceFolder}/.local/svds/psc3.svd",
-        "configFiles": ["${workspaceFolder}/boards/psc3m5_evk/openocd.tcl"],
-    }
-    return [
-        {
-            "name": f"Test-PSC3 FN {profile_short}",
-            **psc3m5_base_conf,
-            "executable": f"target/thumbv8m.main-none-eabi/{profile}/test_merged.hex",
-            "preLaunchCommands": [
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test_nspe",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure",
-            ],
-            "preLaunchTask": f"build{profile_short_snake}.psc3m5_evk_test",
-        },
-        {
-            "name": f"Test-PSC3 IPC {profile_short}",
-            **psc3m5_base_conf,
-            "executable": f"target/thumbv8m.main-none-eabi/{profile}/test_merged.hex",
-            "preLaunchCommands": [
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test_nspe",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure_ipc",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_attest_srv",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_crypto_srv",
-            ],
-            "preLaunchTask": f"build{profile_short_snake}.psc3m5_evk_test_ipc",
-        },
-        {
-            "name": f"Tock-PSC3 FN {profile_short}",
-            **psc3m5_base_conf,
-            "executable": f"target/thumbv8m.main-none-eabi/{profile}/kernel_merged.hex",
-            "preLaunchCommands": [
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock_kernel",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock_app",
-            ],
-            "preLaunchTask": f"build{profile_short_snake}.psc3m5_evk_tock",
-        },
-        {
-            "name": f"Tock-PSC3 IPC {profile_short}",
-            **psc3m5_base_conf,
-            "executable": f"target/thumbv8m.main-none-eabi/{profile}/kernel_merged.hex",
-            "preLaunchCommands": [
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock_kernel",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure_ipc",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock_app",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_attest_srv",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_crypto_srv",
-            ],
-            "preLaunchTask": f"build{profile_short_snake}.psc3m5_evk_tock_ipc",
-        },
-    ]
+def _launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
+    openocd_path = str(resolve_openocd(version="infineon"))
+    
+    targets: list[VscodeLaunchTarget] = []
+    targets.extend(secure_launch_targets(openocd_path, release))
+    targets.extend(secure_ipc_launch_targets(openocd_path, release))
+    return targets
 
 
-def _launch_conf(targets: list[dict]) -> dict[str, object]:
+def _launch_conf(targets: list[VscodeLaunchTarget]) -> dict[str, object]:
     return {
         "version": "0.2.0",
         "configurations": targets,

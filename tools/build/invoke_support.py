@@ -11,9 +11,67 @@ from functools import wraps
 from pathlib import Path
 from shutil import which
 
+from typing import TypedDict
+
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
+
+
+class VscodeLaunchTarget(TypedDict, total=False):
+    name: str
+    type: str
+    request: str
+    cwd: str
+    executable: str
+    servertype: str
+    serverpath: str
+    openOCDLaunchCommands: list[str]
+    svdFile: str
+    configFiles: list[str]
+    preLaunchCommands: list[str]
+    preLaunchTask: str
+
+
+class VscodeBuildTarget(TypedDict, total=False):
+    type: str
+    args: list[str]
+    presentation: dict[str, object]
+    group: str
+    label: str
+    options: dict[str, object]
+    command: str
+
+
+def inv_executable() -> str:
+    if os.name == "nt":
+        return "${workspaceFolder}\\.venv\\Scripts\\inv.exe"
+    return "${workspaceFolder}/.venv/bin/inv"
+
+
+def vscode_common_build_task() -> dict[str, object]:
+    return {
+        "type": "shell",
+        "args": [],
+        "presentation": {"reveal": "silent"},
+        "group": "build",
+    }
+
+
+def get_vscode_build_commands(release: bool = False) -> tuple[str, str]:
+    inv_exec = inv_executable()
+    debug_arg = "" if release else " --debug"
+    if os.name == "nt":
+        build_test_cmd = f'& "{inv_exec}" build{debug_arg} --nspe=test'
+        build_tock_cmd = f'$app = \'${{config:tock.app}}\'; if ($app) {{ & "{inv_exec}" build{debug_arg} --nspe=tock --app "$app" }} else {{ & "{inv_exec}" build{debug_arg} --nspe=tock }}'
+    else:
+        build_test_cmd = f'"{inv_exec}" build{debug_arg} --nspe=test'
+        build_tock_cmd = (
+            "app='${config:tock.app}'; "
+            f'if [ -n "$app" ]; then "{inv_exec}" build{debug_arg} --nspe=tock --app "$app"; '
+            f'else "{inv_exec}" build{debug_arg} --nspe=tock; fi'
+        )
+    return build_test_cmd, build_tock_cmd
 
 
 class BuildError(RuntimeError):
@@ -176,6 +234,8 @@ def resolve_cmd(command_name: str) -> Path | None:
 
 def _is_infineon_openocd(openocd_bin: Path) -> bool:
     """Check if the given OpenOCD binary is an Infineon version."""
+    if "ModusToolbox" in str(openocd_bin):
+        return True
     search_bases = [
         openocd_bin.parent,
         openocd_bin.parent.parent,
