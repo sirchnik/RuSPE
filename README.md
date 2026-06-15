@@ -4,10 +4,16 @@ SPDX-FileCopyrightText: Infineon Technologies AG
 SPDX-License-Identifier: MIT
 -->
 
-# RuSPE
+<div align="center">
+  <img src="docs/logo.svg" alt="RuSPE Logo" width="200"/>
 
-RuSPE - a proof-of-concept Rust implementation of an TrustedFirmware-M
-(TF-M)/ARM Firware Framework
+  <h1>RuSPE</h1> 
+  <span style="font-size: 18px;">
+  Proof-of-concept Rust implementation of an TrustedFirmware-M
+  (TF-M)/ARM Firware Framework
+  </span>
+</div>
+
 
 Current status
 - Initial attestation: basic support (initial_attestation) is implemented.
