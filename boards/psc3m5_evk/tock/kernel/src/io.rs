@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Infineon Technologies AG 2026.
 
-//! Board‑level I/O and panic infrastructure for the PSC3M5-EVK.
+//! Board-level I/O and panic infrastructure for the PSC3M5-EVK.
 
 use core::panic::PanicInfo;
 use kernel::utilities::cells::OptionalCell;

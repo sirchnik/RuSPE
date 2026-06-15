@@ -13,7 +13,7 @@ use psa_interface::types::{PsaStatus, ServiceHandle};
 const EXCEPTION_FRAME_WORDS: usize = 8;
 
 // ---------------------------------------------------------------------------
-// FlashProcess – service loaded as a separate binary in flash
+// FlashProcess - service loaded as a separate binary in flash
 // ---------------------------------------------------------------------------
 
 #[repr(C)]
@@ -194,7 +194,7 @@ unsafe impl IpcProcess for FlashProcess {
 }
 
 // ---------------------------------------------------------------------------
-// EmbeddedProcess – service compiled into the SPM binary
+// EmbeddedProcess - service compiled into the SPM binary
 // ---------------------------------------------------------------------------
 
 pub struct EmbeddedProcess {
@@ -239,7 +239,7 @@ unsafe impl IpcProcess for EmbeddedProcess {
 }
 
 // ---------------------------------------------------------------------------
-// SpmIpc – IPC-style SPM dispatcher, generic over process type
+// SpmIpc - IPC-style SPM dispatcher, generic over process type
 // ---------------------------------------------------------------------------
 
 struct SpmIpcState<const N: usize> {

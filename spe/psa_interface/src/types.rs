@@ -114,7 +114,7 @@ pub type PsaKeyId = u32;
 /// PSA algorithm identifier type (matches `psa_algorithm_t` / `uint32_t` in TF-M).
 pub type PsaAlgorithm = u32;
 
-/// PSA_ALG_ECDSA(PSA_ALG_SHA_256) — the algorithm value TF-M uses for ES256.
+/// PSA_ALG_ECDSA(PSA_ALG_SHA_256) - the algorithm value TF-M uses for ES256.
 pub const PSA_ALG_ECDSA_SHA256: PsaAlgorithm = 0x0600_0609;
 
 /// Packed AEAD nonce input, matches TF-M `struct tfm_crypto_aead_pack_input`.

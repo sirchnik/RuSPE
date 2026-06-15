@@ -10,7 +10,7 @@ use spe::{
     service::{Info, Service},
 };
 
-/// P-256 ECDSA signature size in bytes (r ‖ s, 32 + 32).
+/// P-256 ECDSA signature size in bytes (r || s, 32 + 32).
 const P256_SIGNATURE_SIZE: usize = 64;
 /// SHA-256 digest length in bytes.
 const SHA256_HASH_SIZE: usize = 32;

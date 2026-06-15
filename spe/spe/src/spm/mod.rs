@@ -32,13 +32,13 @@ unsafe impl Sync for CustomMpuRegion {}
 ///
 /// The SVC handler then:
 /// - Sets `CONTROL.nPRIV = 1`
-/// - Sets EXC_RETURN SPSEL bit → exception return unstacks from PSP
-/// - `bx lr` → hardware pops frame from PSP → service runs unprivileged.
+/// - Sets EXC_RETURN SPSEL bit -> exception return unstacks from PSP
+/// - bx lr -> hardware pops frame from PSP -> service runs unprivileged.
 ///
 /// When the service returns it hits the `thunk` (`svc #0`) which triggers
 /// `SVC_ELEVATE`: the handler copies the return value from the PSP frame to
 /// the orphaned MSP frame, clears nPRIV, flips EXC_RETURN back to MSP, and
-/// returns — landing us back here with the result in R0.
+/// returns - landing us back here with the result in R0.
 ///
 /// # Safety
 /// - `fn_ptr` must point to valid code in unprivileged-accessible memory.
@@ -92,8 +92,8 @@ pub(crate) unsafe fn svc_call_unpriv(
     }
 
     // Issue SVC_CALL_UNPRIV. The handler returns via PSP (service runs).
-    // When the service finishes → thunk → SVC_ELEVATE → handler returns via
-    // MSP → we land back here with the return value in R0.
+    // When the service finishes -> thunk -> SVC_ELEVATE -> handler returns via
+    // MSP -> we land back here with the return value in R0.
     let ret: usize;
     unsafe {
         asm!(

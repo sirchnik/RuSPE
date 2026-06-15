@@ -45,7 +45,7 @@ pub fn initial_attest_get_token<T: PsaApiCallInterface>(
     status_from_raw(status)
 }
 
-/// PSA Crypto `psa_sign_hash` — sign a pre-computed hash.
+/// PSA Crypto `psa_sign_hash` - sign a pre-computed hash.
 ///
 /// Matches the TF-M iovec layout:
 ///   invec\[0\] = `TfmCryptoPackIovec` (function_id, key_id, alg)

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-//! Board‑level I/O and panic infrastructure for the PSC3M5-EVK.
+//! Board-level I/O and panic infrastructure for the PSC3M5-EVK.
 
 use core::fmt::Write;
 use core::panic::PanicInfo;

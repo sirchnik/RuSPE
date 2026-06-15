@@ -208,8 +208,8 @@ fn with_mapped_outvec<R>(
     let outvec = if out_len == 0 {
         &mut []
     } else {
-        // # Safety:
-        // `base` is checked non-null in `prepare_outvec`, and `out_len` is from
+        // Safety:
+        // base is checked non-null in prepare_outvec, and out_len is
         // the SPM-tracked output vector size for this message.
         unsafe { slice::from_raw_parts_mut(base, out_len) }
     };
@@ -256,16 +256,16 @@ pub fn psa_map_invec_outvec<R>(
         let invec = if in_len == 0 {
             &[]
         } else {
-            // # Safety:
-            // `in_base` is checked non-null by `prepare_invec`, and `in_len` is
+            // Safety:
+            // in_base is checked non-null by prepare_invec, and in_len is
             // an SPM-tracked vector size for this message.
             unsafe { slice::from_raw_parts(in_base, in_len) }
         };
         let outvec = if out_len == 0 {
             &mut []
         } else {
-            // # Safety:
-            // `out_base` is checked non-null by `prepare_outvec`, and `out_len` is
+            // Safety:
+            // out_base is checked non-null by prepare_outvec, and out_len is
             // an SPM-tracked vector size for this message.
             unsafe { slice::from_raw_parts_mut(out_base, out_len) }
         };

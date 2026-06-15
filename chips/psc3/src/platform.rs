@@ -45,10 +45,10 @@ impl SpmPlatform for Psc3SecPlatform {
         }
 
         // Determine the TT instruction variant based on caller attributes:
-        // - NS + unprivileged → TTAT (NonSecureUnprivileged): checks NS MPU as unprivileged
-        // - NS + privileged   → TTA  (NonSecure): checks NS MPU as privileged
-        // - S  + unprivileged → TTT  (Unprivileged): checks current-security MPU as unprivileged
-        // - S  + privileged   → TT   (Current): checks current-security MPU as privileged
+        // - NS + unprivileged -> TTAT (NonSecureUnprivileged): checks NS MPU as unprivileged
+        // - NS + privileged   -> TTA  (NonSecure): checks NS MPU as privileged
+        // - S  + unprivileged -> TTT  (Unprivileged): checks current-security MPU as unprivileged
+        // - S  + privileged   -> TT   (Current): checks current-security MPU as privileged
         let access_type = match (caller.ns, caller.privileged) {
             (true, false) => cmse::AccessType::NonSecureUnprivileged,
             (true, true) => cmse::AccessType::NonSecure,

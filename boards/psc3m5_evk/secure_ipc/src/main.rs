@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-//! Secure startup and services — IPC model with embedded service processes.
+//! Secure startup and services - IPC model with embedded service processes.
 
 #![no_std]
 #![no_main]
@@ -46,7 +46,7 @@ const NONSECURE_FLASH_LIMIT: u32 = 0x2203_FFFF;
 const NONSECURE_RAM_START: u32 = 0x2400_5100;
 const NONSECURE_RAM_LIMIT: u32 = 0x2400_EFFF;
 
-/// Minimal platform for the IPC model — only provides memory permission checks.
+/// Minimal platform for the IPC model - only provides memory permission checks.
 /// Service dispatch is handled by the SpmIpc process table, not by this platform.
 pub struct Psc3IpcPlatform;
 

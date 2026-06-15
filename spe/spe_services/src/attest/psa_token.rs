@@ -12,7 +12,7 @@ use psa_interface::{psa_api::psa_sign_hash, types::PSA_ALG_ECDSA_SHA256};
 use sha2::{Digest, Sha256};
 use spe::psa::psa_api::InternalPsaClient;
 
-/// PSA / EAT claim labels per RFC 9783 §6.
+/// PSA / EAT claim labels per RFC 9783 Section 6.
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum IatClaim {
@@ -28,7 +28,7 @@ pub enum IatClaim {
     VerificationService = 2400,
 }
 
-/// One PSA software component (RFC 9783 §4.4.1).
+/// One PSA software component (RFC 9783 Section 4.4.1).
 ///
 /// Fields are emitted in the order used by the RFC examples:
 /// signer-id (5), measurement-value (2), measurement-type (1).
@@ -258,7 +258,7 @@ mod tests {
     use cose::cose_sign1::CoseSign1Error;
     use minicbor::Decoder;
 
-    // ── encode_payload: single-claim cases ──────────────────────────────
+    // -- encode_payload: single-claim cases ------------------------------
 
     #[test]
     fn encode_payload_single_bytes_claim() {
@@ -321,7 +321,7 @@ mod tests {
         assert_eq!(dec.i64().unwrap(), -1);
     }
 
-    // ── encode_payload: SwComponents ────────────────────────────────────
+    // -- encode_payload: SwComponents ------------------------------------
 
     #[test]
     fn encode_payload_sw_component_with_measurement_type() {
@@ -422,7 +422,7 @@ mod tests {
         assert_eq!(dec.bytes().unwrap(), [0x03]);
     }
 
-    // ── encode_payload: multi-claim with all value types ────────────────
+    // -- encode_payload: multi-claim with all value types ----------------
 
     #[test]
     fn encode_payload_all_claim_types_roundtrip() {
@@ -479,22 +479,22 @@ mod tests {
         let map_len = dec.map().unwrap().unwrap();
         assert_eq!(map_len, 9);
 
-        // Nonce → bytes
+        // Nonce -> bytes
         assert_eq!(dec.i32().unwrap(), 10);
         assert_eq!(dec.bytes().unwrap(), nonce);
-        // ProfileDefinition → text
+        // ProfileDefinition -> text
         assert_eq!(dec.i32().unwrap(), 265);
         assert_eq!(dec.str().unwrap(), "tag:psacertified.org,2023:psa#tfm");
-        // ClientId → signed int
+        // ClientId -> signed int
         assert_eq!(dec.i32().unwrap(), 2394);
         assert_eq!(dec.i64().unwrap(), 1);
-        // SecurityLifecycle → unsigned int
+        // SecurityLifecycle -> unsigned int
         assert_eq!(dec.i32().unwrap(), 2395);
         assert_eq!(dec.u64().unwrap(), 12288);
-        // BootSeed → bytes
+        // BootSeed -> bytes
         assert_eq!(dec.i32().unwrap(), 268);
         assert_eq!(dec.bytes().unwrap(), boot_seed);
-        // SwComponents → array
+        // SwComponents -> array
         assert_eq!(dec.i32().unwrap(), 2399);
         assert_eq!(dec.array().unwrap(), Some(1));
         assert_eq!(dec.map().unwrap(), Some(2));
@@ -502,18 +502,18 @@ mod tests {
         let _ = dec.bytes().unwrap();
         assert_eq!(dec.u8().unwrap(), 2);
         let _ = dec.bytes().unwrap();
-        // CertificationReference → text
+        // CertificationReference -> text
         assert_eq!(dec.i32().unwrap(), 2398);
         assert_eq!(dec.str().unwrap(), "1234567890123-12345");
-        // ImplementationId → bytes
+        // ImplementationId -> bytes
         assert_eq!(dec.i32().unwrap(), 2396);
         assert_eq!(dec.bytes().unwrap(), impl_id);
-        // VerificationService → text
+        // VerificationService -> text
         assert_eq!(dec.i32().unwrap(), 2400);
         assert_eq!(dec.str().unwrap(), "https://psa-verifier.org");
     }
 
-    // ── encode_payload: edge cases ──────────────────────────────────────
+    // -- encode_payload: edge cases --------------------------------------
 
     #[test]
     fn encode_payload_empty_claims() {
@@ -580,7 +580,7 @@ mod tests {
         assert_eq!(dec.i64().unwrap(), i32::MAX as i64);
     }
 
-    // ── IatClaim label values per RFC 9783 ──────────────────────────────
+    // -- IatClaim label values per RFC 9783 ------------------------------
 
     #[test]
     fn iat_claim_label_values() {
@@ -596,7 +596,7 @@ mod tests {
         assert_eq!(IatClaim::VerificationService as u32, 2400);
     }
 
-    // ── map_cose_error ──────────────────────────────────────────────────
+    // -- map_cose_error --------------------------------------------------
 
     #[test]
     fn map_cose_error_buffer_too_small() {
@@ -630,7 +630,7 @@ mod tests {
         );
     }
 
-    // ── encode_payload: claim key ordering is preserved ─────────────────
+    // -- encode_payload: claim key ordering is preserved -----------------
 
     #[test]
     fn encode_payload_preserves_claim_order() {

@@ -6,7 +6,7 @@ SPDX-License-Identifier: MIT
 
 # RuSPE
 
-RuSPE — a proof-of-concept Rust implementation of an TrustedFirmware-M
+RuSPE - a proof-of-concept Rust implementation of an TrustedFirmware-M
 (TF-M)/ARM Firware Framework
 
 Current status
