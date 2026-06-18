@@ -58,4 +58,4 @@ These files are relevant for the memory configuration:
 
 - `boards/psc3m5_evk/secure/layout.ld`: Linker script for the secure world
 - `boards/psc3m5_evk/secure/layout_non_secure.ld`: Linker script for the non-secure world
-- `boards/psc3m5_evk/secure/edgeprotecttools/ns_policy/policy_oem_provisioning.json`: MPC policy file defining the memory access permissions
+- `boards/psc3m5_evk/edgeprotecttools/ns_policy/policy_oem_provisioning.json`: MPC policy file defining the memory access permissions

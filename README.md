@@ -38,21 +38,30 @@ inv install # install cargo tools
 inv vscode # generate VSCode configuration for development
 ```
 
-## Usage
+## Usage on PSC3M5_EVK
 
-- Build and flash the tock board image:
+The PSC3M5_EVK board is a development board from Infineon with TrustZone-M. It
+is currently the only board supported by this project.
+For trying it out follow these steps.
 
-```bash
-cd boards/tock/psc3m5_evk_tock
-inv flash
-```
+1. Provision the device with the protection context configuration:
+  ```bash
+  cd boards/psc3m5_evk/edgeprotecttools
+  edgeprotecttools -t psoc_c3 init
+  edgeprotecttools -t psoc_c3 provision-device -p ns_policy/policy_oem_provisioning.json
+  ```
 
-- Run tests against a flashed device using the client tester go application:
+2. Build and flash the tock board image:
+  ```bash
+  cd boards/tock/psc3m5_evk_tock
+  inv flash
+  ```
 
-```bash
-cd tools/test-client
-go run . --token-src tty
-```
+3. Run tests against a flashed device using the client tester go application:
+  ```bash
+  cd tools/test-client
+  go run . --token-src tty
+  ```
 
 ## Disclaimer
 
