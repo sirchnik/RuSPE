@@ -132,7 +132,7 @@ def vscode_launch_targets(openocd_path: str, release: bool = False) -> list[Vsco
         {
             "name": f"Test-PSC3 FN {profile_short}",
             **base_conf,
-            "executable": f"target/thumbv8m.main-none-eabi/{profile}/test_merged.hex",
+            "executable": f"target/thumbv8m.main-none-eabi/{profile}/test_nspe_merged.hex",
             "preLaunchCommands": [
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test_nspe",
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure",
