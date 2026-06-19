@@ -7,6 +7,9 @@ name = "spe"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+spm-ipc = []
+
 [dependencies]
 minicbor = { version = "2.2.1", default-features = false }
 p256 = { version = "0.13.2", features = [

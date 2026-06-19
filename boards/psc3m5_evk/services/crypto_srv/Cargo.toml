@@ -11,7 +11,7 @@ build = "./build.rs"
 
 [dependencies]
 ruspe_psc3 = { package = "psc3", path = "../../../../chips/psc3" }
-spe = { path = "../../../../spe/spe" }
+spe = { path = "../../../../spe/spe", features = ["spm-ipc"] }
 spe_services = { path = "../../../../spe/spe_services" }
 psa_interface = { path = "../../../../spe/psa_interface" }
 helpers = { path = "../../../../libraries/helpers" }

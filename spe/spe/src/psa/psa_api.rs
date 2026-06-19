@@ -12,9 +12,11 @@ use crate::{
     StatusCode,
     libs::once_lock::OnceLock,
     psa::psa_call::CallerAttributes,
-    psa::{psa_call, psa_iovec_api, psa_svc_api},
+    psa::{psa_call, psa_iovec_api},
     spm::SpmCall,
 };
+#[cfg(feature = "spm-ipc")]
+use crate::psa::psa_svc_api;
 use psa_interface::PsaApiCallInterface;
 use psa_interface::types::{CtrlParam, FFInVec, FFOutVec, ServiceHandle};
 
@@ -67,7 +69,9 @@ impl PsaApiCallInterface for InternalPsaClient {
             out_vec.as_mut_ptr()
         };
 
-        if let Some(spm) = try_get_spm() {
+        #[cfg(not(feature = "spm-ipc"))]
+        {
+            let spm = get_spm();
             crate::into_psa_status(unsafe {
                 psa_call::psa_call(
                     handle,
@@ -78,7 +82,9 @@ impl PsaApiCallInterface for InternalPsaClient {
                     CallerAttributes::SECURE_PRIVILEGED,
                 )
             })
-        } else {
+        }
+        #[cfg(feature = "spm-ipc")]
+        {
             crate::into_psa_status(unsafe {
                 psa_svc_api::psa_call(handle, ctrl_param, in_vec_ptr, out_vec_ptr)
             })
@@ -118,9 +124,13 @@ pub fn psa_map_invec<R>(
     invec_idx: u32,
     f: impl FnOnce(&[u8]) -> R,
 ) -> R {
-    if let Some(spm) = try_get_spm() {
+    #[cfg(not(feature = "spm-ipc"))]
+    {
+        let spm = get_spm();
         psa_iovec_api::psa_map_invec(spm, msg_handle, invec_idx, f)
-    } else {
+    }
+    #[cfg(feature = "spm-ipc")]
+    {
         psa_svc_api::psa_map_invec(msg_handle, invec_idx, f)
     }
 }
@@ -130,9 +140,13 @@ pub fn psa_map_outvec<R>(
     outvec_idx: u32,
     f: impl FnOnce(&mut [u8]) -> (R, usize),
 ) -> R {
-    if let Some(spm) = try_get_spm() {
+    #[cfg(not(feature = "spm-ipc"))]
+    {
+        let spm = get_spm();
         psa_iovec_api::psa_map_outvec(spm, msg_handle, outvec_idx, f)
-    } else {
+    }
+    #[cfg(feature = "spm-ipc")]
+    {
         psa_svc_api::psa_map_outvec(msg_handle, outvec_idx, f)
     }
 }
@@ -143,9 +157,13 @@ pub fn psa_map_invec_outvec<R>(
     outvec_idx: u32,
     f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize),
 ) -> R {
-    if let Some(spm) = try_get_spm() {
+    #[cfg(not(feature = "spm-ipc"))]
+    {
+        let spm = get_spm();
         psa_iovec_api::psa_map_invec_outvec(spm, msg_handle, invec_idx, outvec_idx, f)
-    } else {
+    }
+    #[cfg(feature = "spm-ipc")]
+    {
         psa_svc_api::psa_map_invec_outvec(msg_handle, invec_idx, outvec_idx, f)
     }
 }
