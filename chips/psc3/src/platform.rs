@@ -4,7 +4,7 @@
 
 use psa_interface;
 use spe::{
-    psa::psa_call::{CallerAttributes, PsaMsg},
+    spm_api::{CallerAttributes, PsaMsg},
     service::Service,
     spm::{CustomMpuRegion, Permissions, SpmPlatform},
 };
@@ -22,9 +22,9 @@ impl SpmPlatform for Psc3SecPlatform {
     fn call(&self, msg: PsaMsg) -> Result<(), spe::StatusCode> {
         match msg.handle {
             psa_interface::types::ServiceHandle::AttestationService => {
-                self.initial_attestation.call(msg)
+                self.initial_attestation.call(msg, &spe::spm_api::SfnApi)
             }
-            psa_interface::types::ServiceHandle::Crypto => self.crypto.call(msg),
+            psa_interface::types::ServiceHandle::Crypto => self.crypto.call(msg, &spe::spm_api::SfnApi),
             _ => Err(spe::StatusCode::NotSupported),
         }
     }

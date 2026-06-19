@@ -6,7 +6,8 @@
 // SPDX-License-Identifier: MIT
 
 use ruspe_psc3::services::crypto::Crypto;
-use spe::{into_psa_status, psa::psa_call::PsaMsg, service::Service, spm::FlashProcessVectors};
+use psa_interface::status::into_psa_status;
+use spe::{spm_api::PsaMsg, service::Service, spm::FlashProcessVectors};
 
 static SERVICE: Crypto = Crypto::new([
     0xc3, 0xfe, 0xe8, 0x4c, 0x73, 0x49, 0xd8, 0xe8, 0x44, 0x3d, 0xe4, 0xae, 0x65, 0xf7, 0xea, 0x3b,
@@ -16,7 +17,7 @@ static SERVICE: Crypto = Crypto::new([
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn call(msg: *const PsaMsg) -> psa_interface::types::PsaStatus {
     let msg = unsafe { &*msg };
-    into_psa_status(SERVICE.call(*msg))
+    into_psa_status(SERVICE.call(*msg, &spe::spm_api::SvcApi))
 }
 
 // External linker symbols for memory initialization

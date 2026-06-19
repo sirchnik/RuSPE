@@ -4,9 +4,10 @@
 
 use p256::ecdsa::{Signature, SigningKey, signature::hazmat::PrehashSigner};
 use psa_interface::types::{TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID, TfmCryptoPackIovec};
-use spe::{
+use spe::{spm_api::SpmApi,
+
     StatusCode,
-    psa::{psa_api, psa_call::PsaMsg},
+    spm_api::PsaMsg,
     service::{Info, Service},
 };
 
@@ -45,15 +46,15 @@ impl CryptoService {
     }
 }
 
-impl Service for CryptoService {
+impl<A: SpmApi> Service<A> for CryptoService {
     fn info(&self) -> Info {
         Info { version: 1 }
     }
 
-    fn call(&self, msg: PsaMsg) -> Result<(), psa_interface::status::StatusCode> {
+    fn call(&self, msg: PsaMsg, api: &A) -> Result<(), psa_interface::status::StatusCode> {
         // TF-M layout: invec[0] = TfmCryptoPackIovec, invec[1] = hash,
         //              outvec[0] = signature buffer.
-        psa_api::psa_map_invec(msg.handle, 0, |buf| -> Result<(), StatusCode> {
+        api.map_invec(msg.handle, 0, |buf| -> Result<(), StatusCode> {
             let iov: &TfmCryptoPackIovec =
                 bytemuck::try_from_bytes(buf).map_err(|_| StatusCode::ProgrammerError)?;
 
@@ -63,7 +64,7 @@ impl Service for CryptoService {
             Ok(())
         })?;
 
-        psa_api::psa_map_invec_outvec(msg.handle, 1, 0, |hash, sig_buf| {
+        api.map_invec_outvec(msg.handle, 1, 0, |hash, sig_buf| {
             let mut written_len = 0;
             let result = (|| -> Result<(), StatusCode> {
                 written_len = self.sign_hash(hash, sig_buf)?;
@@ -79,11 +80,11 @@ impl Service for CryptoService {
         })
     }
 
-    fn init(&mut self) -> Result<(), psa_interface::status::StatusCode> {
+    fn init(&mut self, _api: &A) -> Result<(), psa_interface::status::StatusCode> {
         Ok(())
     }
 
-    fn deinit(&mut self) -> Result<(), psa_interface::status::StatusCode> {
+    fn deinit(&mut self, _api: &A) -> Result<(), psa_interface::status::StatusCode> {
         Ok(())
     }
 }

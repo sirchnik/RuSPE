@@ -6,14 +6,15 @@
 // SPDX-License-Identifier: MIT
 
 use ruspe_psc3::services::attest::{InitialAttestation, Psc3AttestPlatform};
-use spe::{into_psa_status, psa::psa_call::PsaMsg, service::Service, spm::FlashProcessVectors};
+use psa_interface::status::into_psa_status;
+use spe::{spm_api::PsaMsg, service::Service, spm::FlashProcessVectors};
 
 static SERVICE: InitialAttestation = InitialAttestation::new(Psc3AttestPlatform);
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn call(msg: *const PsaMsg) -> psa_interface::types::PsaStatus {
     let msg = unsafe { &*msg };
-    into_psa_status(SERVICE.call(*msg))
+    into_psa_status(SERVICE.call(*msg, &spe::spm_api::SvcApi))
 }
 
 // External linker symbols for memory initialization

@@ -12,7 +12,7 @@ use core::ptr::addr_of_mut;
 
 use helpers::static_init;
 use spe::{
-    psa::psa_api,
+    spm_api,
     spm::{self},
 };
 use spe_services::{attest::attest_service, crypto::crypto_service};
@@ -124,7 +124,7 @@ pub unsafe fn main() {
 
     let spm = unsafe { static_init!(spm::SpmFn<Psc3SecPlatform>, spm::SpmFn::new(sec_platform)) };
 
-    psa_api::set_spm(spm);
+    spm_api::set_spm(spm);
 
     io::debugln(format_args!("Init SPE done, jumping to non-secure"));
 

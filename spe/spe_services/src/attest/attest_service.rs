@@ -8,8 +8,9 @@ use crate::attest::psa_token::{
 };
 use core::mem::size_of;
 use psa_interface::status::StatusCode;
-use spe::{
-    psa::{psa_api, psa_call::PsaMsg},
+use spe::{spm_api::SpmApi,
+
+    spm_api::PsaMsg,
     service::{Info, Service},
 };
 
@@ -190,7 +191,7 @@ impl<P: AttestPlatform> AttestService<P> {
         ]
     }
 
-    fn handle_get_token(&self, msg: &PsaMsg) -> Result<(), StatusCode> {
+    fn handle_get_token(&self, msg: &PsaMsg, api: &impl SpmApi) -> Result<(), StatusCode> {
         let mut boot_seed = [0u8; 32];
         self.platform.boot_seed(&mut boot_seed)?;
 
@@ -227,7 +228,7 @@ impl<P: AttestPlatform> AttestService<P> {
             &instance_id,
         );
 
-        psa_api::psa_map_invec_outvec(msg.handle, 0, 0, |challenge, outvec| {
+        api.map_invec_outvec(msg.handle, 0, 0, |challenge, outvec| {
             match self.initial_attest_get_token(challenge, &additional_claims, outvec) {
                 Ok(written_len) => (Ok(()), written_len),
                 Err(e) => {
@@ -239,8 +240,8 @@ impl<P: AttestPlatform> AttestService<P> {
         Ok(())
     }
 
-    fn handle_get_token_size(&self, msg: &PsaMsg) -> Result<(), StatusCode> {
-        let challenge_size = psa_api::psa_map_invec(msg.handle, 0, |challenge_size_buf| {
+    fn handle_get_token_size(&self, msg: &PsaMsg, api: &impl SpmApi) -> Result<(), StatusCode> {
+        let challenge_size = api.map_invec(msg.handle, 0, |challenge_size_buf| {
             if challenge_size_buf.len() != size_of::<usize>() {
                 return Err(StatusCode::InvalidArgument);
             }
@@ -260,7 +261,7 @@ impl<P: AttestPlatform> AttestService<P> {
         let token_size = self.initial_attest_get_token_size(challenge_size, &additional_claims)?;
 
         let token_size_bytes = token_size.to_ne_bytes();
-        psa_api::psa_map_outvec(msg.handle, 0, |outvec| {
+        api.map_outvec(msg.handle, 0, |outvec| {
             if outvec.len() < token_size_bytes.len() {
                 outvec.fill(0);
                 (Err(StatusCode::BufferTooSmall), 0)
@@ -273,31 +274,31 @@ impl<P: AttestPlatform> AttestService<P> {
     }
 }
 
-impl<P: AttestPlatform> Service for AttestService<P> {
+impl<P: AttestPlatform, A: SpmApi> Service<A> for AttestService<P> {
     fn info(&self) -> Info {
         Info { version: 1 }
     }
 
-    fn call(&self, msg: PsaMsg) -> Result<(), psa_interface::status::StatusCode> {
+    fn call(&self, msg: PsaMsg, api: &A) -> Result<(), psa_interface::status::StatusCode> {
         if !Self::has_exactly_one_iovec(&msg) {
             return Err(psa_interface::status::StatusCode::InvalidArgument);
         }
 
         if msg.msg_type == psa_interface::types::AttestationServiceType::GetToken as i32 {
-            self.handle_get_token(&msg)
+            self.handle_get_token(&msg, api)
         } else if msg.msg_type == psa_interface::types::AttestationServiceType::GetTokenSize as i32
         {
-            self.handle_get_token_size(&msg)
+            self.handle_get_token_size(&msg, api)
         } else {
             Err(psa_interface::status::StatusCode::NotSupported)
         }
     }
 
-    fn init(&mut self) -> Result<(), psa_interface::status::StatusCode> {
+    fn init(&mut self, _api: &A) -> Result<(), psa_interface::status::StatusCode> {
         Ok(())
     }
 
-    fn deinit(&mut self) -> Result<(), psa_interface::status::StatusCode> {
+    fn deinit(&mut self, _api: &A) -> Result<(), psa_interface::status::StatusCode> {
         Ok(())
     }
 }

@@ -10,10 +10,10 @@
 use cortexm::syscall::SYSCALL_FIRED;
 
 unsafe extern "C" fn svc_handler_dispatch(
-    frame: *mut spe::psa::psa_svc_api::SvcStackFrame,
+    frame: *mut spe::spm_api::SvcStackFrame,
     svc_num: u32,
 ) {
-    if unsafe { spe::psa::psa_svc_api::handle_svc(svc_num as u8, &mut *frame) } {
+    if unsafe { spe::spm_api::handle_svc(svc_num as u8, &mut *frame) } {
         return;
     }
 
@@ -167,10 +167,10 @@ pub unsafe extern "C" fn svc_handler() {
         ",
         svc_handler_dispatch = sym svc_handler_dispatch,
         psa_call_thunk = sym psa_call_thunk,
-        SVC_CALL_UNPRIV = const spe::psa::psa_svc_api::SVC_CALL_UNPRIV,
-        SVC_ELEVATE = const spe::psa::psa_svc_api::SVC_ELEVATE,
-        SVC_PSA_CALL = const spe::psa::psa_svc_api::SVC_PSA_CALL,
-        SVC_PSA_RETURN = const spe::psa::psa_svc_api::SVC_PSA_RETURN,
+        SVC_CALL_UNPRIV = const spe::spm_api::SVC_CALL_UNPRIV,
+        SVC_ELEVATE = const spe::spm_api::SVC_ELEVATE,
+        SVC_PSA_CALL = const spe::spm_api::SVC_PSA_CALL,
+        SVC_PSA_RETURN = const spe::spm_api::SVC_PSA_RETURN,
     );
 }
 

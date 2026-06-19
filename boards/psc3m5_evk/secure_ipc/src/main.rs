@@ -12,7 +12,7 @@ use core::ptr::addr_of_mut;
 
 use helpers::static_init;
 use spe::{
-    psa::psa_api,
+    spm_api,
     spm::{
         self, CustomMpuRegion, FlashProcess, FlashProcessVectors, IpcProcessPlatform, Permissions,
         SpmPlatform,
@@ -51,7 +51,7 @@ const NONSECURE_RAM_LIMIT: u32 = 0x2400_EFFF;
 pub struct Psc3IpcPlatform;
 
 impl SpmPlatform for Psc3IpcPlatform {
-    fn call(&self, _msg: spe::psa::psa_call::PsaMsg) -> Result<(), spe::StatusCode> {
+    fn call(&self, _msg: spe::spm_api::PsaMsg) -> Result<(), spe::StatusCode> {
         // In the IPC model, services are dispatched via the process table.
         // This method is never called directly.
         Err(spe::StatusCode::NotSupported)
@@ -62,7 +62,7 @@ impl SpmPlatform for Psc3IpcPlatform {
         base: *const u8,
         len: usize,
         is_write: bool,
-        caller: spe::psa::psa_call::CallerAttributes,
+        caller: spe::spm_api::CallerAttributes,
     ) -> bool {
         // TODO find something better
         return true;
@@ -214,7 +214,7 @@ pub unsafe fn main() {
         )
     };
 
-    psa_api::set_spm(spm);
+    spm_api::set_spm(spm);
 
     io::debugln(format_args!("Init SPE (IPC) done, jumping to non-secure"));
 

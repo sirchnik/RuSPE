@@ -2,11 +2,11 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::psa::psa_call::PsaMsg;
+use crate::spm_api::PsaMsg;
 use crate::service::Service;
 use crate::spm::spm_fn::ConnectionArray;
 use crate::spm::{Connection, SpmCall, SpmError, SpmPlatform};
-use crate::{libs::mutex::Mutex, psa::psa_call::CallerAttributes, spm::svc_call_unpriv};
+use crate::{libs::mutex::Mutex, spm_api::CallerAttributes, spm::svc_call_unpriv};
 use core::mem::{align_of, size_of};
 use psa_interface::types::{PsaStatus, ServiceHandle};
 
@@ -199,7 +199,7 @@ unsafe impl IpcProcess for FlashProcess {
 
 pub struct EmbeddedProcess {
     pub handle: ServiceHandle,
-    service: &'static (dyn Service + Sync),
+    service: &'static (dyn Service<crate::spm_api::SfnApi> + Sync),
 }
 
 // # Safety
@@ -207,7 +207,7 @@ pub struct EmbeddedProcess {
 unsafe impl Sync for EmbeddedProcess {}
 
 impl EmbeddedProcess {
-    pub fn new(handle: ServiceHandle, service: &'static (dyn Service + Sync)) -> Self {
+    pub fn new(handle: ServiceHandle, service: &'static (dyn Service<crate::spm_api::SfnApi> + Sync)) -> Self {
         Self { handle, service }
     }
 }
@@ -234,7 +234,7 @@ unsafe impl IpcProcess for EmbeddedProcess {
         _spm: &dyn SpmCall,
         msg: PsaMsg,
     ) -> Result<(), crate::StatusCode> {
-        self.service.call(msg)
+        self.service.call(msg, &crate::spm_api::SfnApi)
     }
 }
 

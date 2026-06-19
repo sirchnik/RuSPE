@@ -10,7 +10,7 @@ use minicbor::{Encoder, encode::write::Cursor};
 use psa_interface::status::StatusCode;
 use psa_interface::{psa_api::psa_sign_hash, types::PSA_ALG_ECDSA_SHA256};
 use sha2::{Digest, Sha256};
-use spe::psa::psa_api::InternalPsaClient;
+use spe::spm_api::InternalPsaClient;
 
 /// PSA / EAT claim labels per RFC 9783 Section 6.
 #[repr(u32)]

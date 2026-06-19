@@ -55,7 +55,7 @@ pub(crate) unsafe fn svc_call_unpriv(
     stack_limit: usize,
     stack_top: usize,
 ) -> usize {
-    use crate::psa::psa_svc_api::SVC_CALL_UNPRIV;
+    use crate::spm_api::SVC_CALL_UNPRIV;
     use core::arch::asm;
 
     // Build a fake exception frame at (stack_top - 32).

@@ -15,7 +15,7 @@
 // unsafe(no_mangle) is required to ensure these functions are linkable from
 // non-secure code. It is unsafe because there could be name collisions.
 
-use crate::psa::psa_api;
+use crate::spm_api;
 use psa_interface::status::into_psa_status;
 use psa_interface::types::{CtrlParam, FFInVec, FFOutVec, PsaStatus, ServiceHandle};
 
@@ -41,7 +41,7 @@ pub extern "cmse-nonsecure-entry" fn psa_call_veneer(
     out_vec: *mut FFOutVec,
 ) -> PsaStatus {
     // Safety: The caller (NSPE) provides valid pointers per the PSA FF-M ABI contract.
-    into_psa_status(unsafe { psa_api::psa_call(handle, ctrl_param, in_vec, out_vec) })
+    into_psa_status(unsafe { spm_api::call(handle, ctrl_param, in_vec, out_vec) })
 }
 
 // /// Close connection to secure function referenced by a connection handle.

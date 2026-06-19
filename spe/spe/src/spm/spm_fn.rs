@@ -4,7 +4,7 @@
 
 use crate::{
     libs::mutex::Mutex,
-    psa::psa_call::{CallerAttributes, PsaMsg},
+    spm_api::{CallerAttributes, PsaMsg},
 };
 
 const MAX_CONNECTIONS: usize = 4;

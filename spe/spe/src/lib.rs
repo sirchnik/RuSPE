@@ -14,7 +14,7 @@ pub mod hil;
 pub mod internal_trusted_storage;
 mod libs;
 
-pub mod psa;
+pub mod spm_api;
 pub mod service;
 pub mod spm;
 #[cfg(all(target_arch = "arm", target_os = "none"))]
