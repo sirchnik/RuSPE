@@ -6,17 +6,15 @@
 
 #![no_std]
 #![no_main]
+#![feature(cmse_nonsecure_entry)]
 #![feature(abi_cmse_nonsecure_call)]
 
 use core::ptr::addr_of_mut;
 
 use helpers::static_init;
-use spe::{
-    spm_api,
-    spm::{
-        self, CustomMpuRegion, FlashProcess, FlashProcessVectors, IpcProcessPlatform, Permissions,
-        SpmPlatform,
-    },
+use spe::spm::{
+    self, CustomMpuRegion, FlashProcess, FlashProcessVectors, IpcProcessPlatform, Permissions,
+    SpmPlatform,
 };
 use tock_psc3::{chip, chip_init, gpio, icache, peri_clk, scb};
 
@@ -41,6 +39,11 @@ mod io;
 mod startup;
 mod svc;
 
+#[allow(unexpected_cfgs)]
+pub mod global_spm_api {
+    spe::define_spm_api!(spe::spm::SpmIpc<crate::Psc3IpcPlatform, { crate::service_config::SERVICE_COUNT }, spe::spm::FlashProcess>);
+}
+
 const NONSECURE_FLASH_START: u32 = 0x2202_0000;
 const NONSECURE_FLASH_LIMIT: u32 = 0x2203_FFFF;
 const NONSECURE_RAM_START: u32 = 0x2400_5100;
@@ -59,39 +62,40 @@ impl SpmPlatform for Psc3IpcPlatform {
 
     fn has_permission_on_memory(
         &self,
-        base: *const u8,
-        len: usize,
-        is_write: bool,
-        caller: spe::spm_api::CallerAttributes,
+        _base: *const u8,
+        _len: usize,
+        _is_write: bool,
+        _caller: spe::spm_api::CallerAttributes,
     ) -> bool {
         // TODO find something better
         return true;
+        /*
         use ruspe_cortexm::cmse;
 
-        if len == 0 {
+        if _len == 0 {
             return true;
         }
 
-        if base.is_null() {
+        if _base.is_null() {
             return false;
         }
 
-        let access_type = match (caller.ns, caller.privileged) {
+        let access_type = match (_caller.ns, _caller.privileged) {
             (true, false) => cmse::AccessType::NonSecureUnprivileged,
             (true, true) => cmse::AccessType::NonSecure,
             (false, false) => cmse::AccessType::Unprivileged,
             (false, true) => cmse::AccessType::Current,
         };
 
-        if let Some(target) = cmse::TestTarget::check_range(base as *mut u32, len, access_type) {
-            if caller.ns {
-                if is_write {
+        if let Some(target) = cmse::TestTarget::check_range(_base as *mut u32, _len, access_type) {
+            if _caller.ns {
+                if _is_write {
                     target.ns_read_and_writable()
                 } else {
                     target.ns_readable()
                 }
             } else {
-                if is_write {
+                if _is_write {
                     target.read_and_writable()
                 } else {
                     target.readable()
@@ -100,6 +104,7 @@ impl SpmPlatform for Psc3IpcPlatform {
         } else {
             false
         }
+        */
     }
     fn custom_mpu_regions(
         &self,
@@ -214,7 +219,7 @@ pub unsafe fn main() {
         )
     };
 
-    spm_api::set_spm(spm);
+    let _ = global_spm_api::SPM.try_set(spm);
 
     io::debugln(format_args!("Init SPE (IPC) done, jumping to non-secure"));
 

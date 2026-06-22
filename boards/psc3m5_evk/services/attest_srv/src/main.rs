@@ -5,11 +5,12 @@
 //
 // SPDX-License-Identifier: MIT
 
-use ruspe_psc3::services::attest::{InitialAttestation, Psc3AttestPlatform};
 use psa_interface::status::into_psa_status;
-use spe::{spm_api::PsaMsg, service::Service, spm::FlashProcessVectors};
+use ruspe_psc3::services::attest::{InitialAttestation, Psc3AttestPlatform};
+use spe::{service::Service, spm::FlashProcessVectors, spm_api::PsaMsg};
 
-static SERVICE: InitialAttestation = InitialAttestation::new(Psc3AttestPlatform);
+static SERVICE: InitialAttestation<spe::spm_api::IpcPsaClient> =
+    InitialAttestation::new(Psc3AttestPlatform);
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn call(msg: *const PsaMsg) -> psa_interface::types::PsaStatus {

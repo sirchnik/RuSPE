@@ -7,10 +7,10 @@ use cose::cose_sign1::{
     encode_payload_bstr_in_place,
 };
 use minicbor::{Encoder, encode::write::Cursor};
+use psa_interface::PsaApiCallInterface;
 use psa_interface::status::StatusCode;
 use psa_interface::{psa_api::psa_sign_hash, types::PSA_ALG_ECDSA_SHA256};
 use sha2::{Digest, Sha256};
-use spe::spm_api::InternalPsaClient;
 
 /// PSA / EAT claim labels per RFC 9783 Section 6.
 #[repr(u32)]
@@ -139,17 +139,21 @@ fn encode_payload(claims: &[AttestClaim<'_>], out: &mut [u8]) -> Result<usize, S
     Ok(enc.writer().position())
 }
 
-struct PsaCryptoBackend {
+struct PsaCryptoBackend<C: PsaApiCallInterface> {
     key_id: u32,
+    _marker: core::marker::PhantomData<C>,
 }
 
-impl PsaCryptoBackend {
+impl<C: PsaApiCallInterface> PsaCryptoBackend<C> {
     const fn new(key_id: u32) -> Self {
-        Self { key_id }
+        Self {
+            key_id,
+            _marker: core::marker::PhantomData,
+        }
     }
 }
 
-impl CoseCrypto for PsaCryptoBackend {
+impl<C: PsaApiCallInterface> CoseCrypto for PsaCryptoBackend<C> {
     type Hasher = RustCryptoHasher;
 
     fn hasher_sha256(&self) -> Self::Hasher {
@@ -158,12 +162,7 @@ impl CoseCrypto for PsaCryptoBackend {
 
     fn sign_es256_prehash(&self, digest: &[u8; 32]) -> Result<[u8; 64], CoseSign1Error> {
         let mut signature = [0u8; 64];
-        match psa_sign_hash::<InternalPsaClient>(
-            self.key_id,
-            PSA_ALG_ECDSA_SHA256,
-            digest,
-            &mut signature,
-        ) {
+        match psa_sign_hash::<C>(self.key_id, PSA_ALG_ECDSA_SHA256, digest, &mut signature) {
             Ok(written_len) => {
                 if written_len == signature.len() {
                     return Ok(signature);
@@ -180,7 +179,7 @@ impl CoseCrypto for PsaCryptoBackend {
     }
 }
 
-pub fn encode_initial_attestation_token(
+pub fn encode_initial_attestation_token<C: PsaApiCallInterface>(
     claims: &[AttestClaim<'_>],
     token: &mut [u8],
     key_id: u32,
@@ -191,7 +190,7 @@ pub fn encode_initial_attestation_token(
     let payload_bstr_len =
         encode_payload_bstr_in_place(payload_len, &mut payload_buf).map_err(map_cose_error)?;
 
-    let signer = CoseSign1::new(PsaCryptoBackend::new(key_id), Sign1Options::default());
+    let signer = CoseSign1::new(PsaCryptoBackend::<C>::new(key_id), Sign1Options::default());
 
     let encoded = signer
         .encode_from_payload_bstr(&payload_buf[..payload_bstr_len], token)

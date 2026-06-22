@@ -131,7 +131,7 @@ pub trait SpmPlatform: Sync {
 /// Object-safe trait for SPM operations, used for type-erased storage in statics.
 pub trait SpmCall: Sync {
     fn call(&self, connection: Connection) -> Result<(), crate::StatusCode>;
-    fn with_active_connection(&self, f: &mut dyn FnMut(&mut Connection)) -> Result<(), SpmError>;
+    fn with_active_connection<F: FnMut(&mut Connection)>(&self, f: F) -> Result<(), SpmError>;
     fn has_real_permission(
         &self,
         base: *const u8,
@@ -214,7 +214,7 @@ impl<P: SpmPlatform + 'static> SpmCall for SpmFn<P> {
         SpmFn::call(self, connection)
     }
 
-    fn with_active_connection(&self, f: &mut dyn FnMut(&mut Connection)) -> Result<(), SpmError> {
+    fn with_active_connection<F: FnMut(&mut Connection)>(&self, mut f: F) -> Result<(), SpmError> {
         self.with_active_connection(|conn| f(conn))
     }
 

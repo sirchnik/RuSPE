@@ -8,10 +8,10 @@ use crate::attest::psa_token::{
 };
 use core::mem::size_of;
 use psa_interface::status::StatusCode;
-use spe::{spm_api::SpmApi,
-
-    spm_api::PsaMsg,
+use spe::{
     service::{Info, Service},
+    spm_api::PsaMsg,
+    spm_api::SpmApi,
 };
 
 /// Maximum token buffer size used by default TF-M builds.
@@ -47,13 +47,17 @@ const MAX_TOTAL_CLAIMS: usize = 16;
 
 const TEMP_KEY_ID: u32 = 0x1234_5678;
 
-pub struct AttestService<P: AttestPlatform> {
+pub struct AttestService<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> {
     platform: P,
+    _marker: core::marker::PhantomData<C>,
 }
 
-impl<P: AttestPlatform> AttestService<P> {
+impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, C> {
     pub const fn new(platform: P) -> Self {
-        Self { platform }
+        Self {
+            platform,
+            _marker: core::marker::PhantomData,
+        }
     }
 
     fn challenge_size_is_supported(challenge_size: usize) -> bool {
@@ -77,7 +81,7 @@ impl<P: AttestPlatform> AttestService<P> {
         }; MAX_TOTAL_CLAIMS];
         let claims = Self::build_claims(challenge, additional_claims, &mut claims_buf)?;
 
-        let encoded_len = encode_initial_attestation_token(claims, token, TEMP_KEY_ID)?;
+        let encoded_len = encode_initial_attestation_token::<C>(claims, token, TEMP_KEY_ID)?;
         token[encoded_len..].fill(0);
         Ok(encoded_len)
     }
@@ -274,7 +278,9 @@ impl<P: AttestPlatform> AttestService<P> {
     }
 }
 
-impl<P: AttestPlatform, A: SpmApi> Service<A> for AttestService<P> {
+impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface, A: SpmApi> Service<A>
+    for AttestService<P, C>
+{
     fn info(&self) -> Info {
         Info { version: 1 }
     }

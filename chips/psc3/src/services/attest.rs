@@ -97,4 +97,4 @@ impl attest_service::AttestPlatform for Psc3AttestPlatform {
     }
 }
 
-pub type InitialAttestation = attest_service::AttestService<Psc3AttestPlatform>;
+pub type InitialAttestation<C> = attest_service::AttestService<Psc3AttestPlatform, C>;

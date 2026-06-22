@@ -12,11 +12,11 @@
 pub mod faults;
 pub mod hil;
 pub mod internal_trusted_storage;
-mod libs;
+pub mod libs;
 
-pub mod spm_api;
 pub mod service;
 pub mod spm;
+pub mod spm_api;
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 pub mod veneers;
 

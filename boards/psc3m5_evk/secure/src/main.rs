@@ -6,15 +6,13 @@
 
 #![no_std]
 #![no_main]
+#![feature(cmse_nonsecure_entry)]
 #![feature(abi_cmse_nonsecure_call)]
 
 use core::ptr::addr_of_mut;
 
 use helpers::static_init;
-use spe::{
-    spm_api,
-    spm::{self},
-};
+use spe::spm;
 use spe_services::{attest::attest_service, crypto::crypto_service};
 use tock_psc3::{chip, chip_init, gpio, icache, peri_clk, scb};
 
@@ -38,6 +36,11 @@ unsafe extern "C" {
 
 mod io;
 mod startup;
+
+#[allow(unexpected_cfgs)]
+pub mod global_spm_api {
+    spe::define_spm_api!(spe::spm::SpmFn<crate::Psc3SecPlatform<InternalPsaClient, SfnApi>>);
+}
 
 #[unsafe(no_mangle)]
 pub unsafe fn main() {
@@ -110,7 +113,7 @@ pub unsafe fn main() {
 
     let sec_platform = unsafe {
         static_init!(
-            Psc3SecPlatform,
+            Psc3SecPlatform<global_spm_api::InternalPsaClient, global_spm_api::SfnApi>,
             Psc3SecPlatform {
                 initial_attestation: attest_service::AttestService::new(Psc3AttestPlatform),
                 crypto: crypto_service::CryptoService::new([
@@ -118,13 +121,19 @@ pub unsafe fn main() {
                     0xf7, 0xea, 0x3b, 0xb8, 0x09, 0x3b, 0xe9, 0xb1, 0x5b, 0xc4, 0xbd, 0x4a, 0x54,
                     0x95, 0x3c, 0xd3, 0x31, 0xce, 0x1b
                 ]),
+                api: global_spm_api::SfnApi,
             }
         )
     };
 
-    let spm = unsafe { static_init!(spm::SpmFn<Psc3SecPlatform>, spm::SpmFn::new(sec_platform)) };
+    let spm = unsafe {
+        static_init!(
+            spm::SpmFn<Psc3SecPlatform<global_spm_api::InternalPsaClient, global_spm_api::SfnApi>>,
+            spm::SpmFn::new(sec_platform)
+        )
+    };
 
-    spm_api::set_spm(spm);
+    let _ = global_spm_api::SPM.try_set(spm);
 
     io::debugln(format_args!("Init SPE done, jumping to non-secure"));
 

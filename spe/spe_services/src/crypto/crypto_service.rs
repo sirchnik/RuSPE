@@ -4,11 +4,11 @@
 
 use p256::ecdsa::{Signature, SigningKey, signature::hazmat::PrehashSigner};
 use psa_interface::types::{TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID, TfmCryptoPackIovec};
-use spe::{spm_api::SpmApi,
-
+use spe::{
     StatusCode,
-    spm_api::PsaMsg,
     service::{Info, Service},
+    spm_api::PsaMsg,
+    spm_api::SpmApi,
 };
 
 /// P-256 ECDSA signature size in bytes (r || s, 32 + 32).

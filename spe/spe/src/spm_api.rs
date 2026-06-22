@@ -1,88 +1,236 @@
+#[macro_export]
+macro_rules! define_spm_api {
+    ($SpmType:ty) => {
+        pub static SPM: $crate::libs::once_lock::OnceLock<&'static $SpmType> = $crate::libs::once_lock::OnceLock::new();
+
+        pub fn get_spm() -> &'static $SpmType {
+            *SPM.try_get()
+                .expect("SPM must be initialized with set_spm() before SPM API use")
+        }
+
+        pub struct SfnApi;
+        impl $crate::spm_api::SpmApi for SfnApi {
+            fn map_invec<R>(&self, msg_handle: psa_interface::types::ServiceHandle, invec_idx: u32, f: impl FnOnce(&[u8]) -> R) -> R {
+                let spm = get_spm();
+                $crate::spm_api::with_connection_for_handle(spm, msg_handle, |connection| {
+                    $crate::spm_api::with_mapped_invec(spm, connection, invec_idx, f)
+                })
+            }
+
+            fn map_outvec<R>(&self, msg_handle: psa_interface::types::ServiceHandle, outvec_idx: u32, f: impl FnOnce(&mut [u8]) -> (R, usize)) -> R {
+                let spm = get_spm();
+                $crate::spm_api::with_connection_for_handle(spm, msg_handle, |connection| {
+                    $crate::spm_api::with_mapped_outvec(spm, connection, outvec_idx, f)
+                })
+            }
+
+            fn map_invec_outvec<R>(&self, msg_handle: psa_interface::types::ServiceHandle, invec_idx: u32, outvec_idx: u32, f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize)) -> R {
+                let spm = get_spm();
+                $crate::spm_api::with_connection_for_handle(spm, msg_handle, |connection| {
+                    let (in_index, in_len, in_base) = $crate::spm_api::prepare_invec(spm, connection, invec_idx);
+                    let (out_index, out_len, out_base) = $crate::spm_api::prepare_outvec(spm, connection, outvec_idx);
+
+                    let invec = if in_len == 0 {
+                        &[]
+                    } else {
+                        unsafe { core::slice::from_raw_parts(in_base, in_len) }
+                    };
+                    let outvec = if out_len == 0 {
+                        &mut []
+                    } else {
+                        unsafe { core::slice::from_raw_parts_mut(out_base, out_len) }
+                    };
+
+                    let (result, written_len) = f(invec, outvec);
+
+                    $crate::spm_api::commit_outvec_write(connection, out_index, out_len, written_len);
+                    $crate::spm_api::mark_invec_unmapped(connection, in_index);
+
+                    result
+                })
+            }
+
+            unsafe fn call(&self, handle: psa_interface::types::ServiceHandle, ctrl_param: psa_interface::types::CtrlParam, in_vec: *const psa_interface::types::FFInVec, out_vec: *mut psa_interface::types::FFOutVec) -> Result<(), psa_interface::status::StatusCode> {
+                let spm = get_spm();
+                let (_msg_type, ivec_num, ovec_num) = $crate::spm_api::validate_call_params(ctrl_param)?;
+                $crate::spm_api::validate_vec_pointer_shape(ctrl_param.has_iovec(), ivec_num, ovec_num, in_vec, out_vec)?;
+
+                let in_vecs: &[psa_interface::types::FFInVec] = if ivec_num == 0 {
+                    &[]
+                } else {
+                    unsafe { core::slice::from_raw_parts(in_vec, ivec_num) }
+                };
+
+                let out_vecs: &mut [psa_interface::types::FFOutVec] = if ovec_num == 0 {
+                    &mut []
+                } else {
+                    unsafe { core::slice::from_raw_parts_mut(out_vec, ovec_num) }
+                };
+
+                let caller = $crate::spm_api::CallerAttributes::SECURE_PRIVILEGED;
+                let connection = $crate::spm_api::call_from_slices(handle, ctrl_param, in_vecs, out_vecs, caller)?;
+
+                $crate::spm::SpmCall::call(spm, connection)
+            }
+        }
+
+
+        #[unsafe(no_mangle)]
+        pub extern "cmse-nonsecure-entry" fn psa_call_veneer(
+            handle: psa_interface::types::ServiceHandle,
+            ctrl_param: psa_interface::types::CtrlParam,
+            in_vec: *const psa_interface::types::FFInVec,
+            out_vec: *mut psa_interface::types::FFOutVec,
+        ) -> psa_interface::types::PsaStatus {
+            #[cfg(not(feature = "spm-ipc"))]
+            {
+                psa_interface::status::into_psa_status(unsafe {
+                    $crate::spm_api::SpmApi::call(&SfnApi, handle, ctrl_param, in_vec, out_vec)
+                })
+            }
+            #[cfg(feature = "spm-ipc")]
+            {
+                psa_interface::status::into_psa_status(unsafe {
+                    $crate::spm_api::SpmApi::call(&$crate::spm_api::SvcApi, handle, ctrl_param, in_vec, out_vec)
+                })
+            }
+        }
+
+        pub struct InternalPsaClient;
+
+        impl psa_interface::PsaApiCallInterface for InternalPsaClient {
+            fn psa_framework_version() -> u32 {
+                todo!();
+            }
+
+            fn psa_version(_service_id: u32) -> u32 {
+                todo!();
+            }
+
+            fn psa_call(
+                handle: psa_interface::types::ServiceHandle,
+                ctrl_param: psa_interface::types::CtrlParam,
+                in_vec: &[psa_interface::types::FFInVec],
+                out_vec: &mut [psa_interface::types::FFOutVec],
+            ) -> psa_interface::types::PsaStatus {
+                let in_vec_ptr = if in_vec.is_empty() {
+                    core::ptr::null()
+                } else {
+                    in_vec.as_ptr()
+                };
+
+                let out_vec_ptr = if out_vec.is_empty() {
+                    core::ptr::null_mut()
+                } else {
+                    out_vec.as_mut_ptr()
+                };
+
+                #[cfg(not(feature = "spm-ipc"))]
+                {
+                    psa_interface::status::into_psa_status(unsafe {
+                        $crate::spm_api::SpmApi::call(&SfnApi, handle, ctrl_param, in_vec_ptr, out_vec_ptr)
+                    })
+                }
+                #[cfg(feature = "spm-ipc")]
+                {
+                    psa_interface::status::into_psa_status(unsafe {
+                        $crate::spm_api::SpmApi::call(&$crate::spm_api::SvcApi, handle, ctrl_param, in_vec_ptr, out_vec_ptr)
+                    })
+                }
+            }
+        }
+
+        pub fn handle_svc(svc_num: u8, frame: &mut $crate::spm_api::SvcStackFrame) -> bool {
+            $crate::spm_api::handle_svc_with_spm(svc_num, frame, get_spm(), &SfnApi)
+        }
+
+        #[cfg(all(target_arch = "arm", target_os = "none"))]
+        #[unsafe(no_mangle)]
+        #[unsafe(naked)]
+        pub unsafe extern "C" fn psa_call_thunk(
+            _handle: usize,
+            _ctrl_param: usize,
+            _in_vec: usize,
+            _out_vec: usize,
+        ) -> ! {
+            core::arch::naked_asm!(
+                "sub sp, sp, #32",
+                "str r0, [sp, #0]",
+                "str r1, [sp, #4]",
+                "str r2, [sp, #8]",
+                "str r3, [sp, #12]",
+                "movs r0, #0",
+                "str r0, [sp, #16]",
+                "str r0, [sp, #20]",
+                "str r0, [sp, #24]",
+                "str r0, [sp, #28]",
+                "movs r0, #{SVC_PSA_CALL}",
+                "mov r1, sp",
+                "bl {handle_svc}",
+                "ldr r0, [sp, #0]",
+                "ldr r1, [sp, #4]",
+                "ldr r2, [sp, #8]",
+                "ldr r3, [sp, #12]",
+                "add sp, sp, #32",
+                "svc {SVC_PSA_RETURN}",
+                SVC_PSA_CALL = const $crate::spm_api::SVC_PSA_CALL,
+                SVC_PSA_RETURN = const $crate::spm_api::SVC_PSA_RETURN,
+                handle_svc = sym handle_svc,
+            )
+        }
+
+        #[cfg(not(all(target_arch = "arm", target_os = "none")))]
+        #[unsafe(no_mangle)]
+        pub unsafe extern "C" fn psa_call_thunk(
+            _handle: usize,
+            _ctrl_param: usize,
+            _in_vec: usize,
+            _out_vec: usize,
+        ) -> ! {
+            panic!("psa_call_thunk only available on ARM");
+        }
+    };
+}
+
 // SPDX-FileCopyrightText: Infineon Technologies AG
 //
 // SPDX-License-Identifier: MIT
 
+use crate::spm::{Connection, PSA_MAX_IOVEC, SpmCall, SpmError};
 use core::{mem, panic, ptr, slice};
 use psa_interface::{
     status::StatusCode,
     types::{CtrlParam, FFInVec, FFOutVec, PsaStatus, ServiceHandle},
 };
-use cortexm::support;
-use crate::{
-    libs::once_lock::OnceLock,
-    spm::{Connection, SpmCall, SpmError, PSA_MAX_IOVEC},
-};
-
-static SPM: OnceLock<&'static dyn SpmCall> = OnceLock::new();
-
-pub fn get_spm() -> &'static dyn SpmCall {
-    *SPM.try_get()
-        .expect("SPM must be initialized with set_spm() before SPM API use")
-}
-
-pub fn try_get_spm() -> Option<&'static dyn SpmCall> {
-    match SPM.try_get() {
-        Ok(spm) => Some(*spm),
-        Err(_) => None,
-    }
-}
-
-pub fn set_spm(spm: &'static dyn SpmCall) {
-    if SPM.try_set(spm).is_err() {
-        panic!("SPM already initialized");
-    }
-}
 
 pub trait SpmApi {
-    fn map_invec<R>(&self, msg_handle: ServiceHandle, invec_idx: u32, f: impl FnOnce(&[u8]) -> R) -> R;
-    fn map_outvec<R>(&self, msg_handle: ServiceHandle, outvec_idx: u32, f: impl FnOnce(&mut [u8]) -> (R, usize)) -> R;
-    fn map_invec_outvec<R>(&self, msg_handle: ServiceHandle, invec_idx: u32, outvec_idx: u32, f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize)) -> R;
+    fn map_invec<R>(
+        &self,
+        msg_handle: ServiceHandle,
+        invec_idx: u32,
+        f: impl FnOnce(&[u8]) -> R,
+    ) -> R;
+    fn map_outvec<R>(
+        &self,
+        msg_handle: ServiceHandle,
+        outvec_idx: u32,
+        f: impl FnOnce(&mut [u8]) -> (R, usize),
+    ) -> R;
+    fn map_invec_outvec<R>(
+        &self,
+        msg_handle: ServiceHandle,
+        invec_idx: u32,
+        outvec_idx: u32,
+        f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize),
+    ) -> R;
     // We also expose the call function for internal use. Services themselves may not need it.
-    unsafe fn call(&self, handle: ServiceHandle, ctrl_param: CtrlParam, in_vec: *const FFInVec, out_vec: *mut FFOutVec) -> Result<(), StatusCode>;
-}
-
-pub struct InternalPsaClient;
-
-impl psa_interface::PsaApiCallInterface for InternalPsaClient {
-    fn psa_framework_version() -> u32 {
-        todo!();
-    }
-
-    fn psa_version(_service_id: u32) -> u32 {
-        todo!();
-    }
-
-    fn psa_call(
+    unsafe fn call(
+        &self,
         handle: ServiceHandle,
         ctrl_param: CtrlParam,
-        in_vec: &[FFInVec],
-        out_vec: &mut [FFOutVec],
-    ) -> psa_interface::types::PsaStatus {
-        let in_vec_ptr = if in_vec.is_empty() {
-            core::ptr::null()
-        } else {
-            in_vec.as_ptr()
-        };
-
-        let out_vec_ptr = if out_vec.is_empty() {
-            core::ptr::null_mut()
-        } else {
-            out_vec.as_mut_ptr()
-        };
-
-        #[cfg(not(feature = "spm-ipc"))]
-        {
-            psa_interface::status::into_psa_status(unsafe {
-                crate::spm_api::call(handle, ctrl_param, in_vec_ptr, out_vec_ptr)
-            })
-        }
-        #[cfg(feature = "spm-ipc")]
-        {
-            psa_interface::status::into_psa_status(unsafe {
-                crate::spm_api::SvcApi.call(handle, ctrl_param, in_vec_ptr, out_vec_ptr)
-            })
-        }
-    }
+        in_vec: *const FFInVec,
+        out_vec: *mut FFOutVec,
+    ) -> Result<(), StatusCode>;
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -133,7 +281,7 @@ impl PsaMsg {
     }
 }
 
-fn validate_call_params(ctrl_param: CtrlParam) -> Result<(i32, usize, usize), StatusCode> {
+pub fn validate_call_params(ctrl_param: CtrlParam) -> Result<(i32, usize, usize), StatusCode> {
     let msg_type = ctrl_param.unpack_type();
 
     // The request type must be zero or positive.
@@ -155,7 +303,7 @@ fn validate_call_params(ctrl_param: CtrlParam) -> Result<(i32, usize, usize), St
     }
 }
 
-fn validate_vec_pointer_shape(
+pub fn validate_vec_pointer_shape(
     has_iovec: bool,
     ivec_num: usize,
     ovec_num: usize,
@@ -269,8 +417,8 @@ fn validate_pointer_range(base: *const u8, len: usize, vector_kind: &str) {
     }
 }
 
-fn validate_real_permission(
-    spm: &dyn SpmCall,
+pub fn validate_real_permission<S: SpmCall>(
+    spm: &S,
     base: *const u8,
     len: usize,
     vector_kind: &str,
@@ -289,14 +437,14 @@ fn validate_real_permission(
     }
 }
 
-fn with_connection_for_handle<R>(
-    spm: &dyn SpmCall,
+pub fn with_connection_for_handle<S: SpmCall, R>(
+    spm: &S,
     msg_handle: ServiceHandle,
     f: impl FnOnce(&mut Connection) -> R,
 ) -> R {
     let mut result: Option<R> = None;
     let mut f = Some(f);
-    match spm.with_active_connection(&mut |connection| {
+    match spm.with_active_connection(|connection: &mut Connection| {
         if (connection.msg.handle as isize) != (msg_handle as isize) {
             panic!("invalid message handle for active connection");
         }
@@ -316,8 +464,8 @@ fn with_connection_for_handle<R>(
     result.expect("no active SPM connection")
 }
 
-fn prepare_invec(
-    spm: &dyn SpmCall,
+pub fn prepare_invec<S: SpmCall>(
+    spm: &S,
     connection: &mut Connection,
     invec_idx: u32,
 ) -> (usize, usize, *const u8) {
@@ -353,7 +501,7 @@ fn prepare_invec(
     (index, in_len, base)
 }
 
-fn mark_invec_unmapped(connection: &mut Connection, index: usize) {
+pub fn mark_invec_unmapped(connection: &mut Connection, index: usize) {
     if connection.invec_unmapped[index] {
         panic!("input vector is already unmapped");
     }
@@ -361,8 +509,8 @@ fn mark_invec_unmapped(connection: &mut Connection, index: usize) {
     connection.invec_unmapped[index] = true;
 }
 
-fn prepare_outvec(
-    spm: &dyn SpmCall,
+pub fn prepare_outvec<S: SpmCall>(
+    spm: &S,
     connection: &mut Connection,
     outvec_idx: u32,
 ) -> (usize, usize, *mut u8) {
@@ -398,7 +546,7 @@ fn prepare_outvec(
     (index, out_len, base)
 }
 
-fn commit_outvec_write(
+pub fn commit_outvec_write(
     connection: &mut Connection,
     out_index: usize,
     out_len: usize,
@@ -417,8 +565,8 @@ fn commit_outvec_write(
     connection.outvec_unmapped[out_index] = true;
 }
 
-fn with_mapped_invec<R>(
-    spm: &dyn SpmCall,
+pub fn with_mapped_invec<S: SpmCall, R>(
+    spm: &S,
     connection: &mut Connection,
     invec_idx: u32,
     f: impl FnOnce(&[u8]) -> R,
@@ -440,8 +588,8 @@ fn with_mapped_invec<R>(
     result
 }
 
-fn with_mapped_outvec<R>(
-    spm: &dyn SpmCall,
+pub fn with_mapped_outvec<S: SpmCall, R>(
+    spm: &S,
     connection: &mut Connection,
     outvec_idx: u32,
     f: impl FnOnce(&mut [u8]) -> (R, usize),
@@ -470,13 +618,13 @@ pub struct RawVec {
     pub len: usize,
 }
 
-pub fn prepare_invec_raw(
-    spm: &dyn SpmCall,
+pub fn prepare_invec_raw<S: SpmCall>(
+    spm: &S,
     msg_handle: ServiceHandle,
     invec_idx: u32,
 ) -> Result<RawVec, StatusCode> {
     let mut raw = None;
-    match spm.with_active_connection(&mut |connection| {
+    match spm.with_active_connection(|connection: &mut Connection| {
         if (connection.msg.handle as isize) != (msg_handle as isize) {
             panic!("invalid message handle for active connection");
         }
@@ -497,12 +645,12 @@ pub fn prepare_invec_raw(
     }
 }
 
-pub fn finish_invec_raw(
-    spm: &dyn SpmCall,
+pub fn finish_invec_raw<S: SpmCall>(
+    spm: &S,
     msg_handle: ServiceHandle,
     invec_idx: u32,
 ) -> Result<(), StatusCode> {
-    match spm.with_active_connection(&mut |connection| {
+    match spm.with_active_connection(|connection: &mut Connection| {
         if (connection.msg.handle as isize) != (msg_handle as isize) {
             panic!("invalid message handle for active connection");
         }
@@ -519,13 +667,13 @@ pub fn finish_invec_raw(
     }
 }
 
-pub fn prepare_outvec_raw(
-    spm: &dyn SpmCall,
+pub fn prepare_outvec_raw<S: SpmCall>(
+    spm: &S,
     msg_handle: ServiceHandle,
     outvec_idx: u32,
 ) -> Result<RawVec, StatusCode> {
     let mut raw = None;
-    match spm.with_active_connection(&mut |connection| {
+    match spm.with_active_connection(|connection: &mut Connection| {
         if (connection.msg.handle as isize) != (msg_handle as isize) {
             panic!("invalid message handle for active connection");
         }
@@ -543,13 +691,13 @@ pub fn prepare_outvec_raw(
     }
 }
 
-pub fn finish_outvec_raw(
-    spm: &dyn SpmCall,
+pub fn finish_outvec_raw<S: SpmCall>(
+    spm: &S,
     msg_handle: ServiceHandle,
     outvec_idx: u32,
     written_len: usize,
 ) -> Result<(), StatusCode> {
-    match spm.with_active_connection(&mut |connection| {
+    match spm.with_active_connection(|connection: &mut Connection| {
         if (connection.msg.handle as isize) != (msg_handle as isize) {
             panic!("invalid message handle for active connection");
         }
@@ -568,72 +716,6 @@ pub fn finish_outvec_raw(
     }
 }
 
-
-pub struct SfnApi;
-impl SpmApi for SfnApi {
-    fn map_invec<R>(&self, msg_handle: ServiceHandle, invec_idx: u32, f: impl FnOnce(&[u8]) -> R) -> R {
-        let spm = get_spm();
-        with_connection_for_handle(spm, msg_handle, |connection| {
-            with_mapped_invec(spm, connection, invec_idx, f)
-        })
-    }
-
-    fn map_outvec<R>(&self, msg_handle: ServiceHandle, outvec_idx: u32, f: impl FnOnce(&mut [u8]) -> (R, usize)) -> R {
-        let spm = get_spm();
-        with_connection_for_handle(spm, msg_handle, |connection| {
-            with_mapped_outvec(spm, connection, outvec_idx, f)
-        })
-    }
-
-    fn map_invec_outvec<R>(&self, msg_handle: ServiceHandle, invec_idx: u32, outvec_idx: u32, f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize)) -> R {
-        let spm = get_spm();
-        with_connection_for_handle(spm, msg_handle, |connection| {
-            let (in_index, in_len, in_base) = prepare_invec(spm, connection, invec_idx);
-            let (out_index, out_len, out_base) = prepare_outvec(spm, connection, outvec_idx);
-
-            let invec = if in_len == 0 {
-                &[]
-            } else {
-                unsafe { slice::from_raw_parts(in_base, in_len) }
-            };
-            let outvec = if out_len == 0 {
-                &mut []
-            } else {
-                unsafe { slice::from_raw_parts_mut(out_base, out_len) }
-            };
-
-            let (result, written_len) = f(invec, outvec);
-
-            commit_outvec_write(connection, out_index, out_len, written_len);
-            mark_invec_unmapped(connection, in_index);
-
-            result
-        })
-    }
-
-    unsafe fn call(&self, handle: ServiceHandle, ctrl_param: CtrlParam, in_vec: *const FFInVec, out_vec: *mut FFOutVec) -> Result<(), StatusCode> {
-        let spm = get_spm();
-        let (_msg_type, ivec_num, ovec_num) = validate_call_params(ctrl_param)?;
-        validate_vec_pointer_shape(ctrl_param.has_iovec(), ivec_num, ovec_num, in_vec, out_vec)?;
-
-        let in_vecs: &[FFInVec] = if ivec_num == 0 {
-            &[]
-        } else {
-            unsafe { slice::from_raw_parts(in_vec, ivec_num) }
-        };
-
-        let out_vecs: &mut [FFOutVec] = if ovec_num == 0 {
-            &mut []
-        } else {
-            unsafe { slice::from_raw_parts_mut(out_vec, ovec_num) }
-        };
-
-        let caller = CallerAttributes::SECURE_PRIVILEGED; // Default for direct SFN call
-        let connection = call_from_slices(handle, ctrl_param, in_vecs, out_vecs, caller)?;
-
-        spm.call(connection)
-    }
-}
 pub const SVC_ELEVATE: u8 = 0;
 pub const SVC_PSA_MAP_VEC: u8 = 1;
 pub const SVC_PSA_UNMAP_VEC: u8 = 2;
@@ -652,7 +734,6 @@ pub struct SvcStackFrame {
     pub pc: usize,
     pub xpsr: usize,
 }
-
 
 fn service_handle_from_raw(raw: usize) -> Result<ServiceHandle, StatusCode> {
     match raw as u32 {
@@ -691,21 +772,12 @@ fn ctrl_param_from_raw(raw: usize) -> CtrlParam {
     unsafe { mem::transmute::<u32, CtrlParam>(raw as u32) }
 }
 
-fn handle_svc_with_spm(
+pub fn handle_svc_with_spm<S: SpmCall, A: SpmApi>(
     svc_num: u8,
     frame: &mut SvcStackFrame,
-    spm: Option<&dyn crate::spm::SpmCall>,
+    spm: &S,
+    sfn_api: &A,
 ) -> bool {
-    let Some(spm) = spm else {
-        return match svc_num {
-            SVC_PSA_MAP_VEC | SVC_PSA_UNMAP_VEC | SVC_PSA_CALL => {
-                set_error(frame, StatusCode::CommunicationFailure);
-                true
-            }
-            _ => false,
-        };
-    };
-
     let handle = match service_handle_from_raw(frame.r0) {
         Ok(handle) => handle,
         Err(status) => {
@@ -747,7 +819,7 @@ fn handle_svc_with_spm(
         }
         SVC_PSA_CALL => {
             let result = unsafe {
-                SfnApi.call(
+                sfn_api.call(
                     handle,
                     ctrl_param_from_raw(frame.r1),
                     frame.r2 as *const FFInVec,
@@ -764,56 +836,6 @@ fn handle_svc_with_spm(
     }
 
     true
-}
-
-pub fn handle_svc(svc_num: u8, frame: &mut SvcStackFrame) -> bool {
-    handle_svc_with_spm(svc_num, frame, try_get_spm())
-}
-
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-#[unsafe(no_mangle)]
-#[unsafe(naked)]
-pub unsafe extern "C" fn psa_call_thunk(
-    _handle: usize,
-    _ctrl_param: usize,
-    _in_vec: usize,
-    _out_vec: usize,
-) -> ! {
-    core::arch::naked_asm!(
-        "sub sp, sp, #32",
-        "str r0, [sp, #0]",
-        "str r1, [sp, #4]",
-        "str r2, [sp, #8]",
-        "str r3, [sp, #12]",
-        "movs r0, #0",
-        "str r0, [sp, #16]",
-        "str r0, [sp, #20]",
-        "str r0, [sp, #24]",
-        "str r0, [sp, #28]",
-        "movs r0, #{SVC_PSA_CALL}",
-        "mov r1, sp",
-        "bl {handle_svc}",
-        "ldr r0, [sp, #0]",
-        "ldr r1, [sp, #4]",
-        "ldr r2, [sp, #8]",
-        "ldr r3, [sp, #12]",
-        "add sp, sp, #32",
-        "svc {SVC_PSA_RETURN}",
-        SVC_PSA_CALL = const SVC_PSA_CALL,
-        SVC_PSA_RETURN = const SVC_PSA_RETURN,
-        handle_svc = sym handle_svc,
-    )
-}
-
-#[cfg(not(all(target_arch = "arm", target_os = "none")))]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn psa_call_thunk(
-    _handle: usize,
-    _ctrl_param: usize,
-    _in_vec: usize,
-    _out_vec: usize,
-) -> ! {
-    panic!("psa_call_thunk only available on ARM");
 }
 
 fn status_from_raw(raw: usize) -> Result<(), StatusCode> {
@@ -869,13 +891,18 @@ unsafe fn svc_call<const SVC_NUM: u8>(
     panic!("SVC PSA bridge is only available on ARM bare-metal targets")
 }
 
-
 pub struct SvcApi;
 impl SpmApi for SvcApi {
-    fn map_invec<R>(&self, msg_handle: ServiceHandle, invec_idx: u32, f: impl FnOnce(&[u8]) -> R) -> R {
+    fn map_invec<R>(
+        &self,
+        msg_handle: ServiceHandle,
+        invec_idx: u32,
+        f: impl FnOnce(&[u8]) -> R,
+    ) -> R {
         let (status, base, len, _) =
             unsafe { svc_call::<SVC_PSA_MAP_VEC>(msg_handle as usize, invec_idx as usize, 0, 0) };
-        status_from_raw(status).unwrap_or_else(|err| panic!("failed to map input vector: {:?}", err));
+        status_from_raw(status)
+            .unwrap_or_else(|err| panic!("failed to map input vector: {:?}", err));
 
         let invec = if len == 0 {
             &[]
@@ -886,15 +913,22 @@ impl SpmApi for SvcApi {
 
         let (status, _, _, _) =
             unsafe { svc_call::<SVC_PSA_UNMAP_VEC>(msg_handle as usize, invec_idx as usize, 0, 0) };
-        status_from_raw(status).unwrap_or_else(|err| panic!("failed to unmap input vector: {:?}", err));
+        status_from_raw(status)
+            .unwrap_or_else(|err| panic!("failed to unmap input vector: {:?}", err));
 
         result
     }
 
-    fn map_outvec<R>(&self, msg_handle: ServiceHandle, outvec_idx: u32, f: impl FnOnce(&mut [u8]) -> (R, usize)) -> R {
+    fn map_outvec<R>(
+        &self,
+        msg_handle: ServiceHandle,
+        outvec_idx: u32,
+        f: impl FnOnce(&mut [u8]) -> (R, usize),
+    ) -> R {
         let (status, base, len, _) =
             unsafe { svc_call::<SVC_PSA_MAP_VEC>(msg_handle as usize, outvec_idx as usize, 1, 0) };
-        status_from_raw(status).unwrap_or_else(|err| panic!("failed to map output vector: {:?}", err));
+        status_from_raw(status)
+            .unwrap_or_else(|err| panic!("failed to map output vector: {:?}", err));
 
         let outvec = if len == 0 {
             &mut []
@@ -912,7 +946,13 @@ impl SpmApi for SvcApi {
         result
     }
 
-    fn map_invec_outvec<R>(&self, msg_handle: ServiceHandle, invec_idx: u32, outvec_idx: u32, f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize)) -> R {
+    fn map_invec_outvec<R>(
+        &self,
+        msg_handle: ServiceHandle,
+        invec_idx: u32,
+        outvec_idx: u32,
+        f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize),
+    ) -> R {
         let (in_status, in_base, in_len, _) =
             unsafe { svc_call::<SVC_PSA_MAP_VEC>(msg_handle as usize, invec_idx as usize, 0, 0) };
         status_from_raw(in_status)
@@ -950,7 +990,13 @@ impl SpmApi for SvcApi {
         result
     }
 
-    unsafe fn call(&self, handle: ServiceHandle, ctrl_param: CtrlParam, in_vec: *const FFInVec, out_vec: *mut FFOutVec) -> Result<(), StatusCode> {
+    unsafe fn call(
+        &self,
+        handle: ServiceHandle,
+        ctrl_param: CtrlParam,
+        in_vec: *const FFInVec,
+        out_vec: *mut FFOutVec,
+    ) -> Result<(), StatusCode> {
         let (status, _, _, _) = unsafe {
             svc_call::<SVC_PSA_CALL>(
                 handle as usize,
@@ -963,38 +1009,37 @@ impl SpmApi for SvcApi {
     }
 }
 
-// Exported global call function for internal backward compatibility with veneers
-pub unsafe fn call(
-    handle: ServiceHandle,
-    ctrl_param: CtrlParam,
-    in_vec: *const FFInVec,
-    out_vec: *mut FFOutVec,
-) -> Result<(), StatusCode> {
-    if support::is_interrupt_context() {
-        panic!("call cannot be called from an interrupt context");
+pub struct IpcPsaClient;
+
+impl psa_interface::PsaApiCallInterface for IpcPsaClient {
+    fn psa_framework_version() -> u32 {
+        todo!();
     }
 
-    let privileged = !support::is_ns_unprivileged();
-    let caller = CallerAttributes {
-        ns: true,
-        privileged,
-    };
+    fn psa_version(_service_id: u32) -> u32 {
+        todo!();
+    }
 
-    let (_msg_type, ivec_num, ovec_num) = validate_call_params(ctrl_param)?;
-    validate_vec_pointer_shape(ctrl_param.has_iovec(), ivec_num, ovec_num, in_vec, out_vec)?;
-    
-    let in_vecs: &[FFInVec] = if ivec_num == 0 {
-        &[]
-    } else {
-        unsafe { slice::from_raw_parts(in_vec, ivec_num) }
-    };
+    fn psa_call(
+        handle: psa_interface::types::ServiceHandle,
+        ctrl_param: psa_interface::types::CtrlParam,
+        in_vec: &[psa_interface::types::FFInVec],
+        out_vec: &mut [psa_interface::types::FFOutVec],
+    ) -> psa_interface::types::PsaStatus {
+        let in_vec_ptr = if in_vec.is_empty() {
+            core::ptr::null()
+        } else {
+            in_vec.as_ptr()
+        };
 
-    let out_vecs: &mut [FFOutVec] = if ovec_num == 0 {
-        &mut []
-    } else {
-        unsafe { slice::from_raw_parts_mut(out_vec, ovec_num) }
-    };
+        let out_vec_ptr = if out_vec.is_empty() {
+            core::ptr::null_mut()
+        } else {
+            out_vec.as_mut_ptr()
+        };
 
-    let connection = call_from_slices(handle, ctrl_param, in_vecs, out_vecs, caller)?;
-    get_spm().call(connection)
+        psa_interface::status::into_psa_status(unsafe {
+            crate::spm_api::SpmApi::call(&SvcApi, handle, ctrl_param, in_vec_ptr, out_vec_ptr)
+        })
+    }
 }

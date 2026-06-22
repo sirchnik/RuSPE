@@ -9,11 +9,8 @@
 // Referenced by inline assembly; keep the symbol linked.
 use cortexm::syscall::SYSCALL_FIRED;
 
-unsafe extern "C" fn svc_handler_dispatch(
-    frame: *mut spe::spm_api::SvcStackFrame,
-    svc_num: u32,
-) {
-    if unsafe { spe::spm_api::handle_svc(svc_num as u8, &mut *frame) } {
+unsafe extern "C" fn svc_handler_dispatch(frame: *mut spe::spm_api::SvcStackFrame, svc_num: u32) {
+    if unsafe { crate::global_spm_api::handle_svc(svc_num as u8, &mut *frame) } {
         return;
     }
 

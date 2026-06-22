@@ -2,11 +2,11 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::spm_api::PsaMsg;
 use crate::service::Service;
 use crate::spm::spm_fn::ConnectionArray;
 use crate::spm::{Connection, SpmCall, SpmError, SpmPlatform};
-use crate::{libs::mutex::Mutex, spm_api::CallerAttributes, spm::svc_call_unpriv};
+use crate::spm_api::PsaMsg;
+use crate::{libs::mutex::Mutex, spm::svc_call_unpriv, spm_api::CallerAttributes};
 use core::mem::{align_of, size_of};
 use psa_interface::types::{PsaStatus, ServiceHandle};
 
@@ -60,16 +60,16 @@ pub unsafe trait IpcProcess: Sync {
     ///
     /// # Safety
     /// For flash processes, the entry point vectors must be valid.
-    unsafe fn init(&self, platform: &dyn IpcProcessPlatform, spm: &dyn SpmCall);
+    unsafe fn init<S: SpmCall>(&self, platform: &dyn IpcProcessPlatform, spm: &S);
 
     /// Dispatch a service call. The connection is already on the SPM stack.
     ///
     /// # Safety
     /// For flash processes, the entry point vectors must be valid.
-    unsafe fn call(
+    unsafe fn call<S: SpmCall>(
         &self,
         platform: &dyn IpcProcessPlatform,
-        spm: &dyn SpmCall,
+        spm: &S,
         msg: PsaMsg,
     ) -> Result<(), crate::StatusCode>;
 }
@@ -155,7 +155,7 @@ unsafe impl IpcProcess for FlashProcess {
         Some(self.vectors)
     }
 
-    unsafe fn init(&self, _platform: &dyn IpcProcessPlatform, _spm: &dyn SpmCall) {
+    unsafe fn init<S: SpmCall>(&self, _platform: &dyn IpcProcessPlatform, _spm: &S) {
         let vectors = unsafe { &*self.vectors };
         unsafe {
             svc_call_unpriv(
@@ -168,10 +168,10 @@ unsafe impl IpcProcess for FlashProcess {
         }
     }
 
-    unsafe fn call(
+    unsafe fn call<S: SpmCall>(
         &self,
         _platform: &dyn IpcProcessPlatform,
-        _spm: &dyn SpmCall,
+        _spm: &S,
         msg: PsaMsg,
     ) -> Result<(), crate::StatusCode> {
         let vectors = unsafe { &*self.vectors };
@@ -197,25 +197,32 @@ unsafe impl IpcProcess for FlashProcess {
 // EmbeddedProcess - service compiled into the SPM binary
 // ---------------------------------------------------------------------------
 
-pub struct EmbeddedProcess {
+pub struct EmbeddedProcess<A: crate::spm_api::SpmApi + Sync + 'static> {
     pub handle: ServiceHandle,
-    service: &'static (dyn Service<crate::spm_api::SfnApi> + Sync),
+    service: &'static (dyn Service<A> + Sync),
+    api: &'static A,
 }
 
 // # Safety
-// EmbeddedProcess holds a &'static reference to a Sync service.
-unsafe impl Sync for EmbeddedProcess {}
+unsafe impl<A: crate::spm_api::SpmApi + Sync + 'static> Sync for EmbeddedProcess<A> {}
 
-impl EmbeddedProcess {
-    pub fn new(handle: ServiceHandle, service: &'static (dyn Service<crate::spm_api::SfnApi> + Sync)) -> Self {
-        Self { handle, service }
+impl<A: crate::spm_api::SpmApi + Sync + 'static> EmbeddedProcess<A> {
+    pub const fn new(
+        handle: ServiceHandle,
+        service: &'static (dyn Service<A> + Sync),
+        api: &'static A,
+    ) -> Self {
+        Self {
+            handle,
+            service,
+            api,
+        }
     }
 }
 
 // # Safety
 // The embedded service runs in the same binary; its call() only accesses the
-// SPM connection stack through the safe PSA API. Safe to invoke unprivileged.
-unsafe impl IpcProcess for EmbeddedProcess {
+unsafe impl<A: crate::spm_api::SpmApi + Sync + 'static> IpcProcess for EmbeddedProcess<A> {
     fn handle(&self) -> ServiceHandle {
         self.handle
     }
@@ -224,17 +231,17 @@ unsafe impl IpcProcess for EmbeddedProcess {
         None
     }
 
-    unsafe fn init(&self, _platform: &dyn IpcProcessPlatform, _spm: &dyn SpmCall) {
+    unsafe fn init<S: SpmCall>(&self, _platform: &dyn IpcProcessPlatform, _spm: &S) {
         // Embedded services are fully initialized at construction time.
     }
 
-    unsafe fn call(
+    unsafe fn call<S: SpmCall>(
         &self,
         _platform: &dyn IpcProcessPlatform,
-        _spm: &dyn SpmCall,
+        _spm: &S,
         msg: PsaMsg,
     ) -> Result<(), crate::StatusCode> {
-        self.service.call(msg, &crate::spm_api::SfnApi)
+        self.service.call(msg, self.api)
     }
 }
 
@@ -483,7 +490,7 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmCall
         result
     }
 
-    fn with_active_connection(&self, f: &mut dyn FnMut(&mut Connection)) -> Result<(), SpmError> {
+    fn with_active_connection<F: FnMut(&mut Connection)>(&self, mut f: F) -> Result<(), SpmError> {
         self.with_active_connection(|conn| f(conn))
     }
 
