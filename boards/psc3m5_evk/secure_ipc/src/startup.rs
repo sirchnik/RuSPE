@@ -15,8 +15,8 @@ unsafe extern "C" {
     static _erelocate: *const u32;
 }
 
-use crate::svc;
 use spe::faults;
+use spe::svc;
 
 #[unsafe(link_section = ".stack_buffer")]
 #[unsafe(no_mangle)]

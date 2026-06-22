@@ -37,7 +37,6 @@ mod service_config {
 
 mod io;
 mod startup;
-mod svc;
 
 #[allow(unexpected_cfgs)]
 pub mod global_spm_api {

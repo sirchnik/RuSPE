@@ -5,16 +5,19 @@
 #![allow(dead_code)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-#[allow(unused_imports)]
-// Referenced by inline assembly; keep the symbol linked.
-use cortexm::syscall::SYSCALL_FIRED;
+unsafe extern "Rust" {
+    fn __spm_api_handle_svc_dispatch(
+        frame: *mut crate::spm_api::SvcStackFrame,
+        svc_num: u32,
+    ) -> bool;
+}
 
-unsafe extern "C" fn svc_handler_dispatch(frame: *mut spe::spm_api::SvcStackFrame, svc_num: u32) {
-    if unsafe { crate::global_spm_api::handle_svc(svc_num as u8, &mut *frame) } {
+unsafe extern "C" fn svc_handler_dispatch(frame: *mut crate::spm_api::SvcStackFrame, svc_num: u32) {
+    if unsafe { __spm_api_handle_svc_dispatch(frame, svc_num) } {
         return;
     }
 
-    unsafe { svc_handler_arm_v7m() };
+    panic!("unhandled svc {svc_num}");
 }
 
 unsafe extern "C" {
@@ -164,88 +167,9 @@ pub unsafe extern "C" fn svc_handler() {
         ",
         svc_handler_dispatch = sym svc_handler_dispatch,
         psa_call_thunk = sym psa_call_thunk,
-        SVC_CALL_UNPRIV = const spe::spm_api::SVC_CALL_UNPRIV,
-        SVC_ELEVATE = const spe::spm_api::SVC_ELEVATE,
-        SVC_PSA_CALL = const spe::spm_api::SVC_PSA_CALL,
-        SVC_PSA_RETURN = const spe::spm_api::SVC_PSA_RETURN,
+        SVC_CALL_UNPRIV = const crate::spm_api::SVC_CALL_UNPRIV,
+        SVC_ELEVATE = const crate::spm_api::SVC_ELEVATE,
+        SVC_PSA_CALL = const crate::spm_api::SVC_PSA_CALL,
+        SVC_PSA_RETURN = const crate::spm_api::SVC_PSA_RETURN,
     );
-}
-
-/// Handler of `svc` instructions on ARMv7-M.
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-#[unsafe(naked)]
-pub unsafe extern "C" fn svc_handler_arm_v7m() {
-    use core::arch::naked_asm;
-    naked_asm!(
-        "
-    // First check to see which direction we are going in. If the link register
-    // (containing EXC_RETURN) has a 1 in the SPSEL bit (meaning the
-    // alternative/process stack was in use) then we are coming from a process
-    // which has called a syscall.
-    ubfx r0, lr, #2, #1               // r0 = (LR & (0x1<<2)) >> 2
-    cmp r0, #0                        // r0 (SPSEL bit) =? 0
-    bne 100f // to_kernel             // if SPSEL == 1, jump to to_kernel
-
-    // If we get here, then this is a context switch from the kernel to the
-    // application. Use the CONTROL register to set the thread mode to
-    // unprivileged to run the application.
-    //
-    // CONTROL[1]: Stack status
-    //   0 = Default stack (MSP) is used
-    //   1 = Alternate stack is used
-    // CONTROL[0]: Mode
-    //   0 = Privileged in thread mode
-    //   1 = User state in thread mode
-    mov r0, #1                        // r0 = 1
-    msr CONTROL, r0                   // CONTROL = 1
-    // CONTROL writes must be followed by an Instruction Synchronization Barrier
-    // (ISB). https://developer.arm.com/documentation/dai0321/latest
-    isb
-
-    // The link register is set to the `EXC_RETURN` value on exception entry. To
-    // ensure we execute using the process stack we set the SPSEL bit to 1
-    // to use the alternate (process) stack.
-    orr lr, lr, #4                    // LR = LR | 0b100
-
-    // Switch to the app.
-    bx lr
-
-100: // to_kernel
-    // An application called a syscall. We mark this in the global variable
-    // `SYSCALL_FIRED` which is stored in the syscall file.
-    // `UserspaceKernelBoundary` will use this variable to decide why the app
-    // stopped executing.
-    ldr r0, =SYSCALL_FIRED            // r0 = &SYSCALL_FIRED
-    mov r1, #1                        // r1 = 1
-    str r1, [r0]                      // *SYSCALL_FIRED = 1
-
-    // Use the CONTROL register to set the thread mode to privileged to switch
-    // back to kernel mode.
-    //
-    // CONTROL[1]: Stack status
-    //   0 = Default stack (MSP) is used
-    //   1 = Alternate stack is used
-    // CONTROL[0]: Mode
-    //   0 = Privileged in thread mode
-    //   1 = User state in thread mode
-    mov r0, #0                        // r0 = 0
-    msr CONTROL, r0                   // CONTROL = 0
-    // CONTROL writes must be followed by an Instruction Synchronization Barrier
-    // (ISB). https://developer.arm.com/documentation/dai0321/latest
-    isb
-
-    // The link register is set to the `EXC_RETURN` value on exception entry. To
-    // ensure we continue executing in the kernel we ensure the SPSEL bit is set
-    // to 0 to use the main (kernel) stack.
-    bfc lr, #2, #1                    // LR = LR & !(0x1<<2)
-
-    // Return to the kernel.
-    bx lr
-        "
-    );
-}
-
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
-pub unsafe extern "C" fn svc_handler_arm_v7m() {
-    unimplemented!()
 }
