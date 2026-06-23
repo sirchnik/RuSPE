@@ -10,6 +10,7 @@ authors = ["Niklas Sirch"]
 [workspace]
 members = [
     "chips/infineon",
+    "chips/musca_b1",
     "libraries/helpers",
     "libraries/cose",
     "libraries/cortex_m",
@@ -23,6 +24,8 @@ members = [
     "boards/psc3m5_evk/tock/kernel",
     "boards/psc3m5_evk/tock/app",
     "boards/psc3m5_evk/services/*_srv",
+    "boards/musca_b1/secure",
+    "boards/musca_b1/test_nspe",
 ]
 exclude = ["tock"]
 resolver = "3"

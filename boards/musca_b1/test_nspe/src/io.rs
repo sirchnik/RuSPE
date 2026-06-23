@@ -2,52 +2,61 @@
 //
 // SPDX-License-Identifier: MIT
 
-//! Board-level I/O and panic infrastructure for the PSC3M5-EVK.
+//! Board-level I/O and panic infrastructure for Musca-B1.
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::io_write::IoWrite;
 
-use psc3::scb::Scb;
+use musca_b1::uart::Uart;
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {
-    scb: OptionalCell<&'static Scb<'static>>,
+    uart: OptionalCell<&'static Uart<'static>>,
 }
 
+/// Global static for debug writer
+pub static mut WRITER: Writer = Writer {
+    uart: OptionalCell::empty(),
+};
+
 impl Writer {
-    pub fn set_scb(&self, scb: &'static Scb) {
-        self.scb.set(scb);
+    /// Set the Uart peripheral to use
+    pub fn set_uart(&self, uart: &'static Uart) {
+        self.uart.set(uart);
     }
 }
 
-impl core::fmt::Write for Writer {
+impl Write for Writer {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.scb.map(|scb| scb.transmit_uart_sync(s.as_bytes()));
+        self.uart.map(|uart| {
+            for b in s.as_bytes() {
+                uart.send_byte(*b);
+            }
+        });
         Ok(())
     }
 }
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
-        self.scb.map(|scb| scb.transmit_uart_sync(buf));
+        self.uart.map(|uart| {
+            for b in buf {
+                uart.send_byte(*b);
+            }
+        });
         buf.len()
     }
 }
 
-pub static mut WRITER: Writer = Writer {
-    scb: OptionalCell::empty(),
-};
-
 /// This function is called on panic, and it will attempt to print the panic message to the serial port.
-/// It also blinks the LED to indicate a panic has occurred.
 #[panic_handler]
 pub fn panic_fmt(pi: &PanicInfo) -> ! {
     use core::ptr::addr_of_mut;
     let writer = unsafe { &mut *addr_of_mut!(WRITER) };
 
-    writer.write_fmt(format_args!("\r\n{}\r\n", pi)).unwrap();
+    let _ = writer.write_fmt(format_args!("\r\n{}\r\n", pi));
 
     loop {}
 }

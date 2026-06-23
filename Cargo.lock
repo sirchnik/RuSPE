@@ -541,6 +541,53 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e70eae6d4f18f7d76877fe7b13f0bc21f7c2b7239d2041c338335f7b388d0dd7"
 
 [[package]]
+name = "musca_b1"
+version = "0.1.0"
+dependencies = [
+ "cortex_m",
+ "psa_interface",
+ "spe",
+ "spe_services",
+]
+
+[[package]]
+name = "musca_b1"
+version = "0.2.3-dev"
+dependencies = [
+ "cortexm33",
+ "enum_primitive",
+ "kernel",
+]
+
+[[package]]
+name = "musca_b1_secure"
+version = "0.1.0"
+dependencies = [
+ "cortexm33",
+ "helpers",
+ "kernel",
+ "musca_b1 0.1.0",
+ "musca_b1 0.2.3-dev",
+ "psa_interface",
+ "spe",
+ "spe_services",
+ "tock_build_scripts",
+]
+
+[[package]]
+name = "musca_b1_test_nspe"
+version = "0.1.0"
+dependencies = [
+ "cortexm33",
+ "helpers",
+ "kernel",
+ "musca_b1 0.2.3-dev",
+ "psa_interface",
+ "psa_veneer_client",
+ "tock_build_scripts",
+]
+
+[[package]]
 name = "p256"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

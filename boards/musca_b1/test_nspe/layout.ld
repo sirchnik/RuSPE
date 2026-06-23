@@ -1,0 +1,23 @@
+/*
+ * SPDX-FileCopyrightText: Infineon Technologies AG
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Note: The device has to be provisioned using the edgeprotecttools first */
+
+/**
+ * Configuration for memory is for secure app with non-secure app
+ * Documentation in ./mem-conf.md 
+**/
+
+MEMORY
+{
+  rom (rx)  : ORIGIN = 0x00100000, LENGTH = 0x00100000
+  prog (rx) : ORIGIN = 0x00200000, LENGTH = 0x00080000
+  ram (rwx) : ORIGIN = 0x20000000, LENGTH = 0x00080000
+}
+
+PAGE_SIZE = 4K;
+
+INCLUDE tock_kernel_layout.ld
