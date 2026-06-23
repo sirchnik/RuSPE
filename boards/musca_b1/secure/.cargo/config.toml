@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: Infineon Technologies AG
+#
+# SPDX-License-Identifier: MIT
+
+include = ["../../../shared/cargo/embedded_flags.toml"]
+
+[build]
+target = "thumbv8m.main-none-eabi"
+rustflags = [
+  # Output secure veneer library
+  "-C",
+  "link-arg=--cmse-implib",
+  "-C",
+  "link-arg=--out-implib=target/thumbv8m.main-none-eabi/musca_b1_secure-veneers.o",
+]

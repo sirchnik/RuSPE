@@ -42,6 +42,21 @@ class BoardConfig:
     def platform(self) -> str:
         return self.board_dir.name
 
+    @property
+    def board_name(self) -> str:
+        if "psc3" in self.crate_name:
+            return "psc3m5_evk"
+        elif "musca" in self.crate_name:
+            return "musca_b1"
+        return self.crate_name.split("_")[0]
+
+    @property
+    def prefixed_platform(self) -> str:
+        platform_name = self.platform
+        if platform_name.startswith(self.board_name):
+            return platform_name
+        return f"{self.board_name}_{platform_name}"
+
     def build_type(self, debug: bool) -> str:
         return "debug" if debug else "release"
 
@@ -74,7 +89,9 @@ def _cargo_package_name(crate_dir: Path) -> str:
     return crate_dir.name
 
 
-def _candidate_artifacts(target_dir: Path, build_type: str, binary_name: str) -> list[Path]:
+def _candidate_artifacts(
+    target_dir: Path, build_type: str, binary_name: str
+) -> list[Path]:
     names = [binary_name]
     underscored = binary_name.replace("-", "_")
     if underscored != binary_name:
@@ -118,7 +135,9 @@ def _resolve_cargo_artifact(repo_root: Path, debug: bool, binary_name: str) -> P
     )
 
 
-def cargo_build(ctx: Context, board: BoardConfig, debug: bool, env: dict[str, str] | None = None) -> Path:
+def cargo_build(
+    ctx: Context, board: BoardConfig, debug: bool, env: dict[str, str] | None = None
+) -> Path:
     command = ["cargo", "build"]
     if not debug:
         command.append("--release")
@@ -129,7 +148,7 @@ def cargo_build(ctx: Context, board: BoardConfig, debug: bool, env: dict[str, st
 
 def inject_app(ctx: Context, board: BoardConfig, debug: bool, app: str | None) -> Path:
     kernel = board.kernel_image(debug)
-    kernel_with_app = board.target_root(debug) / f"{board.platform}-app.elf"
+    kernel_with_app = board.target_root(debug) / f"{board.prefixed_platform}-app.elf"
 
     if not kernel.exists():
         raise BuildError(f"Kernel image does not exist: {kernel}")
@@ -172,9 +191,7 @@ def build_non_secure(
     return inject_app(ctx, board, debug, app)
 
 
-def elf_to_hex(
-    ctx: Context, input_image: Path, output_hex: Path
-) -> Path:
+def elf_to_hex(ctx: Context, input_image: Path, output_hex: Path) -> Path:
     objcopy = resolve_objcopy(ctx)
     if objcopy is None:
         raise BuildError(
@@ -182,9 +199,7 @@ def elf_to_hex(
         )
 
     output_hex.parent.mkdir(parents=True, exist_ok=True)
-    run_command(
-        [str(objcopy), "-O", "ihex", str(input_image), str(output_hex)]
-    )
+    run_command([str(objcopy), "-O", "ihex", str(input_image), str(output_hex)])
     return output_hex
 
 
@@ -230,14 +245,14 @@ def merge_secure_non_secure_hex(
     secure_hex = elf_to_hex(
         ctx,
         secure_elf,
-        target_root / f"{secure_board.platform}.hex",
+        target_root / f"{secure_board.prefixed_platform}.hex",
     )
     non_secure_hex = elf_to_hex(
         ctx,
         non_secure_elf,
-        target_root / f"{non_secure_board.platform}-app.hex",
+        target_root / f"{non_secure_board.prefixed_platform}-app.hex",
     )
-    merged_hex = target_root / f"{non_secure_board.platform}_merged.hex"
+    merged_hex = target_root / f"{non_secure_board.prefixed_platform}_merged.hex"
     inputs = [secure_hex, non_secure_hex]
     if extra_hexes:
         inputs.extend(extra_hexes)
@@ -293,10 +308,15 @@ def resolve_gdb() -> Path:
 
 def is_port_in_use(port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        return s.connect_ex(('localhost', port)) == 0
+        return s.connect_ex(("localhost", port)) == 0
 
 
-def debug_with_gdb(ctx: Context, board: BoardConfig, elf_paths: list[Path], merged_hex: Path | None = None) -> None:
+def debug_with_gdb(
+    ctx: Context,
+    board: BoardConfig,
+    elf_paths: list[Path],
+    merged_hex: Path | None = None,
+) -> None:
     if not elf_paths:
         raise BuildError("No ELFs provided for debugging.")
 
@@ -312,6 +332,7 @@ def debug_with_gdb(ctx: Context, board: BoardConfig, elf_paths: list[Path], merg
     if not is_port_in_use(3333):
         print_step("Starting OpenOCD in the background...")
         import subprocess
+
         openocd_cmd = [str(openocd), "-f", str(board.openocd_tcl)]
         openocd_process = subprocess.Popen(
             openocd_cmd,
@@ -341,7 +362,7 @@ def debug_with_gdb(ctx: Context, board: BoardConfig, elf_paths: list[Path], merg
 
     for elf in elf_paths[1:]:
         gdb_args.extend(["-ex", f"add-symbol-file {elf}"])
-        
+
     gdb_args.extend(["-ex", "monitor reset halt"])
 
     run_command(gdb_args, cwd=board.board_dir)

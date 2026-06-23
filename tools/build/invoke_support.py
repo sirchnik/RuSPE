@@ -63,14 +63,10 @@ def get_vscode_build_commands(release: bool = False) -> tuple[str, str]:
     debug_arg = "" if release else " --debug"
     if os.name == "nt":
         build_test_cmd = f'& "{inv_exec}" build{debug_arg} --nspe=test'
-        build_tock_cmd = f'$app = \'${{config:tock.app}}\'; if ($app) {{ & "{inv_exec}" build{debug_arg} --nspe=tock --app "$app" }} else {{ & "{inv_exec}" build{debug_arg} --nspe=tock }}'
+        build_tock_cmd = f'& "{inv_exec}" build{debug_arg} --nspe=tock'
     else:
         build_test_cmd = f'"{inv_exec}" build{debug_arg} --nspe=test'
-        build_tock_cmd = (
-            "app='${config:tock.app}'; "
-            f'if [ -n "$app" ]; then "{inv_exec}" build{debug_arg} --nspe=tock --app "$app"; '
-            f'else "{inv_exec}" build{debug_arg} --nspe=tock; fi'
-        )
+        build_tock_cmd = f'"{inv_exec}" build{debug_arg} --nspe=tock'
     return build_test_cmd, build_tock_cmd
 
 
@@ -179,7 +175,11 @@ def run_command(
             return True
 
     merged_env = _merge_env(env)
-    cmd_text = command if isinstance(command, str) else _format_command(command, shorten_args=shorten_args)
+    cmd_text = (
+        command
+        if isinstance(command, str)
+        else _format_command(command, shorten_args=shorten_args)
+    )
 
     if in_stream is None:
         in_stream = not _is_sandbox()

@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: Infineon Technologies AG
+#
+# SPDX-License-Identifier: MIT
+
+[package]
+name = "musca_b1"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+spe = { path = "../../spe/spe" }
+spe_services = { path = "../../spe/spe_services" }
+psa_interface = { path = "../../spe/psa_interface" }
+ruspe_cortexm = { package = "cortex_m", path = "../../libraries/cortex_m" }
+
+[lints]
+workspace = true

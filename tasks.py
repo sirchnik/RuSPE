@@ -12,21 +12,37 @@ from shutil import copy2
 
 from invoke.context import Context
 
+from collections.abc import Callable
+
 from tools.build.invoke_support import (
-    resolve_openocd,
     build_task,
     run_command,
     VscodeLaunchTarget,
     VscodeBuildTarget,
 )
 from boards.psc3m5_evk.secure.tasks import (
-    vscode_build_targets as secure_build_targets,
-    vscode_launch_targets as secure_launch_targets,
+    vscode_build_targets as psc3_build_targets,
+    vscode_launch_targets as psc3_launch_targets,
 )
 from boards.psc3m5_evk.secure_ipc.tasks import (
-    vscode_build_targets as secure_ipc_build_targets,
-    vscode_launch_targets as secure_ipc_launch_targets,
+    vscode_build_targets as psc3_ipc_build_targets,
+    vscode_launch_targets as psc3_ipc_launch_targets,
 )
+from boards.musca_b1.secure.tasks import (
+    vscode_build_targets as musca_build_targets,
+    vscode_launch_targets as musca_launch_targets,
+)
+
+all_build_targets: list[Callable[[bool], list[VscodeBuildTarget]]] = [
+    psc3_build_targets,
+    psc3_ipc_build_targets,
+    musca_build_targets,
+]
+all_launch_targets: list[Callable[[bool], list[VscodeLaunchTarget]]] = [
+    psc3_launch_targets,
+    psc3_ipc_launch_targets,
+    musca_launch_targets,
+]
 
 
 REPO_ROOT = Path(__file__).resolve().parent
@@ -77,8 +93,8 @@ def _write_json(path: Path, payload: object) -> None:
 
 def _tasks_targets(release: bool = False) -> list[VscodeBuildTarget]:
     targets: list[VscodeBuildTarget] = []
-    targets.extend(secure_build_targets(release))
-    targets.extend(secure_ipc_build_targets(release))
+    for board_build_targets in all_build_targets:
+        targets.extend(board_build_targets(release))
     return targets
 
 
@@ -87,11 +103,9 @@ def _tasks_conf(targets: list[VscodeBuildTarget]) -> dict[str, object]:
 
 
 def _launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
-    openocd_path = str(resolve_openocd(version="infineon"))
-    
     targets: list[VscodeLaunchTarget] = []
-    targets.extend(secure_launch_targets(openocd_path, release))
-    targets.extend(secure_ipc_launch_targets(openocd_path, release))
+    for board_launch_targets in all_launch_targets:
+        targets.extend(board_launch_targets(release))
     return targets
 
 
