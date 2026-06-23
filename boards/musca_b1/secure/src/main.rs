@@ -19,24 +19,25 @@ mod startup;
 #[unsafe(no_mangle)]
 pub unsafe fn main() {
     unsafe {
-        tock_musca_b1::init();
+        cortexm33::nvic::enable_all();
     }
 
-    let uart0_sec = unsafe { static_init!(uart::Uart, uart::Uart::new_uart0_sec()) };
-    
-    let uart_params = kernel::hil::uart::Parameters {
-        baud_rate: 115200,
-        width: kernel::hil::uart::Width::Eight,
-        stop_bits: kernel::hil::uart::StopBits::One,
-        parity: kernel::hil::uart::Parity::None,
-        hw_flow_control: false,
-    };
-    let _ = uart0_sec.debug_configure(uart_params);
+    let serial = unsafe { static_init!(uart::UartMin, uart::UartMin::new_uart1_sec()) };
+
+    // Configure UART (assuming musca_b1 system clock is 50MHz, baud 115200)
+    serial.configure(
+        kernel::hil::uart::Parameters {
+            baud_rate: 115200,
+            width: kernel::hil::uart::Width::Eight,
+            parity: kernel::hil::uart::Parity::None,
+            stop_bits: kernel::hil::uart::StopBits::One,
+            hw_flow_control: false,
+        },
+        50_000_000,
+    );
 
     unsafe {
-        (*addr_of_mut!(io::WRITER)).set_serial(uart0_sec);
-        
-        cortexm33::nvic::enable_all();
+        (*addr_of_mut!(io::WRITER)).set_serial(serial);
     }
 
     let sec_platform = unsafe {
@@ -55,11 +56,73 @@ pub unsafe fn main() {
         )
     };
 
-    let spm = unsafe { static_init!(spe::spm::SpmFn<ruspe_musca_b1::MuscaB1SecPlatform>, spe::spm::SpmFn::new(sec_platform)) };
+    let spm = unsafe {
+        static_init!(
+            spe::spm::SpmFn<ruspe_musca_b1::MuscaB1SecPlatform>,
+            spe::spm::SpmFn::new(sec_platform)
+        )
+    };
+
+    let mut sau = cortexm33::sau::new();
+    sau.set_region(
+        0,
+        cortexm33::sau::SauRegion {
+            base_address: 0x0010_1000,
+            limit_address: 0x0027_FFFF, // Covers rom and prog
+            attribute: cortexm33::sau::SauRegionAttribute::NonSecure,
+        },
+    )
+    .unwrap();
+    sau.set_region(
+        1,
+        cortexm33::sau::SauRegion {
+            base_address: 0x1010_0000,
+            limit_address: 0x1010_00FF,
+            attribute: cortexm33::sau::SauRegionAttribute::NonSecureCallable,
+        },
+    )
+    .unwrap();
+    sau.set_region(
+        2,
+        cortexm33::sau::SauRegion {
+            base_address: 0x2003_0000,
+            limit_address: 0x2007_FFFF,
+            attribute: cortexm33::sau::SauRegionAttribute::NonSecure,
+        },
+    )
+    .unwrap();
+    sau.set_region(
+        3,
+        cortexm33::sau::SauRegion {
+            base_address: 0x4000_0000,
+            limit_address: 0x4FFF_FFFF,
+            attribute: cortexm33::sau::SauRegionAttribute::NonSecure,
+        },
+    )
+    .unwrap();
+    sau.enable();
 
     spe::psa::psa_api::set_spm(spm);
 
     io::debugln(format_args!("Init SPE done, jumping to non-secure"));
 
-    loop {}
+    const NONSECURE_FLASH_START: u32 = 0x0010_1000;
+
+    unsafe {
+        let nonsecure_start_flash = NONSECURE_FLASH_START as *const [u32; 2];
+        let [nonsecure_sp, nonsecure_reset] = nonsecure_start_flash.read_volatile();
+
+        // Set non-secure main stack pointer
+        core::arch::asm!(
+            "msr msp_ns, {nonsecure_sp}",
+            nonsecure_sp = in(reg) nonsecure_sp,
+            options(nomem, nostack, preserves_flags),
+        );
+
+        let nonsecure_reset = core::mem::transmute::<*const u32, extern "cmse-nonsecure-call" fn()>(
+            nonsecure_reset as *const u32,
+        );
+
+        nonsecure_reset();
+    }
 }

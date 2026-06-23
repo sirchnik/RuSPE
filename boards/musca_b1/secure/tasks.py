@@ -25,7 +25,6 @@ from tools.build.board import (
     BoardConfig,
     Manufacturer,
     cargo_build,
-    build_non_secure,
     merge_secure_non_secure_hex,
 )
 
@@ -41,14 +40,6 @@ SECURE_BOARD = BoardConfig(
     crate_name="musca_b1_secure",
 )
 
-NON_SECURE_BOARD = BoardConfig(
-    board_dir=REPO_ROOT / "tock" / "boards" / "musca_b1_board",
-    repo_root=REPO_ROOT / "tock",
-    manufacturer=Manufacturer.OTHER,
-    chip="musca_b1",
-    crate_name="musca_b1_board",
-)
-
 QEMU_MACHINE = "musca-b1"
 QEMU_CPU = "cortex-m33"
 
@@ -57,15 +48,36 @@ NSPE_HELP = "The Non-Secure Processing Environment to build (test or tock)."
 APP_HELP = "Path to a TBF application image (only for tock NSPE)."
 
 
+def _generate_stub_elf(target_dir: Path) -> Path:
+    stub_elf = target_dir / "stub.elf"
+    if not stub_elf.exists():
+        stub_rs = target_dir / "stub.rs"
+        stub_rs.write_text(
+            "#![no_std]\n#![no_main]\n"
+            "#[panic_handler]\nfn panic(_: &core::panic::PanicInfo) -> ! { loop {} }\n"
+            '#[no_mangle]\npub extern "C" fn _start() -> ! { loop {} }\n'
+        )
+        run_command(
+            [
+                "rustc",
+                "--target",
+                "thumbv8m.main-none-eabi",
+                str(stub_rs),
+                "-o",
+                str(stub_elf),
+            ]
+        )
+        stub_rs.unlink()
+    return stub_elf
+
+
 def _build_merged(
     ctx: Context, nspe: str, app: str | None, debug: bool
 ) -> tuple[Path, Path, Path]:
     secure_elf = cargo_build(ctx, SECURE_BOARD, debug)
+    _generate_stub_elf(secure_elf.parent)
 
-    if nspe == "tock":
-        non_secure_elf = build_non_secure(ctx, NON_SECURE_BOARD, debug, app)
-        nspe_board = NON_SECURE_BOARD
-    elif nspe == "test":
+    if nspe == "test":
         non_secure_elf = test_nspe_build.build(ctx, debug=debug)
         nspe_board = test_nspe_build.NON_SECURE_BOARD
     else:
@@ -167,19 +179,23 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
         {
             "name": f"Musca-B1 Test {profile_short}",
             **base_conf,
-            "executable": f"target/thumbv8m.main-none-eabi/{profile}/musca_b1_test_nspe_merged.hex",
+            "executable": f"target/thumbv8m.main-none-eabi/{profile}/stub.elf",
+            "serverArgs": [
+                # "-serial",
+                # "stdio",
+                "-monitor",
+                "none",
+                "-serial",
+                "stdio",
+                "-serial",
+                "telnet:127.0.0.1:4321,server,nowait",
+                "-device",
+                f"loader,file=target/thumbv8m.main-none-eabi/{profile}/musca_b1_test_nspe_merged.hex,addr=0x10000000",
+            ],
             "preLaunchCommands": [
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/musca_b1_secure",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/musca_b1_test_nspe",
             ],
             "preLaunchTask": f"build{profile_short_snake}.musca_b1_test",
-        },
-        {
-            "name": f"Musca-B1 Tock {profile_short}",
-            **base_conf,
-            "executable": f"target/thumbv8m.main-none-eabi/{profile}/musca_b1_tock_merged.hex",
-            "preLaunchCommands": [
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/musca_b1_secure",
-            ],
-            "preLaunchTask": f"build{profile_short_snake}.musca_b1_tock",
         },
     ]
