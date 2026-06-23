@@ -7,11 +7,11 @@ use core::{fmt::Write, panic::PanicInfo};
 use tock_musca_b1::uart;
 
 pub struct Writer {
-    serial: Cell<Option<&'static uart::Uart<'static>>>,
+    serial: Cell<Option<&'static uart::UartMin>>,
 }
 
 impl Writer {
-    pub fn set_serial(&self, serial: &'static uart::Uart<'static>) {
+    pub fn set_serial(&self, serial: &'static uart::UartMin) {
         self.serial.set(Some(serial));
     }
 }
