@@ -51,28 +51,8 @@ unsafe extern \"C\" {{
     static _rom_limit: *const u32;
     static _ram_start: *const u32;
     static _ram_limit: *const u32;
-    static _szero: *const u32;
-    static _ezero: *const u32;
-    static _sdata: *const u32;
-    static _edata: *const u32;
-    static _etext: *const u32;
     static _stack_limit: *const u32;
     static _stack_top: *const u32;
-}}
-
-#[unsafe(naked)]
-#[unsafe(no_mangle)]
-pub unsafe extern \"C\" fn init() {{
-    use core::arch::naked_asm;
-    naked_asm!(
-        \"\n        // Initialize BSS section (zero out)\n        ldr r0, ={{szero}}        // r0 = start of BSS\n        ldr r1, ={{ezero}}        // r1 = end of BSS\n        movs r2, #0             // r2 = 0\n\n    bss_loop:\n        cmp r0, r1              // compare pointers\n        beq bss_done            // if equal, done\n        stm r0!, {{{{r2}}}}         // *(r0++) = r2 (zero word)\n        b bss_loop\n\n    bss_done:\n\n        // Initialize DATA section (copy from ROM to RAM)\n        ldr r0, ={{sdata}}        // r0 = start of data in RAM\n        ldr r1, ={{edata}}        // r1 = end of data in RAM\n        ldr r2, ={{etext}}        // r2 = start of data in ROM\n\n    data_loop:\n        cmp r0, r1              // compare pointers\n        beq data_done           // if equal, done\n        ldm r2!, {{{{r3}}}}         // r3 = *(r2++), load from ROM\n        stm r0!, {{{{r3}}}}         // *(r0++) = r3, store to RAM\n        b data_loop\n\n    data_done:\n\n        // Initialize stack pointer\n        ldr sp, ={{stack_top}}\n\n        bx lr\n        \",
-        szero = sym _szero,
-        ezero = sym _ezero,
-        sdata = sym _sdata,
-        edata = sym _edata,
-        etext = sym _etext,
-        stack_top = sym _stack_top,
-    );
 }}
 
 /// Minimal thunk placed in service flash. When the service function returns,
@@ -91,7 +71,7 @@ pub unsafe extern \"C\" fn svc_return() {{
 )]
 #[cfg_attr(all(target_arch = \"arm\", target_os = \"none\"), used)]
 pub static BASE_VECTORS: FlashProcessVectors = FlashProcessVectors {{
-    init_entry: init,
+    init_entry: spe::service::init,
     call_entry: call,
     rom_start: unsafe {{ &_rom_start as *const _ as *const u8 }},
     rom_limit: unsafe {{ &_rom_limit as *const _ as *const u8 }},
