@@ -12,12 +12,12 @@ use psa_interface::{
 use crate::spm_api::{
     RawVec, SpmApi, finish_invec_raw, finish_outvec_raw, prepare_invec_raw, prepare_outvec_raw,
 };
-pub const SVC_ELEVATE: u8 = 0;
+pub const SVC_PROCESS_EXIT: u8 = 0;
 pub const SVC_PSA_MAP_VEC: u8 = 1;
 pub const SVC_PSA_UNMAP_VEC: u8 = 2;
-pub const SVC_CALL_UNPRIV: u8 = 3;
+pub const SVC_START_PROCESS: u8 = 3;
 pub const SVC_PSA_CALL: u8 = 4;
-pub const SVC_PSA_RETURN: u8 = 7;
+pub const SVC_PSA_CALL_RETURN: u8 = 7;
 
 #[repr(C)]
 pub struct SvcStackFrame {

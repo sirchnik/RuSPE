@@ -28,7 +28,7 @@ pub struct FlashProcessVectors {
     pub ram_start: *const u8,
     /// Exclusive end of the service RAM window.
     pub ram_limit: *const u8,
-    /// A minimal thunk in the service's flash region that executes `svc #0`
+    /// A minimal thunk in the service's flash region that executes `svc {SVC_PROCESS_EXIT}`
     /// to re-elevate after the unprivileged service function returns.
     pub svc_return: unsafe extern "C" fn(),
     /// Lowest permitted PSP value for the service's dedicated stack window.

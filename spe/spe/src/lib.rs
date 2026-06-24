@@ -17,7 +17,7 @@ pub mod libs;
 pub mod service;
 pub mod spm;
 pub mod spm_api;
-pub mod svc;
+pub mod svc_handler;
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 pub mod veneers;
 

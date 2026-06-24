@@ -40,20 +40,20 @@ pub unsafe extern "C" fn svc_handler() {
     ldrh r1, [r1, #-2]         // r1 = SVC instruction halfword
     uxtb r1, r1                // r1 = SVC number
 
-    // --- SVC_CALL_UNPRIV: switch to unprivileged Thread + PSP ----------
-    cmp r1, {SVC_CALL_UNPRIV}
+    // --- SVC_START_PROCESS: switch to unprivileged Thread + PSP ----------
+    cmp r1, {SVC_START_PROCESS}
     beq 200f
 
-    // --- SVC_ELEVATE: return to privileged Thread + MSP ----------------
-    cmp r1, {SVC_ELEVATE}
+    // --- SVC_PROCESS_EXIT: return to privileged Thread + MSP ----------------
+    cmp r1, {SVC_PROCESS_EXIT}
     beq 201f
 
     // --- SVC_PSA_CALL: execute psa_call in privileged Thread + MSP ---
     cmp r1, {SVC_PSA_CALL}
     beq 202f
     
-    // --- SVC_PSA_RETURN: return from psa_call ---
-    cmp r1, {SVC_PSA_RETURN}
+    // --- SVC_PSA_CALL_RETURN: return from psa_call ---
+    cmp r1, {SVC_PSA_CALL_RETURN}
     beq 203f
 
     // --- PSA SVCs and any fallback handling --------------------------------
@@ -68,11 +68,11 @@ pub unsafe extern "C" fn svc_handler() {
     orr lr, lr, #4              // EXC_RETURN bit2=1 -> unstack from PSP
     bx lr                       // exception return -> service runs
 
-201: // svc_elevate
+201: // svc_process_exit
     // Service finished: PSP frame has return value in R0.
     // Copy it to the orphaned MSP frame so the original caller gets it.
     ldr r2, [r0, #0]           // r2 = PSP_frame.R0 (service return value)
-    mrs r1, msp                // r1 = MSP (orphaned frame from SVC_CALL_UNPRIV)
+    mrs r1, msp                // r1 = MSP (orphaned frame from SVC_START_PROCESS)
     str r2, [r1, #0]          // MSP_frame.R0 = return value
 
     // Restore privileged Thread mode using MSP.
@@ -167,9 +167,9 @@ pub unsafe extern "C" fn svc_handler() {
         ",
         svc_handler_dispatch = sym svc_handler_dispatch,
         psa_call_thunk = sym psa_call_thunk,
-        SVC_CALL_UNPRIV = const crate::spm_api::SVC_CALL_UNPRIV,
-        SVC_ELEVATE = const crate::spm_api::SVC_ELEVATE,
+        SVC_START_PROCESS = const crate::spm_api::SVC_START_PROCESS,
+        SVC_PROCESS_EXIT = const crate::spm_api::SVC_PROCESS_EXIT,
         SVC_PSA_CALL = const crate::spm_api::SVC_PSA_CALL,
-        SVC_PSA_RETURN = const crate::spm_api::SVC_PSA_RETURN,
+        SVC_PSA_CALL_RETURN = const crate::spm_api::SVC_PSA_CALL_RETURN,
     );
 }

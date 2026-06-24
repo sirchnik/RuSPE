@@ -25,7 +25,7 @@ unsafe impl Sync for CustomMpuRegion {}
 
 /// Call a function in unprivileged Thread mode via SVC, using PSP.
 ///
-/// Before issuing `SVC_CALL_UNPRIV`, this function:
+/// Before issuing `SVC_START_PROCESS`, this function:
 /// 1. Writes a fabricated exception frame at `stack_top - 32` containing
 ///    the target `fn_ptr`, `arg`, and `thunk` (return address).
 /// 2. Sets PSP to that frame base.
@@ -35,14 +35,14 @@ unsafe impl Sync for CustomMpuRegion {}
 /// - Sets EXC_RETURN SPSEL bit -> exception return unstacks from PSP
 /// - bx lr -> hardware pops frame from PSP -> service runs unprivileged.
 ///
-/// When the service returns it hits the `thunk` (`svc #0`) which triggers
-/// `SVC_ELEVATE`: the handler copies the return value from the PSP frame to
+/// When the service returns it hits the `thunk` which triggers
+/// `SVC_PROCESS_EXIT`: the handler copies the return value from the PSP frame to
 /// the orphaned MSP frame, clears nPRIV, flips EXC_RETURN back to MSP, and
 /// returns - landing us back here with the result in R0.
 ///
 /// # Safety
 /// - `fn_ptr` must point to valid code in unprivileged-accessible memory.
-/// - `thunk` must point to an `svc #0` instruction in unprivileged-accessible
+/// - `thunk` must point to an `svc {SVC_PROCESS_EXIT}` instruction in unprivileged-accessible
 ///   memory.
 /// - `stack_limit` must be the lowest permitted PSP value for the service.
 /// - `stack_top` must be an 8-byte aligned address at the top of RAM accessible
@@ -55,7 +55,7 @@ pub(crate) unsafe fn svc_call_unpriv(
     stack_limit: usize,
     stack_top: usize,
 ) -> usize {
-    use crate::spm_api::SVC_CALL_UNPRIV;
+    use crate::spm_api::SVC_START_PROCESS;
     use core::arch::asm;
 
     // Build a fake exception frame at (stack_top - 32).
@@ -91,14 +91,14 @@ pub(crate) unsafe fn svc_call_unpriv(
         );
     }
 
-    // Issue SVC_CALL_UNPRIV. The handler returns via PSP (service runs).
-    // When the service finishes -> thunk -> SVC_ELEVATE -> handler returns via
+    // Issue SVC_START_PROCESS. The handler returns via PSP (service runs).
+    // When the service finishes -> thunk -> SVC_PROCESS_EXIT -> handler returns via
     // MSP -> we land back here with the return value in R0.
     let ret: usize;
     unsafe {
         asm!(
             "svc {svc_num}",
-            svc_num = const SVC_CALL_UNPRIV,
+            svc_num = const SVC_START_PROCESS,
             lateout("r0") ret,
             lateout("r1") _,
             lateout("r2") _,

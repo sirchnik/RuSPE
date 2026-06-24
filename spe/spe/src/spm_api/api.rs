@@ -187,9 +187,9 @@ macro_rules! define_spm_api {
                 "ldr r2, [sp, #8]",
                 "ldr r3, [sp, #12]",
                 "add sp, sp, #32",
-                "svc {SVC_PSA_RETURN}",
+                "svc {SVC_PSA_CALL_RETURN}",
                 SVC_PSA_CALL = const $crate::spm_api::SVC_PSA_CALL,
-                SVC_PSA_RETURN = const $crate::spm_api::SVC_PSA_RETURN,
+                SVC_PSA_CALL_RETURN = const $crate::spm_api::SVC_PSA_CALL_RETURN,
                 handle_svc = sym handle_svc,
             )
         }

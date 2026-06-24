@@ -31,13 +31,16 @@ unsafe extern "C" {
 }
 
 /// Minimal thunk placed in service flash. When the service function returns,
-/// it branches here via LR. The `svc #0` traps back to the SPM's SVC handler
+/// it branches here via LR. The `svc` traps back to the SPM's SVC handler
 /// which re-elevates to privileged mode and returns to the original caller.
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn svc_return() {
     use core::arch::naked_asm;
-    naked_asm!("svc #0");
+    naked_asm!(
+        "svc {SVC_PROCESS_EXIT}",
+        SVC_PROCESS_EXIT = const spe::spm_api::SVC_PROCESS_EXIT,
+    );
 }
 
 #[cfg_attr(
