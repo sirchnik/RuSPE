@@ -9,7 +9,9 @@ use psa_interface::{
     types::{CtrlParam, FFInVec, FFOutVec, PsaStatus, ServiceHandle},
 };
 
-use crate::spm_api::{RawVec, SpmApi, prepare_outvec_raw, prepare_invec_raw, finish_outvec_raw, finish_invec_raw};
+use crate::spm_api::{
+    RawVec, SpmApi, finish_invec_raw, finish_outvec_raw, prepare_invec_raw, prepare_outvec_raw,
+};
 pub const SVC_ELEVATE: u8 = 0;
 pub const SVC_PSA_MAP_VEC: u8 = 1;
 pub const SVC_PSA_UNMAP_VEC: u8 = 2;

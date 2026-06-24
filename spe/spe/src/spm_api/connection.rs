@@ -444,4 +444,3 @@ pub fn finish_outvec_raw<S: SpmCall>(
         Err(_) => Err(StatusCode::CommunicationFailure),
     }
 }
-

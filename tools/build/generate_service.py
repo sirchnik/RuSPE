@@ -80,8 +80,8 @@ pub unsafe extern \"C\" fn svc_return() {{
 )]
 #[cfg_attr(all(target_arch = \"arm\", target_os = \"none\"), used)]
 pub static BASE_VECTORS: FlashProcessVectors = FlashProcessVectors {{
-    init,
-    call,
+    init_entry: init,
+    call_entry: call,
     rom_start: unsafe {{ &_rom_start as *const _ as *const u8 }},
     rom_limit: unsafe {{ &_rom_limit as *const _ as *const u8 }},
     ram_start: unsafe {{ &_ram_start as *const _ as *const u8 }},

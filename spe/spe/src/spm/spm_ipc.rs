@@ -18,8 +18,8 @@ const EXCEPTION_FRAME_WORDS: usize = 8;
 
 #[repr(C)]
 pub struct FlashProcessVectors {
-    pub init: unsafe extern "C" fn(),
-    pub call: unsafe extern "C" fn(*const PsaMsg) -> PsaStatus,
+    pub init_entry: unsafe extern "C" fn(),
+    pub call_entry: unsafe extern "C" fn(*const PsaMsg) -> PsaStatus,
     /// Start of the service ROM window containing executable code and rodata.
     pub rom_start: *const u8,
     /// Exclusive end of the service ROM window.
@@ -60,13 +60,13 @@ pub unsafe trait IpcProcess: Sync {
     ///
     /// # Safety
     /// For flash processes, the entry point vectors must be valid.
-    unsafe fn init<S: SpmCall>(&self, platform: &dyn IpcProcessPlatform, spm: &S);
+    unsafe fn init_process<S: SpmCall>(&self, platform: &dyn IpcProcessPlatform, spm: &S);
 
     /// Dispatch a service call. The connection is already on the SPM stack.
     ///
     /// # Safety
     /// For flash processes, the entry point vectors must be valid.
-    unsafe fn call<S: SpmCall>(
+    unsafe fn call_process<S: SpmCall>(
         &self,
         platform: &dyn IpcProcessPlatform,
         spm: &S,
@@ -155,11 +155,11 @@ unsafe impl IpcProcess for FlashProcess {
         Some(self.vectors)
     }
 
-    unsafe fn init<S: SpmCall>(&self, _platform: &dyn IpcProcessPlatform, _spm: &S) {
+    unsafe fn init_process<S: SpmCall>(&self, _platform: &dyn IpcProcessPlatform, _spm: &S) {
         let vectors = unsafe { &*self.vectors };
         unsafe {
             svc_call_unpriv(
-                vectors.init as usize,
+                vectors.init_entry as usize,
                 0,
                 vectors.svc_return as usize,
                 vectors.stack_limit as usize,
@@ -168,7 +168,7 @@ unsafe impl IpcProcess for FlashProcess {
         }
     }
 
-    unsafe fn call<S: SpmCall>(
+    unsafe fn call_process<S: SpmCall>(
         &self,
         _platform: &dyn IpcProcessPlatform,
         _spm: &S,
@@ -178,7 +178,7 @@ unsafe impl IpcProcess for FlashProcess {
         let (staged_msg, stack_top) = Self::stage_msg_mailbox(vectors, msg);
         let status = unsafe {
             svc_call_unpriv(
-                vectors.call as usize,
+                vectors.call_entry as usize,
                 staged_msg as usize,
                 vectors.svc_return as usize,
                 vectors.stack_limit as usize,
@@ -231,11 +231,11 @@ unsafe impl<A: crate::spm_api::SpmApi + Sync + 'static> IpcProcess for EmbeddedP
         None
     }
 
-    unsafe fn init<S: SpmCall>(&self, _platform: &dyn IpcProcessPlatform, _spm: &S) {
+    unsafe fn init_process<S: SpmCall>(&self, _platform: &dyn IpcProcessPlatform, _spm: &S) {
         // Embedded services are fully initialized at construction time.
     }
 
-    unsafe fn call<S: SpmCall>(
+    unsafe fn call_process<S: SpmCall>(
         &self,
         _platform: &dyn IpcProcessPlatform,
         _spm: &S,
@@ -457,12 +457,13 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmCall
         if should_init {
             // # Safety:
             // Process init is safe per the IpcProcess safety contract.
-            unsafe { self.processes[process_index].init(self.platform, self) };
+            unsafe { self.processes[process_index].init_process(self.platform, self) };
         }
 
         // # Safety:
         // Process call is safe per the IpcProcess safety contract.
-        let result = unsafe { self.processes[process_index].call(self.platform, self, msg) };
+        let result =
+            unsafe { self.processes[process_index].call_process(self.platform, self, msg) };
 
         // Restore MPU of previous process, if any
         let prev_process_index = self
