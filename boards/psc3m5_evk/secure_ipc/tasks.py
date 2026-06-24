@@ -69,7 +69,7 @@ SERVICES: tuple[ServiceBuilder, ...] = (
 )
 
 def build_service_hex(ctx: Context, service_build: ServiceBuilder, debug: bool) -> BuiltService:
-    service_elf, env = service_build(ctx, debug=debug)
+    service_elf, env = service_build(ctx, debug)
     return BuiltService(
         elf_path=service_elf,
         hex_path=elf_to_hex(

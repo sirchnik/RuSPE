@@ -4,14 +4,24 @@
 
 from __future__ import annotations
 
-import shutil
+import sys
 from pathlib import Path
 
+# Add repo root to sys.path to allow running from current directory or anywhere
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from tools.build.invoke_support import BuildError
-from tools.build.service_catalog import ServiceSpec
+from tools.generate.service_catalog import ServiceSpec
+
 
 def _render_main_rs(spec: ServiceSpec) -> str:
-    if not spec.generated_import or not spec.generated_service_type or not spec.generated_service_ctor:
+    if (
+        not spec.generated_import
+        or not spec.generated_service_type
+        or not spec.generated_service_ctor
+    ):
         raise BuildError(
             f"Service '{spec.name}' is missing required generation fields."
         )
@@ -24,14 +34,15 @@ def _render_main_rs(spec: ServiceSpec) -> str:
 // SPDX-License-Identifier: MIT
 
 {spec.generated_import}
-use spe::{{into_psa_status, psa::psa_call::PsaMsg, service::Service, spm::FlashProcessVectors}};
+use psa_interface::status::into_psa_status;
+use spe::{{service::Service, spm::FlashProcessVectors, spm_api::PsaMsg}};
 
 static SERVICE: {spec.generated_service_type} = {spec.generated_service_ctor};
 
 #[unsafe(no_mangle)]
 pub unsafe extern \"C\" fn call(msg: *const PsaMsg) -> psa_interface::types::PsaStatus {{
     let msg = unsafe {{ &*msg }};
-    into_psa_status(SERVICE.call(*msg))
+    into_psa_status(SERVICE.call(*msg, &spe::spm_api::SvcApi))
 }}
 
 // External linker symbols for memory initialization
@@ -111,14 +122,14 @@ edition.workspace = true
 build = \"./build.rs\"
 
 [dependencies]
-ruspe_psc3 = {{ package = \"psc3\", path = \"../../../chips/psc3\" }}
-spe = {{ path = \"../../../spe/spe\" }}
-spe_services = {{ path = \"../../../spe/spe_services\" }}
-psa_interface = {{ path = \"../../../spe/psa_interface\" }}
-helpers = {{ path = \"../../../libraries/helpers\" }}
+ruspe_psc3 = {{ package = \"psc3\", path = \"../../../../chips/psc3\" }}
+spe = {{ path = \"../../../../spe/spe\", features = [\"spm-ipc\"] }}
+spe_services = {{ path = \"../../../../spe/spe_services\" }}
+psa_interface = {{ path = \"../../../../spe/psa_interface\" }}
+helpers = {{ path = \"../../../../libraries/helpers\" }}
 
 [build-dependencies]
-tock_build_scripts = {{ path = \"../../../tock/boards/build_scripts\" }}
+tock_build_scripts = {{ path = \"../../../../tock/boards/build_scripts\" }}
 
 [lints]
 workspace = true
@@ -193,7 +204,9 @@ target = \"thumbv8m.main-none-eabi\"
 """
 
 
-def generate_service_crate(repo_root: Path, spec: ServiceSpec, force: bool = False) -> Path:
+def generate_service_crate(
+    repo_root: Path, spec: ServiceSpec, force: bool = False
+) -> Path:
     if spec.mode != "generated":
         raise BuildError(
             f"Service '{spec.name}' is configured as '{spec.mode}' and cannot be generated."
@@ -203,9 +216,10 @@ def generate_service_crate(repo_root: Path, spec: ServiceSpec, force: bool = Fal
     if service_dir.exists():
         if not force:
             raise BuildError(
-                f"Service directory already exists: {service_dir}. Pass force=True to replace it."
+                f"Service directory already exists: {service_dir}. Pass force=True to overwrite generated files."
             )
-        shutil.rmtree(service_dir)
+    else:
+        service_dir.mkdir(parents=True, exist_ok=True)
 
     (service_dir / "src").mkdir(parents=True, exist_ok=True)
     (service_dir / ".cargo").mkdir(parents=True, exist_ok=True)
@@ -216,6 +230,39 @@ def generate_service_crate(repo_root: Path, spec: ServiceSpec, force: bool = Fal
         _render_cargo_config_toml(),
         encoding="utf-8",
     )
-    (service_dir / "src" / "main.rs").write_text(_render_main_rs(spec), encoding="utf-8")
+    (service_dir / "src" / "main.rs").write_text(
+        _render_main_rs(spec), encoding="utf-8"
+    )
 
     return service_dir
+
+
+if __name__ == "__main__":
+    import argparse
+    from tools.generate.service_catalog import CATALOG
+
+    parser = argparse.ArgumentParser(
+        description="Generate a service from the service catalog."
+    )
+    parser.add_argument(
+        "--service",
+        required=True,
+        choices=list(CATALOG.keys()),
+        help="Name of the service to generate",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite generated files if they already exist",
+    )
+
+    args = parser.parse_args()
+    spec = CATALOG[args.service]
+
+    # repo_root is implicitly spec.service_dir.parents[4] based on structure
+    # but generate_service_crate doesn't actually use repo_root, it just takes it.
+    repo_root = spec.service_dir.parents[4]
+
+    print(f"Generating service '{spec.name}' at {spec.service_dir}")
+    generate_service_crate(repo_root, spec, force=args.force)
+    print("Done!")

@@ -48,6 +48,5 @@ INCLUDE ../../../shared/linker/service_layout.ld
     fs::write(&layout_path, layout_content).expect("Failed to write generated layout.ld");
 
     tock_build::add_board_dir_to_linker_search_path();
-    // Set the generated linker script path
     tock_build::set_and_track_linker_script(layout_path.to_string_lossy().to_string());
 }

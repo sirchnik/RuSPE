@@ -11,7 +11,7 @@ from functools import wraps
 from pathlib import Path
 from shutil import which
 
-from typing import TypedDict
+from typing import TypedDict, Any
 
 from invoke.context import Context
 from invoke.exceptions import Exit
@@ -197,7 +197,7 @@ def run_command(
 
     stdin = None if in_stream else subprocess.DEVNULL
 
-    kwargs: dict[str, any] = {
+    kwargs: dict[str, Any] = {
         "cwd": str(cwd) if cwd is not None else None,
         "env": merged_env,
         "check": True,

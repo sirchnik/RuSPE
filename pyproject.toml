@@ -7,17 +7,25 @@ name = "RuSPE"
 description = "RuSPE Python dependencies."
 version = "0.0.1"
 
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 
 dependencies = [
-    "invoke==3.0.3", # command support
-    "intelhex==2.3.0", # merging hex files like SPE and NSPE
+    "invoke==3.0.3",           # command support
+    "intelhex==2.3.0",         # merging hex files like SPE and NSPE
     "edgeprotecttools==1.6.1", # tool for provisioning Infineon devices (currently only psc3m5 here)
     "reuse>=6.2.0",
+    "ty>=0.0.53",
+    "ruff>=0.15.19",
 ]
 
 [tool.ruff]
+exclude = ["./tock"]
+
+[tool.ruff.lint]
 ignore = [
     # module level import not at top of file
     "E402", # used in tasks.py after setting up sys.path to relative root
 ]
+
+[tool.ty.src]
+exclude = ["./tock"]

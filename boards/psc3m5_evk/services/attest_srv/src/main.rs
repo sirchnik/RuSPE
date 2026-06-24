@@ -94,7 +94,6 @@ pub unsafe extern "C" fn svc_return() {
     all(target_arch = "arm", target_os = "none"),
     unsafe(link_section = ".vectors")
 )]
-// used Ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static BASE_VECTORS: FlashProcessVectors = FlashProcessVectors {
     init_entry: init,
