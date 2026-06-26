@@ -9,11 +9,11 @@ use core::panic::PanicInfo;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::io_write::IoWrite;
 
-use musca_b1::uart::Uart;
+use musca_b1::uart::UartMin;
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {
-    uart: OptionalCell<&'static Uart<'static>>,
+    uart: OptionalCell<&'static UartMin>,
 }
 
 /// Global static for debug writer
@@ -23,7 +23,7 @@ pub static mut WRITER: Writer = Writer {
 
 impl Writer {
     /// Set the Uart peripheral to use
-    pub fn set_uart(&self, uart: &'static Uart) {
+    pub fn set_uart(&self, uart: &'static UartMin) {
         self.uart.set(uart);
     }
 }
@@ -59,4 +59,11 @@ pub fn panic_fmt(pi: &PanicInfo) -> ! {
     let _ = writer.write_fmt(format_args!("\r\n{}\r\n", pi));
 
     loop {}
+}
+
+pub fn debugln(args: core::fmt::Arguments) {
+    use core::ptr::addr_of_mut;
+    let writer = unsafe { &mut *addr_of_mut!(WRITER) };
+
+    writer.write_fmt(args).unwrap();
 }

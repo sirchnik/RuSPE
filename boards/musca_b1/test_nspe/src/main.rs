@@ -10,8 +10,6 @@
 
 use core::ptr::addr_of_mut;
 
-use musca_b1::chip::MuscaB1DefaultPeripherals;
-use musca_b1::init;
 #[allow(unused)]
 use musca_b1::{BASE_VECTORS, IRQS};
 
@@ -51,15 +49,29 @@ pub unsafe fn main() {
 
     cortexm33::support::set_msplim(core::ptr::addr_of!(_sstack) as u32);
 
-    unsafe { init() };
+    let serial = unsafe {
+        static_init!(
+            musca_b1::uart::UartMin,
+            musca_b1::uart::UartMin::new_uart0_nsec()
+        )
+    };
 
-    let peripherals =
-        unsafe { static_init!(MuscaB1DefaultPeripherals, MuscaB1DefaultPeripherals::new()) };
+    // Configure UART (assuming musca_b1 system clock is 50MHz, baud 115200)
+    serial.configure(
+        kernel::hil::uart::Parameters {
+            baud_rate: 115200,
+            width: kernel::hil::uart::Width::Eight,
+            parity: kernel::hil::uart::Parity::None,
+            stop_bits: kernel::hil::uart::StopBits::One,
+            hw_flow_control: false,
+        },
+        50_000_000,
+    );
 
-    peripherals.resolve_dependencies();
+    io::debugln(format_args!("Init NSPE done"));
 
     // Set the UART used for panic
-    unsafe { (*addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart0) };
+    unsafe { (*addr_of_mut!(io::WRITER)).set_uart(serial) };
 
     #[repr(align(32))]
     struct Aligned32<T>(T);

@@ -60,18 +60,6 @@ def _build_merged(
     else:
         raise ValueError(f"Unknown NSPE: {nspe}")
 
-    non_secure_bin = non_secure_elf.with_suffix(".bin")
-    objcopy = resolve_objcopy(ctx)
-    run_command(
-        [
-            str(objcopy),
-            "-O",
-            "binary",
-            str(non_secure_elf),
-            str(non_secure_bin),
-        ]
-    )
-
     merged_hex = merge_secure_non_secure_hex(
         ctx,
         SECURE_BOARD,
@@ -106,7 +94,7 @@ def _run_qemu(secure_elf: Path, non_secure_elf: Path, gdb_listen: bool = False):
         "-kernel",
         str(secure_elf),
         "-device",
-        f"loader,file={non_secure_elf.with_suffix('.bin')},addr=0x10101000,force-raw=on",
+        f"loader,file={non_secure_elf}",
     ]
     if gdb_listen:
         cmd.extend(["-S", "-gdb", "tcp::1234"])
@@ -179,7 +167,7 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
                 "-serial",
                 "telnet:127.0.0.1:4321,server,nowait",
                 "-device",
-                f"loader,file=target/thumbv8m.main-none-eabi/{profile}/musca_b1_test_nspe.bin,addr=0x10101000,force-raw=on",
+                f"loader,file=target/thumbv8m.main-none-eabi/{profile}/musca_b1_test_nspe",
             ],
             "preLaunchCommands": [
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/musca_b1_test_nspe",
