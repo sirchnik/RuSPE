@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 #![cfg_attr(
-    all(target_arch = "arm", target_os = "none"),
+    all(target_arch = "arm", target_os = "none", feature = "veneers"),
     feature(cmse_nonsecure_entry)
 )]
 #![no_std]
@@ -18,8 +18,7 @@ pub mod service;
 pub mod spm;
 pub mod spm_api;
 pub mod svc_handler;
-#[cfg(feature = "veneers")]
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(all(target_arch = "arm", target_os = "none", feature = "veneers"))]
 pub mod veneers;
 
 pub use psa_interface::status::{StatusCode, into_psa_status};
