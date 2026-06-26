@@ -4,7 +4,7 @@
 
 use core::cell::Cell;
 use core::{fmt::Write, panic::PanicInfo};
-use tock_musca_b1::uart;
+use ruspe_musca_b1::uart;
 
 pub struct Writer {
     serial: Cell<Option<&'static uart::UartMin>>,
@@ -18,13 +18,11 @@ impl Writer {
 
 impl core::fmt::Write for Writer {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.serial
-            .get()
-            .map(|serial| {
-                for b in s.bytes() {
-                    serial.send_byte(b);
-                }
-            });
+        self.serial.get().map(|serial| {
+            for b in s.bytes() {
+                serial.send_byte(b);
+            }
+        });
         Ok(())
     }
 }

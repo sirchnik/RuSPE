@@ -6,5 +6,6 @@
 
 pub mod platform;
 pub mod services;
+pub mod uart;
 
 pub use platform::MuscaB1SecPlatform;

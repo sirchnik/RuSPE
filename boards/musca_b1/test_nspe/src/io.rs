@@ -9,7 +9,7 @@ use core::panic::PanicInfo;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::io_write::IoWrite;
 
-use musca_b1::uart::UartMin;
+use ruspe_musca_b1::uart::UartMin;
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {

@@ -18,6 +18,7 @@ pub mod service;
 pub mod spm;
 pub mod spm_api;
 pub mod svc_handler;
+#[cfg(feature = "veneers")]
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 pub mod veneers;
 
