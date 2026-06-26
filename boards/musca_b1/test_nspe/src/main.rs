@@ -68,11 +68,10 @@ pub unsafe fn main() {
         50_000_000,
     );
 
-    io::debugln(format_args!("Init NSPE done"));
-
     // Set the UART used for panic
     unsafe { (*addr_of_mut!(io::WRITER)).set_uart(serial) };
 
+    io::debugln(format_args!("Init NSPE done"));
     #[repr(align(32))]
     struct Aligned32<T>(T);
 

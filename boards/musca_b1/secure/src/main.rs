@@ -69,7 +69,7 @@ pub unsafe fn main() {
     sau.set_region(
         0,
         cortexm33::sau::SauRegion {
-            base_address: 0x0010_1000,
+            base_address: 0x0010_2000,
             limit_address: 0x0027_FFFF, // Covers rom and prog
             attribute: cortexm33::sau::SauRegionAttribute::NonSecure,
         },
@@ -79,7 +79,7 @@ pub unsafe fn main() {
         1,
         cortexm33::sau::SauRegion {
             base_address: 0x1010_0000,
-            limit_address: 0x1010_0FFF,
+            limit_address: 0x1010_1FFF,
             attribute: cortexm33::sau::SauRegionAttribute::NonSecureCallable,
         },
     )
@@ -109,9 +109,12 @@ pub unsafe fn main() {
     // Allows SAU to define the code region as a NSC
     spcb::enable_idau_nsc_code();
 
+    // Allow non-secure access to UART0
+    spcb::enable_uart0_ns();
+
     // QSPI MPC
     let mut eflash_mpc = mpc::Mpc::new(0x52000000, 0x00000000);
-    eflash_mpc.set_non_secure(0x00100000, 0x003F7FFF);
+    eflash_mpc.set_non_secure(0x00102000, 0x003F7FFF);
 
     // External SRAM MPC (QEMU musca-b1 mpc2)
     let mut ext_sram_mpc = mpc::Mpc::new(0x52100000, 0x20000000);
@@ -131,7 +134,7 @@ pub unsafe fn main() {
 
     io::debugln(format_args!("Init SPE done, jumping to non-secure"));
 
-    const NONSECURE_FLASH_START: u32 = 0x0010_1000;
+    const NONSECURE_FLASH_START: u32 = 0x0010_2000;
 
     unsafe {
         let nonsecure_start_flash = NONSECURE_FLASH_START as *const [u32; 2];
