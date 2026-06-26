@@ -118,8 +118,8 @@ pub unsafe fn main() {
     // Allows SAU to define the code region as a NSC
     spcb::enable_idau_nsc_code();
 
-    // Allow non-secure access to UART0
-    spcb::enable_uart0_ns();
+    // Allow non-secure access to UART1
+    spcb::enable_uart1_ns();
 
     // QSPI MPC
     let mut eflash_mpc = mpc::Mpc::new(0x52000000, 0x00000000);
