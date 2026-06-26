@@ -35,6 +35,11 @@ from boards.psc3m5_evk.tock.kernel import build as tock_kernel_build
 
 BOARD_DIR = Path(__file__).resolve().parent
 
+SVD_INFO = (
+    "psc3.svd",
+    "https://raw.githubusercontent.com/Infineon/mtb-pdl-cat1/refs/heads/master/devices/COMPONENT_CAT1B/svd/psc3.svd",
+)
+
 BOARD = BoardConfig(
     board_dir=BOARD_DIR,
     repo_root=REPO_ROOT,

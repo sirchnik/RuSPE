@@ -31,6 +31,11 @@ from tools.build.board import (
 
 from boards.musca_b1.test_nspe import build as test_nspe_build
 
+SVD_INFO = (
+    "musca_b1.svd",
+    "https://raw.githubusercontent.com/driveraid/muscab1-pac/refs/heads/master/svd/Musca_B1.svd",
+)
+
 BOARD_DIR = Path(__file__).resolve().parent
 
 SECURE_BOARD = BoardConfig(
@@ -150,6 +155,7 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
         "cwd": "${workspaceFolder}",
         "cpu": QEMU_CPU,
         "machine": QEMU_MACHINE,
+        "svdFile": "${workspaceFolder}/.local/svds/musca_b1.svd",
     }
 
     return [
