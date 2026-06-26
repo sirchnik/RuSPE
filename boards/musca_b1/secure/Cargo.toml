@@ -18,6 +18,8 @@ spe_services = { path = "../../../spe/spe_services" }
 psa_interface = { path = "../../../spe/psa_interface" }
 helpers = { path = "../../../libraries/helpers" }
 kernel = { path = "../../../tock/kernel" }
+bitfield = "0.14.0"
+volatile-register = "0.2.2"
 
 [build-dependencies]
 tock_build_scripts = { path = "../../../tock/boards/build_scripts" }

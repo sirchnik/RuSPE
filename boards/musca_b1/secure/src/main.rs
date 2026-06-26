@@ -14,6 +14,8 @@ use helpers::static_init;
 use tock_musca_b1::uart;
 
 mod io;
+mod mpc;
+mod spcb;
 mod startup;
 
 #[unsafe(no_mangle)]
@@ -77,7 +79,7 @@ pub unsafe fn main() {
         1,
         cortexm33::sau::SauRegion {
             base_address: 0x1010_0000,
-            limit_address: 0x1010_00FF,
+            limit_address: 0x1010_0FFF,
             attribute: cortexm33::sau::SauRegionAttribute::NonSecureCallable,
         },
     )
@@ -104,9 +106,32 @@ pub unsafe fn main() {
 
     spe::psa::psa_api::set_spm(spm);
 
+    // Allows SAU to define the code region as a NSC
+    spcb::enable_idau_nsc_code();
+
+    // QSPI MPC
+    let mut eflash_mpc = mpc::Mpc::new(0x52000000, 0x00000000);
+    eflash_mpc.set_non_secure(0x00100000, 0x003F7FFF);
+
+    // External SRAM MPC (QEMU musca-b1 mpc2)
+    let mut ext_sram_mpc = mpc::Mpc::new(0x52100000, 0x20000000);
+    ext_sram_mpc.set_non_secure(0x20030000, 0x2007FFFF);
+
+    // Internal SRAM Bank 1 MPC (0x20020000 - 0x2003FFFF)
+    let mut sram1_mpc = mpc::Mpc::new(0x50084000, 0x20020000);
+    sram1_mpc.set_non_secure(0x20030000, 0x2003FFFF);
+
+    // Internal SRAM Bank 2 MPC (0x20040000 - 0x2005FFFF)
+    let mut sram2_mpc = mpc::Mpc::new(0x50085000, 0x20040000);
+    sram2_mpc.set_non_secure(0x20040000, 0x2005FFFF);
+
+    // Internal SRAM Bank 3 MPC (0x20060000 - 0x2007FFFF)
+    let mut sram3_mpc = mpc::Mpc::new(0x50086000, 0x20060000);
+    sram3_mpc.set_non_secure(0x20060000, 0x2007FFFF);
+
     io::debugln(format_args!("Init SPE done, jumping to non-secure"));
 
-    const NONSECURE_FLASH_START: u32 = 0x1010_1000;
+    const NONSECURE_FLASH_START: u32 = 0x0010_1000;
 
     unsafe {
         let nonsecure_start_flash = NONSECURE_FLASH_START as *const [u32; 2];
