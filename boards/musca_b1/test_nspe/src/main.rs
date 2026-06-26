@@ -51,7 +51,7 @@ pub unsafe fn main() {
 
     cortexm33::support::set_msplim(core::ptr::addr_of!(_sstack) as u32);
 
-    let serial = unsafe { static_init!(uart::UartMin, uart::UartMin::new_uart0_nsec()) };
+    let serial = unsafe { static_init!(uart::UartMin, uart::UartMin::new_uart1_nsec()) };
 
     // Configure UART (assuming musca_b1 system clock is 50MHz, baud 115200)
     serial.configure(

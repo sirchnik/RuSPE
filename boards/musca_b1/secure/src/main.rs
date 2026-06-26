@@ -24,7 +24,7 @@ pub unsafe fn main() {
         cortexm33::nvic::enable_all();
     }
 
-    let serial = unsafe { static_init!(uart::UartMin, uart::UartMin::new_uart1_sec()) };
+    let serial = unsafe { static_init!(uart::UartMin, uart::UartMin::new_uart0_sec()) };
 
     // Configure UART (assuming musca_b1 system clock is 50MHz, baud 115200)
     serial.configure(
@@ -98,6 +98,15 @@ pub unsafe fn main() {
         cortexm33::sau::SauRegion {
             base_address: 0x4000_0000,
             limit_address: 0x4FFF_FFFF,
+            attribute: cortexm33::sau::SauRegionAttribute::NonSecure,
+        },
+    )
+    .unwrap();
+    sau.set_region(
+        4,
+        cortexm33::sau::SauRegion {
+            base_address: 0x4010_5000,
+            limit_address: 0x4010_5FFF,
             attribute: cortexm33::sau::SauRegionAttribute::NonSecure,
         },
     )
