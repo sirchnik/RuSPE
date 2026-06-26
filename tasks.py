@@ -23,6 +23,7 @@ from tools.build.invoke_support import (
 from boards.psc3m5_evk.secure.tasks import (
     vscode_build_targets as psc3_build_targets,
     vscode_launch_targets as psc3_launch_targets,
+    SVD_INFO as psc3_svd,
 )
 from boards.psc3m5_evk.secure_ipc.tasks import (
     vscode_build_targets as psc3_ipc_build_targets,
@@ -31,6 +32,7 @@ from boards.psc3m5_evk.secure_ipc.tasks import (
 from boards.musca_b1.secure.tasks import (
     vscode_build_targets as musca_build_targets,
     vscode_launch_targets as musca_launch_targets,
+    SVD_INFO as musca_svd,
 )
 
 all_build_targets: list[Callable[[bool], list[VscodeBuildTarget]]] = [
@@ -44,18 +46,21 @@ all_launch_targets: list[Callable[[bool], list[VscodeLaunchTarget]]] = [
     musca_launch_targets,
 ]
 
+all_svds = [
+    psc3_svd,
+    musca_svd,
+]
+
 
 REPO_ROOT = Path(__file__).resolve().parent
 VSCODE_DIR = REPO_ROOT / ".vscode"
 LOCAL_DIR = REPO_ROOT / ".local"
 SVD_DIR = LOCAL_DIR / "svds"
-PSC3_SVD = SVD_DIR / "psc3.svd"
 TASKS_JSON = VSCODE_DIR / "tasks.json"
 LAUNCH_JSON = VSCODE_DIR / "launch.json"
 SETTINGS_TEMPLATE_JSON = VSCODE_DIR / "settings.template.json"
 SETTINGS_JSON = VSCODE_DIR / "settings.json"
 
-PSC3_SVD_URL = "https://raw.githubusercontent.com/Infineon/mtb-pdl-cat1/refs/heads/master/devices/COMPONENT_CAT1B/svd/psc3.svd"
 TASKS_FILE_NAME = "tasks.py"
 
 # Crates that only compile for the embedded target, not on the host.
@@ -138,8 +143,10 @@ def vscode(ctx: Context, force=False, release_debug_config=False):
             )
         copy2(SETTINGS_TEMPLATE_JSON, SETTINGS_JSON)
 
-    if not PSC3_SVD.exists() or force:
-        _download(PSC3_SVD_URL, PSC3_SVD)
+    for filename, url in all_svds:
+        svd_path = SVD_DIR / filename
+        if not svd_path.exists() or force:
+            _download(url, svd_path)
     _write_json(
         TASKS_JSON,
         _tasks_conf(_tasks_targets())
