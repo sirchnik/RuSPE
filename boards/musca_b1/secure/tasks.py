@@ -26,6 +26,7 @@ from tools.build.board import (
     Manufacturer,
     cargo_build,
     merge_secure_non_secure_hex,
+    resolve_objcopy,
 )
 
 from boards.musca_b1.test_nspe import build as test_nspe_build
@@ -48,40 +49,28 @@ NSPE_HELP = "The Non-Secure Processing Environment to build (test or tock)."
 APP_HELP = "Path to a TBF application image (only for tock NSPE)."
 
 
-def _generate_stub_elf(target_dir: Path) -> Path:
-    stub_elf = target_dir / "stub.elf"
-    if not stub_elf.exists():
-        stub_rs = target_dir / "stub.rs"
-        stub_rs.write_text(
-            "#![no_std]\n#![no_main]\n"
-            "#[panic_handler]\nfn panic(_: &core::panic::PanicInfo) -> ! { loop {} }\n"
-            '#[no_mangle]\npub extern "C" fn _start() -> ! { loop {} }\n'
-        )
-        run_command(
-            [
-                "rustc",
-                "--target",
-                "thumbv8m.main-none-eabi",
-                str(stub_rs),
-                "-o",
-                str(stub_elf),
-            ]
-        )
-        stub_rs.unlink()
-    return stub_elf
-
-
 def _build_merged(
     ctx: Context, nspe: str, app: str | None, debug: bool
 ) -> tuple[Path, Path, Path]:
     secure_elf = cargo_build(ctx, SECURE_BOARD, debug)
-    _generate_stub_elf(secure_elf.parent)
 
     if nspe == "test":
         non_secure_elf = test_nspe_build.build(ctx, debug=debug)
         nspe_board = test_nspe_build.NON_SECURE_BOARD
     else:
         raise ValueError(f"Unknown NSPE: {nspe}")
+
+    non_secure_bin = non_secure_elf.with_suffix(".bin")
+    objcopy = resolve_objcopy(ctx)
+    run_command(
+        [
+            str(objcopy),
+            "-O",
+            "binary",
+            str(non_secure_elf),
+            str(non_secure_bin),
+        ]
+    )
 
     merged_hex = merge_secure_non_secure_hex(
         ctx,
@@ -117,7 +106,7 @@ def _run_qemu(secure_elf: Path, non_secure_elf: Path, gdb_listen: bool = False):
         "-kernel",
         str(secure_elf),
         "-device",
-        f"loader,file={non_secure_elf}",
+        f"loader,file={non_secure_elf.with_suffix('.bin')},addr=0x10101000,force-raw=on",
     ]
     if gdb_listen:
         cmd.extend(["-S", "-gdb", "tcp::1234"])
@@ -179,7 +168,7 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
         {
             "name": f"Musca-B1 Test {profile_short}",
             **base_conf,
-            "executable": f"target/thumbv8m.main-none-eabi/{profile}/stub.elf",
+            "executable": f"target/thumbv8m.main-none-eabi/{profile}/musca_b1_secure",
             "serverArgs": [
                 # "-serial",
                 # "stdio",
@@ -190,10 +179,9 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
                 "-serial",
                 "telnet:127.0.0.1:4321,server,nowait",
                 "-device",
-                f"loader,file=target/thumbv8m.main-none-eabi/{profile}/musca_b1_test_nspe_merged.hex,addr=0x10000000",
+                f"loader,file=target/thumbv8m.main-none-eabi/{profile}/musca_b1_test_nspe.bin,addr=0x10101000,force-raw=on",
             ],
             "preLaunchCommands": [
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/musca_b1_secure",
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/musca_b1_test_nspe",
             ],
             "preLaunchTask": f"build{profile_short_snake}.musca_b1_test",
