@@ -70,25 +70,28 @@ impl Mpc {
             panic!("Invalid address range.");
         }
         // Base address should be at the beginning of a block.
-        if base_address % (self.block_size * 32) != 0 {
-            panic!("Base address not at the beginning of an index.");
+        if base_address % self.block_size != 0 {
+            panic!("Base address not at the beginning of a block: base_address={:#X}, block_size={:#X}", base_address, self.block_size);
         }
         // Limit address should be
-        if (limit_address + 1) % (self.block_size * 32) != 0 {
-            panic!("Limit address not at the end of an index.");
+        if (limit_address + 1) % self.block_size != 0 {
+            panic!("Limit address not at the end of a block: limit_address={:#X}, block_size={:#X}", limit_address, self.block_size);
         }
         let start_block = (base_address - self.memory_base_address) / self.block_size;
         let end_block = (limit_address + 1 - self.memory_base_address) / self.block_size;
         let mut current_idx = start_block / 32;
-        let mut current_lut = 0;
+        
         unsafe {
+            (*Mpc::ptr(self.mpc_address)).blk_idx.write(current_idx);
+            let mut current_lut = (*Mpc::ptr(self.mpc_address)).blk_lut.read();
             for block in start_block..end_block {
                 let idx = block / 32;
                 if idx != current_idx {
                     (*Mpc::ptr(self.mpc_address)).blk_idx.write(current_idx);
                     (*Mpc::ptr(self.mpc_address)).blk_lut.write(current_lut);
                     current_idx = idx;
-                    current_lut = 0;
+                    (*Mpc::ptr(self.mpc_address)).blk_idx.write(current_idx);
+                    current_lut = (*Mpc::ptr(self.mpc_address)).blk_lut.read();
                 }
                 current_lut |= 1 << (block % 32);
             }
