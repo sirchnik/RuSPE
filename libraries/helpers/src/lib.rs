@@ -5,3 +5,4 @@
 // SPDX-License-Identifier: MIT
 
 pub mod static_init;
+pub mod static_ref;

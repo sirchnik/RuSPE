@@ -17,6 +17,7 @@ musca_b1 = { path = "../../../tock/chips/musca_b1" }
 psa_veneer_client = { path = "../../../spe/psa_veneer_client" }
 psa_interface = { path = "../../../spe/psa_interface" }
 helpers = { path = "../../../libraries/helpers" }
+ruspe_musca_b1 = { package = "musca_b1", path = "../../../chips/musca_b1" }
 
 [features]
 default = ["non_secure_tz"]

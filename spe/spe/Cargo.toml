@@ -25,5 +25,8 @@ cose = { path = "../../libraries/cose" }
 # For MPU
 kernel = { path = "../../tock/kernel" }
 
+[features]
+veneers = []
+
 [lints]
 workspace = true

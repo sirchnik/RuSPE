@@ -19,6 +19,8 @@ use psa_interface::{self, psa_api};
 
 use psa_veneer_client::{self, PsaVeneerClient};
 
+use ruspe_musca_b1::uart;
+
 mod io;
 
 // Allocate memory for the stack
@@ -49,20 +51,15 @@ pub unsafe fn main() {
 
     cortexm33::support::set_msplim(core::ptr::addr_of!(_sstack) as u32);
 
-    let serial = unsafe {
-        static_init!(
-            musca_b1::uart::UartMin,
-            musca_b1::uart::UartMin::new_uart0_nsec()
-        )
-    };
+    let serial = unsafe { static_init!(uart::UartMin, uart::UartMin::new_uart0_nsec()) };
 
     // Configure UART (assuming musca_b1 system clock is 50MHz, baud 115200)
     serial.configure(
-        kernel::hil::uart::Parameters {
+        uart::Parameters {
             baud_rate: 115200,
-            width: kernel::hil::uart::Width::Eight,
-            parity: kernel::hil::uart::Parity::None,
-            stop_bits: kernel::hil::uart::StopBits::One,
+            width: uart::Width::Eight,
+            parity: uart::Parity::None,
+            stop_bits: uart::StopBits::One,
             hw_flow_control: false,
         },
         50_000_000,

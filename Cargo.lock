@@ -551,9 +551,11 @@ name = "musca_b1"
 version = "0.1.0"
 dependencies = [
  "cortex_m",
+ "helpers",
  "psa_interface",
  "spe",
  "spe_services",
+ "tock-registers",
 ]
 
 [[package]]
@@ -589,6 +591,7 @@ dependencies = [
  "cortexm33",
  "helpers",
  "kernel",
+ "musca_b1 0.1.0",
  "musca_b1 0.2.3-dev",
  "psa_interface",
  "psa_veneer_client",

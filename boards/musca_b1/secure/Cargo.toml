@@ -13,7 +13,7 @@ build = "./build.rs"
 cortexm33 = { path = "../../../tock/arch/cortex-m33" }
 tock_musca_b1 = { package = "musca_b1", path = "../../../tock/chips/musca_b1", default-features = false }
 ruspe_musca_b1 = { package = "musca_b1", path = "../../../chips/musca_b1" }
-spe = { path = "../../../spe/spe" }
+spe = { path = "../../../spe/spe", features = ["veneers"] }
 spe_services = { path = "../../../spe/spe_services" }
 psa_interface = { path = "../../../spe/psa_interface" }
 helpers = { path = "../../../libraries/helpers" }

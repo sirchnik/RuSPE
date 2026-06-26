@@ -17,6 +17,7 @@ mod libs;
 pub mod psa;
 pub mod service;
 pub mod spm;
+#[cfg(feature = "veneers")]
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 pub mod veneers;
 

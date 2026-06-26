@@ -13,6 +13,9 @@ spe = { path = "../../spe/spe" }
 spe_services = { path = "../../spe/spe_services" }
 psa_interface = { path = "../../spe/psa_interface" }
 ruspe_cortexm = { package = "cortex_m", path = "../../libraries/cortex_m" }
+tock-registers = "0.10.1"
+helpers = { path = "../../libraries/helpers" }
+
 
 [lints]
 workspace = true
