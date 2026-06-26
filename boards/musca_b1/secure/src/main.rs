@@ -106,7 +106,7 @@ pub unsafe fn main() {
 
     io::debugln(format_args!("Init SPE done, jumping to non-secure"));
 
-    const NONSECURE_FLASH_START: u32 = 0x0010_1000;
+    const NONSECURE_FLASH_START: u32 = 0x1010_1000;
 
     unsafe {
         let nonsecure_start_flash = NONSECURE_FLASH_START as *const [u32; 2];
