@@ -14,8 +14,7 @@ cortexm33 = { path = "../../../tock/arch/cortex-m33" }
 kernel = { path = "../../../tock/kernel" }
 psc3 = { path = "../../../tock/chips/psc3" }
 
-psa_veneer_client = { path = "../../../spe/psa_veneer_client" }
-psa_interface = { path = "../../../spe/psa_interface" }
+shared_test_nspe = { path = "../../shared/test_nspe" }
 helpers = { path = "../../../libraries/helpers" }
 
 [features]

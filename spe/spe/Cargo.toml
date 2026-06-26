@@ -9,6 +9,7 @@ edition = "2024"
 
 [features]
 spm-ipc = []
+veneers = []
 
 [dependencies]
 minicbor = { version = "2.2.1", default-features = false }
@@ -28,8 +29,6 @@ cose = { path = "../../libraries/cose" }
 # For MPU
 kernel = { path = "../../tock/kernel" }
 
-[features]
-veneers = []
 
 [lints]
 workspace = true

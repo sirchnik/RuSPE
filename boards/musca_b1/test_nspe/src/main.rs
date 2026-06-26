@@ -4,20 +4,51 @@
 
 #![no_std]
 #![no_main]
-#![deny(missing_docs)]
 
 //! Tock kernel for the PSC3M5-EVK evaluation board.
 
 use core::ptr::addr_of_mut;
 
-#[allow(unused)]
-use musca_b1::{BASE_VECTORS, IRQS};
+use cortexm33::{CortexM33, CortexMVariant, initialize_ram_jump_to_main, unhandled_interrupt};
+
+unsafe extern "C" {
+    // _estack is not really a function, but it makes the types work
+    // You should never actually invoke it!!
+    fn _estack();
+}
+
+#[cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    unsafe(link_section = ".vectors")
+)]
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
+pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
+    _estack,
+    initialize_ram_jump_to_main,
+    unhandled_interrupt,           // NMI
+    CortexM33::HARD_FAULT_HANDLER, // Hard Fault
+    unhandled_interrupt,           // MemManage
+    unhandled_interrupt,           // BusFault
+    unhandled_interrupt,           // UsageFault
+    unhandled_interrupt,           // SecureFault
+    unhandled_interrupt,
+    unhandled_interrupt,
+    unhandled_interrupt,
+    CortexM33::SVC_HANDLER, // SVC
+    unhandled_interrupt,    // DebugMon
+    unhandled_interrupt,
+    unhandled_interrupt,        // PendSV
+    CortexM33::SYSTICK_HANDLER, // SysTick
+];
+
+#[cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    unsafe(link_section = ".irqs")
+)]
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
+pub static IRQS: [unsafe extern "C" fn(); 97] = [CortexM33::GENERIC_ISR; 97];
 
 use helpers::static_init;
-
-use psa_interface::{self, psa_api};
-
-use psa_veneer_client::{self, PsaVeneerClient};
 
 use ruspe_musca_b1::uart;
 
@@ -69,24 +100,11 @@ pub unsafe fn main() {
     unsafe { (*addr_of_mut!(io::WRITER)).set_uart(serial) };
 
     io::debugln(format_args!("Init NSPE done"));
-    #[repr(align(32))]
-    struct Aligned32<T>(T);
-
-    let challenge = Aligned32([0u8; 32]);
-    let mut token_buf = Aligned32([0u8; 512]);
-
-    psa_api::initial_attest_get_token::<PsaVeneerClient>(&challenge.0, &mut token_buf.0).unwrap();
-
-    use core::fmt::Write;
 
     let writer = unsafe { &mut *addr_of_mut!(io::WRITER) };
-    let _ = write!(writer, "\r\ntoken_buf: ");
+    shared_test_nspe::run_attestation_test(writer);
 
-    for b in token_buf.0 {
-        let _ = write!(writer, "{:02x}", b);
+    loop {
+        core::hint::spin_loop();
     }
-
-    let _ = write!(writer, "\r\n");
-
-    loop {}
 }

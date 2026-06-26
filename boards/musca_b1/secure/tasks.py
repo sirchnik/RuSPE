@@ -26,7 +26,6 @@ from tools.build.board import (
     Manufacturer,
     cargo_build,
     merge_secure_non_secure_hex,
-    resolve_objcopy,
 )
 
 from boards.musca_b1.test_nspe import build as test_nspe_build

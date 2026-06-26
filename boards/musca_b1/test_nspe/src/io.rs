@@ -7,7 +7,6 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::io_write::IoWrite;
 
 use ruspe_musca_b1::uart::UartMin;
 
@@ -36,17 +35,6 @@ impl Write for Writer {
             }
         });
         Ok(())
-    }
-}
-
-impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) -> usize {
-        self.uart.map(|uart| {
-            for b in buf {
-                uart.send_byte(*b);
-            }
-        });
-        buf.len()
     }
 }
 

@@ -18,7 +18,8 @@ impl Mpc {
                 ctrl
             });
         }
-        let memory_limit_address = memory_base_address + block_size * (block_index_max + 1) * 32 - 1;
+        let memory_limit_address =
+            memory_base_address + block_size * (block_index_max + 1) * 32 - 1;
         Mpc {
             mpc_address,
             memory_base_address,
@@ -71,16 +72,22 @@ impl Mpc {
         }
         // Base address should be at the beginning of a block.
         if base_address % self.block_size != 0 {
-            panic!("Base address not at the beginning of a block: base_address={:#X}, block_size={:#X}", base_address, self.block_size);
+            panic!(
+                "Base address not at the beginning of a block: base_address={:#X}, block_size={:#X}",
+                base_address, self.block_size
+            );
         }
         // Limit address should be
         if (limit_address + 1) % self.block_size != 0 {
-            panic!("Limit address not at the end of a block: limit_address={:#X}, block_size={:#X}", limit_address, self.block_size);
+            panic!(
+                "Limit address not at the end of a block: limit_address={:#X}, block_size={:#X}",
+                limit_address, self.block_size
+            );
         }
         let start_block = (base_address - self.memory_base_address) / self.block_size;
         let end_block = (limit_address + 1 - self.memory_base_address) / self.block_size;
         let mut current_idx = start_block / 32;
-        
+
         unsafe {
             (*Mpc::ptr(self.mpc_address)).blk_idx.write(current_idx);
             let mut current_lut = (*Mpc::ptr(self.mpc_address)).blk_lut.read();

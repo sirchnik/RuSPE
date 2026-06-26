@@ -6,6 +6,7 @@
 
 #![no_std]
 #![no_main]
+#![feature(cmse_nonsecure_entry)]
 #![feature(abi_cmse_nonsecure_call)]
 
 use core::ptr::addr_of_mut;
@@ -17,6 +18,13 @@ mod io;
 mod mpc;
 mod spcb;
 mod startup;
+
+#[allow(unexpected_cfgs)]
+pub mod global_spm_api {
+    spe::define_spm_api!(
+        spe::spm::SpmFn<ruspe_musca_b1::MuscaB1SecPlatform<InternalPsaClient, SfnApi>>
+    );
+}
 
 #[unsafe(no_mangle)]
 pub unsafe fn main() {
@@ -44,7 +52,7 @@ pub unsafe fn main() {
 
     let sec_platform = unsafe {
         static_init!(
-            ruspe_musca_b1::MuscaB1SecPlatform,
+            ruspe_musca_b1::MuscaB1SecPlatform<global_spm_api::InternalPsaClient, global_spm_api::SfnApi>,
             ruspe_musca_b1::MuscaB1SecPlatform {
                 initial_attestation: spe_services::attest::attest_service::AttestService::new(
                     ruspe_musca_b1::services::attest::MuscaB1AttestPlatform
@@ -54,13 +62,19 @@ pub unsafe fn main() {
                     0xf7, 0xea, 0x3b, 0xb8, 0x09, 0x3b, 0xe9, 0xb1, 0x5b, 0xc4, 0xbd, 0x4a, 0x54,
                     0x95, 0x3c, 0xd3, 0x31, 0xce, 0x1b
                 ]),
+                api: global_spm_api::SfnApi,
             }
         )
     };
 
     let spm = unsafe {
         static_init!(
-            spe::spm::SpmFn<ruspe_musca_b1::MuscaB1SecPlatform>,
+            spe::spm::SpmFn<
+                ruspe_musca_b1::MuscaB1SecPlatform<
+                    global_spm_api::InternalPsaClient,
+                    global_spm_api::SfnApi,
+                >,
+            >,
             spe::spm::SpmFn::new(sec_platform)
         )
     };
@@ -113,7 +127,7 @@ pub unsafe fn main() {
     .unwrap();
     sau.enable();
 
-    spe::psa::psa_api::set_spm(spm);
+    let _ = global_spm_api::SPM.try_set(spm);
 
     // Allows SAU to define the code region as a NSC
     spcb::enable_idau_nsc_code();

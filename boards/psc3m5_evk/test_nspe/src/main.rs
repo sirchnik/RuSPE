@@ -17,10 +17,6 @@ use psc3::{BASE_VECTORS, IRQS};
 
 use helpers::static_init;
 
-use psa_interface::{self, psa_api};
-
-use psa_veneer_client::{self, PsaVeneerClient};
-
 mod io;
 
 // Allocate memory for the stack
@@ -62,24 +58,8 @@ pub unsafe fn main() {
     // Set the UART used for panic
     unsafe { (*addr_of_mut!(io::WRITER)).set_scb(&peripherals.scb3) };
 
-    #[repr(align(32))]
-    struct Aligned32<T>(T);
-
-    let challenge = Aligned32([0u8; 32]);
-    let mut token_buf = Aligned32([0u8; 512]);
-
-    psa_api::initial_attest_get_token::<PsaVeneerClient>(&challenge.0, &mut token_buf.0).unwrap();
-
-    use core::fmt::Write;
-
     let writer = unsafe { &mut *addr_of_mut!(io::WRITER) };
-    let _ = write!(writer, "\r\ntoken_buf: ");
-
-    for b in token_buf.0 {
-        let _ = write!(writer, "{:02x}", b);
-    }
-
-    let _ = write!(writer, "\r\n");
+    shared_test_nspe::run_attestation_test(writer);
 
     loop {}
 }

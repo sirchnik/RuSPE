@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: Infineon Technologies AG
+#
+# SPDX-License-Identifier: MIT
+
+[package]
+name = "shared_test_nspe"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+psa_veneer_client = { path = "../../../spe/psa_veneer_client" }
+psa_interface = { path = "../../../spe/psa_interface" }
+
+[lints]
+workspace = true

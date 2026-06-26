@@ -4,26 +4,32 @@
 
 use psa_interface;
 use spe::{
-    psa::psa_call::{CallerAttributes, PsaMsg},
     service::Service,
     spm::{CustomMpuRegion, SpmPlatform},
+    spm_api::{CallerAttributes, PsaMsg},
 };
 
 use crate::services;
 use ruspe_cortexm::cmse;
 
-pub struct MuscaB1SecPlatform {
-    pub initial_attestation: services::InitialAttestation,
+pub struct MuscaB1SecPlatform<
+    C: psa_interface::PsaApiCallInterface + Sync,
+    A: spe::spm_api::SpmApi + Sync,
+> {
+    pub api: A,
+    pub initial_attestation: services::InitialAttestation<C>,
     pub crypto: services::Crypto,
 }
 
-impl SpmPlatform for MuscaB1SecPlatform {
+impl<C: psa_interface::PsaApiCallInterface + Sync, A: spe::spm_api::SpmApi + Sync> SpmPlatform
+    for MuscaB1SecPlatform<C, A>
+{
     fn call(&self, msg: PsaMsg) -> Result<(), spe::StatusCode> {
         match msg.handle {
             psa_interface::types::ServiceHandle::AttestationService => {
-                self.initial_attestation.call(msg)
+                self.initial_attestation.call(msg, &self.api)
             }
-            psa_interface::types::ServiceHandle::Crypto => self.crypto.call(msg),
+            psa_interface::types::ServiceHandle::Crypto => self.crypto.call(msg, &self.api),
             _ => Err(spe::StatusCode::NotSupported),
         }
     }

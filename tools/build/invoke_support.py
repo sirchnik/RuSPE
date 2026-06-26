@@ -31,6 +31,10 @@ class VscodeLaunchTarget(TypedDict, total=False):
     configFiles: list[str]
     preLaunchCommands: list[str]
     preLaunchTask: str
+    cpu: str
+    machine: str
+    serverArgs: list[str]
+
 
 
 class VscodeBuildTarget(TypedDict, total=False):

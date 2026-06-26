@@ -51,7 +51,7 @@ pub unsafe fn main() {
 
     chip::init_gpio_pins();
 
-    let scb0 = unsafe { static_init!(scb::Scb, scb::Scb::new()) };
+    let scb0 = unsafe { static_init!(scb::Scb, scb::Scb::new_scb0()) };
 
     scb0.set_standard_uart_mode();
     scb0.enable_scb();

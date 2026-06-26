@@ -61,4 +61,4 @@ impl attest_service::AttestPlatform for MuscaB1AttestPlatform {
     }
 }
 
-pub type InitialAttestation = attest_service::AttestService<MuscaB1AttestPlatform>;
+pub type InitialAttestation<C> = attest_service::AttestService<MuscaB1AttestPlatform, C>;
