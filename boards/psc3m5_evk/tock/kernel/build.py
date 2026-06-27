@@ -13,7 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from boards.psc3m5_evk.tock.app import build as app_build
+from integrations.tock.tock_psa_app import build as app_build
 from tools.build.board import (
     BoardConfig,
     Manufacturer,

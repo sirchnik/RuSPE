@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: Infineon Technologies AG
+#
+# SPDX-License-Identifier: MIT
+
+[package]
+name = "tock_spe_adapter"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+kernel = { path = "../../../tock/kernel" }
+enum_primitive = { path = "../../../tock/libraries/enum_primitive" }
+psa_interface = { path = "../../../spe/psa_interface" }
+psa_veneer_client = { path = "../../../spe/psa_veneer_client" }
+
+[lints]
+workspace = true

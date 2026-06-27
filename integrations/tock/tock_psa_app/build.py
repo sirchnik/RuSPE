@@ -10,7 +10,7 @@ from pathlib import Path
 
 from invoke.context import Context
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
@@ -110,7 +110,7 @@ APP = AppConfig(
     flash_length="0x3000",
     ram_start="0x2400A000",
     ram_length="0x3000",
-    app_name="psc3m5_evk_tock_app",
+    app_name="tock_psa_app",
 )
 
 DEBUG_HELP = "Build the debug profile instead of release."

@@ -27,7 +27,6 @@ use psc3::{BASE_VECTORS, IRQS};
 use psc3::{chip_init, gpio};
 
 mod io;
-mod spe_adapter;
 
 // Allocate memory for the stack
 kernel::stack_size! {0x2000}
@@ -67,7 +66,7 @@ pub struct Psc3Plattform {
     button: &'static capsules_core::button::Button<'static, gpio::GpioPin<'static>>,
     gpio: &'static capsules_core::gpio::GPIO<'static, gpio::GpioPin<'static>>,
     #[cfg(feature = "non_secure_tz")]
-    spe_client: &'static crate::spe_adapter::SpeAdapter,
+    spe_client: &'static tock_spe_adapter::SpeAdapter,
 }
 
 impl SyscallDriverLookup for Psc3Plattform {
@@ -83,7 +82,7 @@ impl SyscallDriverLookup for Psc3Plattform {
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             #[cfg(feature = "non_secure_tz")]
-            crate::spe_adapter::DRIVER_NUM => f(Some(self.spe_client)),
+            tock_spe_adapter::DRIVER_NUM => f(Some(self.spe_client)),
             _ => f(None),
         }
     }
@@ -336,9 +335,9 @@ pub unsafe fn main() {
 
     #[cfg(feature = "non_secure_tz")]
     let spe_client = static_init!(
-        crate::spe_adapter::SpeAdapter,
-        crate::spe_adapter::SpeAdapter::new(board_kernel.create_grant(
-            crate::spe_adapter::DRIVER_NUM,
+        tock_spe_adapter::SpeAdapter,
+        tock_spe_adapter::SpeAdapter::new(board_kernel.create_grant(
+            tock_spe_adapter::DRIVER_NUM,
             &memory_allocation_capability,
         ),)
     );

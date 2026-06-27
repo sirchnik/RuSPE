@@ -720,14 +720,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "psc3m5_evk_tock_app"
-version = "0.1.0"
-dependencies = [
- "libtock",
- "libtock_build_scripts",
-]
-
-[[package]]
 name = "psc3m5_evk_tock_kernel"
 version = "0.1.0"
 dependencies = [
@@ -742,6 +734,7 @@ dependencies = [
  "psa_veneer_client",
  "psc3 0.2.3-dev",
  "tock_build_scripts",
+ "tock_spe_adapter",
 ]
 
 [[package]]
@@ -889,6 +882,24 @@ version = "0.1.0"
 [[package]]
 name = "tock_build_scripts"
 version = "0.2.3-dev"
+
+[[package]]
+name = "tock_psa_app"
+version = "0.1.0"
+dependencies = [
+ "libtock",
+ "libtock_build_scripts",
+]
+
+[[package]]
+name = "tock_spe_adapter"
+version = "0.1.0"
+dependencies = [
+ "enum_primitive",
+ "kernel",
+ "psa_interface",
+ "psa_veneer_client",
+]
 
 [[package]]
 name = "typenum"

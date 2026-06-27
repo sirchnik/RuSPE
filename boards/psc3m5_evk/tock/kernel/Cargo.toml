@@ -24,6 +24,7 @@ psa_veneer_client = { path = "../../../../spe/psa_veneer_client" }
 psa_interface = { path = "../../../../spe/psa_interface" }
 
 enum_primitive = { path = "../../../../tock/libraries/enum_primitive" }
+tock_spe_adapter = { path = "../../../../integrations/tock/tock_spe_adapter" }
 
 [features]
 default = ["non_secure_tz"]

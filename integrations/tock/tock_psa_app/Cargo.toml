@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 [package]
-name = "psc3m5_evk_tock_app"
+name = "tock_psa_app"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.87"
