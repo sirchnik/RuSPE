@@ -11,4 +11,4 @@ MEMORY
   	ram (rwx) : ORIGIN = 0x30000000, LENGTH = 0x30000
 }
 
-INCLUDE ../../shared/linker/spe_layout.ld
+INCLUDE spe_layout.ld

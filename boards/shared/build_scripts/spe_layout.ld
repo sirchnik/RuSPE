@@ -197,11 +197,4 @@ SECTIONS
 		. = ALIGN(4);
 		_ezero = .;
 	} > ram
-
-    /* Sections we do not need. */
-    /DISCARD/ :
-    {
-      /* Tock injects a version number into the kernel by default. As we are using HAL from Tock these get here. */
-      *(.tock.attr .tock.attr.*)
-    }
 }

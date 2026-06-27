@@ -22,7 +22,7 @@ cortexm = { version = "0.2.3-dev", path = "../../../tock/arch/cortex-m" }
 kernel = { path = "../../../tock/kernel" }
 
 [build-dependencies]
-tock_build_scripts = { path = "../../../tock/boards/build_scripts" }
+board_build_scripts = { path = "../../shared/build_scripts" }
 
 [lints]
 workspace = true

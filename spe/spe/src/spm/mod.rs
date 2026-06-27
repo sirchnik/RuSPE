@@ -10,7 +10,7 @@ pub use spm_ipc::{
     EmbeddedProcess, FlashProcess, FlashProcessVectors, IpcProcess, IpcProcessPlatform, SpmIpc,
 };
 
-pub use kernel::platform::mpu::Permissions;
+pub use cortex_m::mpu::Permissions;
 
 #[derive(Clone, Copy)]
 pub struct CustomMpuRegion {
@@ -82,10 +82,9 @@ pub(crate) unsafe fn svc_call_unpriv(
     // Point PSP at the fake frame and bound it with PSPLIM so stack growth
     // faults before it can trample staged service arguments.
     unsafe {
+        cortex_m::register::set_psplim(stack_limit as u32);
         asm!(
-            "msr PSPLIM, {stack_limit}",
             "msr psp, {psp}",
-            stack_limit = in(reg) stack_limit,
             psp = in(reg) frame_base,
             options(nomem, nostack),
         );

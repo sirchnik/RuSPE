@@ -73,7 +73,5 @@ SECTIONS {
     /DISCARD/ :
     {
       *(.ARM.exidx .eh_frame)
-      /* Tock injects a version number into the kernel by default. As we are using HAL from Tock these get here. */
-      *(.tock.attr .tock.attr.*)
     }
 }

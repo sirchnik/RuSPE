@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: Infineon Technologies AG
+#
+# SPDX-License-Identifier: MIT
+
 import sys
 from intelhex import IntelHex
 

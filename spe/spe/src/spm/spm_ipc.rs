@@ -326,8 +326,7 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
     }
 
     fn apply_mpu_config(&self, process_index: usize) {
-        use cortexm33::mpu;
-        use kernel::platform::mpu::{MPU as MpuTrait, Permissions};
+        use cortex_m::mpu::{MPU, Permissions};
 
         let vectors_ptr = self.processes[process_index].get_vectors();
         let Some(vectors_ptr) = vectors_ptr else {
@@ -335,7 +334,7 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
         };
         let vectors = unsafe { &*vectors_ptr };
 
-        let mpu = unsafe { mpu::new::<8>() };
+        let mpu = unsafe { MPU::<8>::new() };
 
         let mut config = mpu.new_config().expect("MPU config slots exhausted");
 
@@ -350,14 +349,12 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
         mpu.allocate_region(
             service_rom_start,
             service_rom_size,
-            service_rom_size,
             Permissions::ReadExecuteOnly,
             &mut config,
         )
         .unwrap();
         mpu.allocate_region(
             service_ram_start,
-            service_ram_size,
             service_ram_size,
             Permissions::ReadWriteOnly,
             &mut config,
@@ -366,14 +363,8 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
 
         let handle = self.processes[process_index].handle();
         for region in self.platform.custom_mpu_regions(handle) {
-            mpu.allocate_region(
-                region.base,
-                region.size,
-                region.size,
-                region.permissions,
-                &mut config,
-            )
-            .unwrap();
+            mpu.allocate_region(region.base, region.size, region.permissions, &mut config)
+                .unwrap();
         }
 
         self.state
@@ -390,7 +381,6 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
                                         let aligned_size = aligned_end - aligned_base;
                                         mpu.allocate_region(
                                             aligned_base as *const u8,
-                                            aligned_size,
                                             aligned_size,
                                             Permissions::ReadOnly,
                                             &mut config,
@@ -410,7 +400,6 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
                                         let aligned_size = aligned_end - aligned_base;
                                         mpu.allocate_region(
                                             aligned_base as *const u8,
-                                            aligned_size,
                                             aligned_size,
                                             Permissions::ReadWriteOnly,
                                             &mut config,

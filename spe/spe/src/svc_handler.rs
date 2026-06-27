@@ -24,6 +24,7 @@ unsafe extern "C" {
     fn psa_call_thunk();
 }
 
+#[cfg(target_arch = "arm")]
 #[unsafe(naked)]
 pub unsafe extern "C" fn svc_handler() {
     use core::arch::naked_asm;
@@ -172,4 +173,9 @@ pub unsafe extern "C" fn svc_handler() {
         SVC_PSA_CALL = const crate::spm_api::SVC_PSA_CALL,
         SVC_PSA_CALL_RETURN = const crate::spm_api::SVC_PSA_CALL_RETURN,
     );
+}
+
+#[cfg(not(target_arch = "arm"))]
+pub unsafe extern "C" fn svc_handler() {
+    unimplemented!("svc_handler is only available on ARM targets")
 }

@@ -148,12 +148,12 @@ pub unsafe fn main() {
     unsafe {
         (*addr_of_mut!(io::WRITER)).set_serial(scb0);
 
-        cortexm33::nvic::set_interrupt_non_secure(0, 140);
-        cortexm33::nvic::enable_all();
+        ruspe_cortexm::nvic::set_interrupt_non_secure(0, 140);
+        ruspe_cortexm::nvic::enable_all();
     }
 
     // set msplim. There was one incident where then non-secure handled stack overflow.
-    cortexm33::support::set_msplim(core::ptr::addr_of!(_sstack) as u32);
+    unsafe { ruspe_cortexm::register::set_msplim(core::ptr::addr_of!(_sstack) as u32) };
 
     unsafe {
         let aircr = 0xe000ed0c as *mut u32;

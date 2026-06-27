@@ -4,36 +4,36 @@
 
 //! Board-level I/O and panic infrastructure for Musca-B1.
 
+use core::cell::Cell;
 use core::fmt::Write;
 use core::panic::PanicInfo;
-use kernel::utilities::cells::OptionalCell;
 
 use ruspe_musca_b1::uart::UartMin;
 
-/// Writer is used by kernel::debug to panic message to the serial port.
+/// Writer is used to panic message to the serial port.
 pub struct Writer {
-    uart: OptionalCell<&'static UartMin>,
+    uart: Cell<Option<&'static UartMin>>,
 }
 
 /// Global static for debug writer
 pub static mut WRITER: Writer = Writer {
-    uart: OptionalCell::empty(),
+    uart: Cell::new(None),
 };
 
 impl Writer {
     /// Set the Uart peripheral to use
     pub fn set_uart(&self, uart: &'static UartMin) {
-        self.uart.set(uart);
+        self.uart.set(Some(uart));
     }
 }
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.uart.map(|uart| {
+        if let Some(uart) = self.uart.get() {
             for b in s.as_bytes() {
                 uart.send_byte(*b);
             }
-        });
+        }
         Ok(())
     }
 }

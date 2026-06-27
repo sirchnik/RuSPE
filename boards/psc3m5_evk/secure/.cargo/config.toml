@@ -7,7 +7,6 @@ include = ["../../../shared/cargo/embedded_flags.toml"]
 [build]
 target = "thumbv8m.main-none-eabi"
 rustflags = [
-  # # todo required for build_scripts but should work without / does work inside the tock repo
   # Output secure veneer library
   "-C",
   "link-arg=--cmse-implib",

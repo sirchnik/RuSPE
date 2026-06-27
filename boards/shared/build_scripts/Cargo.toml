@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: Infineon Technologies AG
+#
+# SPDX-License-Identifier: MIT
+
+[package]
+name = "board_build_scripts"
+description = "Helper functions for compiling boards"
+version = "0.1.0"
+authors = ["RuSPE"]
+edition = "2021"

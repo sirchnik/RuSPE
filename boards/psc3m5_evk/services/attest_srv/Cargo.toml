@@ -17,7 +17,7 @@ psa_interface = { path = "../../../../spe/psa_interface" }
 helpers = { path = "../../../../libraries/helpers" }
 
 [build-dependencies]
-tock_build_scripts = { path = "../../../../tock/boards/build_scripts" }
+board_build_scripts = { path = "../../../shared/build_scripts" }
 
 [lints]
 workspace = true

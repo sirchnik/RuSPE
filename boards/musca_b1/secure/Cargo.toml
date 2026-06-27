@@ -10,18 +10,17 @@ edition.workspace = true
 build = "./build.rs"
 
 [dependencies]
-cortexm33 = { path = "../../../tock/arch/cortex-m33" }
+cortex_m = { path = "../../../libraries/cortex_m" }
 ruspe_musca_b1 = { package = "musca_b1", path = "../../../chips/musca_b1" }
 spe = { path = "../../../spe/spe", features = ["veneers"] }
 spe_services = { path = "../../../spe/spe_services" }
 psa_interface = { path = "../../../spe/psa_interface" }
 helpers = { path = "../../../libraries/helpers" }
-kernel = { path = "../../../tock/kernel" }
 bitfield = "0.14.0"
 volatile-register = "0.2.2"
 
 [build-dependencies]
-tock_build_scripts = { path = "../../../tock/boards/build_scripts" }
+board_build_scripts = { path = "../../shared/build_scripts" }
 
 [lints]
 workspace = true

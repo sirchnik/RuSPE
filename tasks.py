@@ -8,7 +8,7 @@ import json
 import sys
 import urllib.request
 from pathlib import Path
-from shutil import copy2
+from shutil import copy2, which
 
 from invoke.context import Context
 
@@ -69,9 +69,12 @@ _BIN_CRATES = [
     "psc3m5_evk_secure_ipc",
     "psc3m5_evk_test_nspe",
     "psc3m5_evk_tock_kernel",
-    "psc3m5_evk_tock_app",
+    "tock_psa_app",
     "psc3m5_evk_attest_srv",
     "psc3m5_evk_crypto_srv",
+    "musca_b1_secure",
+    "musca_b1_test_nspe",
+    "shared_test_nspe",
 ]
 
 
@@ -247,9 +250,11 @@ def fmt(ctx: Context, check=False):
 @build_task
 def check_spelling(ctx: Context):
     """Run cspell"""
-    run_command(
-        "npx -y cspell lint --no-progress --show-suggestions -c cspell.config.yaml ."
-    )
+    cmd = "cspell lint --no-progress --show-suggestions -c cspell.config.yaml ."
+    if which("pnpm"):
+        run_command(f"pnpm dlx {cmd}")
+    else:
+        run_command(f"npx -y {cmd}")
 
 
 @build_task

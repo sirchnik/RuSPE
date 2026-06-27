@@ -24,6 +24,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "board_build_scripts"
+version = "0.1.0"
+
+[[package]]
 name = "bytemuck"
 version = "1.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -97,6 +101,9 @@ checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
 [[package]]
 name = "cortex_m"
 version = "0.1.0"
+dependencies = [
+ "tock-registers",
+]
 
 [[package]]
 name = "cortexm"
@@ -563,14 +570,13 @@ name = "musca_b1_secure"
 version = "0.1.0"
 dependencies = [
  "bitfield",
- "cortexm33",
+ "board_build_scripts",
+ "cortex_m",
  "helpers",
- "kernel",
  "musca_b1",
  "psa_interface",
  "spe",
  "spe_services",
- "tock_build_scripts",
  "volatile-register",
 ]
 
@@ -578,12 +584,11 @@ dependencies = [
 name = "musca_b1_test_nspe"
 version = "0.1.0"
 dependencies = [
- "cortexm33",
+ "board_build_scripts",
+ "cortex_m",
  "helpers",
- "kernel",
  "musca_b1",
  "shared_test_nspe",
- "tock_build_scripts",
 ]
 
 [[package]]
@@ -656,44 +661,45 @@ dependencies = [
 name = "psc3m5_evk_attest_srv"
 version = "0.1.0"
 dependencies = [
+ "board_build_scripts",
  "helpers",
  "psa_interface",
  "psc3 0.1.0",
  "spe",
  "spe_services",
- "tock_build_scripts",
 ]
 
 [[package]]
 name = "psc3m5_evk_crypto_srv"
 version = "0.1.0"
 dependencies = [
+ "board_build_scripts",
  "helpers",
  "psa_interface",
  "psc3 0.1.0",
  "spe",
  "spe_services",
- "tock_build_scripts",
 ]
 
 [[package]]
 name = "psc3m5_evk_secure"
 version = "0.1.0"
 dependencies = [
- "cortexm33",
+ "board_build_scripts",
+ "cortex_m",
  "helpers",
  "psa_interface",
  "psc3 0.1.0",
  "psc3 0.2.3-dev",
  "spe",
  "spe_services",
- "tock_build_scripts",
 ]
 
 [[package]]
 name = "psc3m5_evk_secure_ipc"
 version = "0.1.0"
 dependencies = [
+ "board_build_scripts",
  "cortex_m",
  "cortexm",
  "cortexm33",
@@ -704,19 +710,17 @@ dependencies = [
  "psc3 0.2.3-dev",
  "spe",
  "spe_services",
- "tock_build_scripts",
 ]
 
 [[package]]
 name = "psc3m5_evk_test_nspe"
 version = "0.1.0"
 dependencies = [
- "cortexm33",
+ "board_build_scripts",
+ "cortex_m",
  "helpers",
- "kernel",
  "psc3 0.2.3-dev",
  "shared_test_nspe",
- "tock_build_scripts",
 ]
 
 [[package]]
@@ -727,6 +731,7 @@ dependencies = [
  "capsules-extra",
  "capsules-system",
  "components",
+ "cortex_m",
  "cortexm33",
  "enum_primitive",
  "kernel",
@@ -816,11 +821,9 @@ name = "spe"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
- "cortexm",
- "cortexm33",
+ "cortex_m",
  "cose",
  "helpers",
- "kernel",
  "minicbor",
  "p256",
  "psa_interface",
@@ -833,7 +836,6 @@ name = "spe_services"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
- "cortexm33",
  "cose",
  "helpers",
  "minicbor",

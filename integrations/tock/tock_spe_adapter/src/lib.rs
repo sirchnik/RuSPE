@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: MIT
 
+#![no_std]
+
 use core::cmp;
 
 use enum_primitive::cast::FromPrimitive;
@@ -33,7 +35,7 @@ mod rw_allow {
 }
 
 #[derive(Default)]
-pub(crate) struct App;
+pub struct App;
 
 enum_from_primitive! {
 #[derive(Debug, PartialEq, Clone, Copy)]

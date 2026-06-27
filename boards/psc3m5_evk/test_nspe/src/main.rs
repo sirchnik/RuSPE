@@ -4,16 +4,49 @@
 
 #![no_std]
 #![no_main]
-#![deny(missing_docs)]
 
 //! Tock kernel for the PSC3M5-EVK evaluation board.
 
-use core::ptr::addr_of_mut;
+use core::{fmt::Write, ptr::addr_of_mut};
 
 use psc3::chip::Psc3DefaultPeripherals;
 use psc3::chip_init;
-#[allow(unused)]
-use psc3::{BASE_VECTORS, IRQS};
+use shared_test_nspe::{initialize_ram_jump_to_test_main, unhandled_interrupt};
+
+unsafe extern "C" {
+    fn _estack();
+}
+
+#[cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    unsafe(link_section = ".vectors")
+)]
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
+pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
+    _estack,
+    initialize_ram_jump_to_test_main,
+    unhandled_interrupt, // NMI
+    unhandled_interrupt, // Hard Fault
+    unhandled_interrupt, // MemManage
+    unhandled_interrupt, // BusFault
+    unhandled_interrupt, // UsageFault
+    unhandled_interrupt, // SecureFault
+    unhandled_interrupt,
+    unhandled_interrupt,
+    unhandled_interrupt,
+    unhandled_interrupt, // SVC
+    unhandled_interrupt, // DebugMon
+    unhandled_interrupt,
+    unhandled_interrupt, // PendSV
+    unhandled_interrupt, // SysTick
+];
+
+#[cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    unsafe(link_section = ".irqs")
+)]
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
+pub static IRQS: [unsafe extern "C" fn(); 140] = [unhandled_interrupt; 140];
 
 use helpers::static_init;
 
@@ -41,11 +74,10 @@ unsafe extern "C" {
 /// Main function called after RAM initialized.
 #[unsafe(no_mangle)]
 pub unsafe fn main() {
-    cortexm33::support::dmb();
     // set vector-table when coming from secure world
-    unsafe { cortexm33::scb::set_vector_table_offset(BASE_VECTORS.as_ptr().cast::<()>()) };
+    unsafe { shared_test_nspe::set_vector_table_offset(BASE_VECTORS.as_ptr().cast::<()>()) };
 
-    cortexm33::support::set_msplim(core::ptr::addr_of!(_sstack) as u32);
+    unsafe { cortex_m::register::set_msplim(core::ptr::addr_of!(_sstack) as u32) };
 
     /* !Only after chip_init::preinit_peripherals() was called peripheral view for debugging works! */
     chip_init::preinit_peripherals();
@@ -59,6 +91,9 @@ pub unsafe fn main() {
     unsafe { (*addr_of_mut!(io::WRITER)).set_scb(&peripherals.scb3) };
 
     let writer = unsafe { &mut *addr_of_mut!(io::WRITER) };
+
+    writer.write_fmt(format_args!("NSPE init done")).unwrap();
+
     shared_test_nspe::run_attestation_test(writer);
 
     loop {}

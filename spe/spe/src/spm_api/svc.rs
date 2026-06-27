@@ -151,15 +151,14 @@ unsafe fn svc_call<const SVC_NUM: u8>(
     arg3: usize,
 ) -> (usize, usize, usize, usize) {
     use core::arch::asm;
-    use cortexm33::support;
 
     let out0: usize;
     let out1: usize;
     let out2: usize;
     let out3: usize;
 
-    support::dmb();
     unsafe {
+        asm!("dmb sy", options(nostack, preserves_flags));
         asm!(
             "svc {svc_num}",
             svc_num = const SVC_NUM,
@@ -170,8 +169,8 @@ unsafe fn svc_call<const SVC_NUM: u8>(
             lateout("r12") _,
             options(nostack),
         );
+        asm!("dmb sy", options(nostack, preserves_flags));
     }
-    support::dmb();
 
     (out0, out1, out2, out3)
 }

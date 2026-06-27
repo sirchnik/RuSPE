@@ -144,8 +144,12 @@ def _build_merged(ctx: Context, nspe: str, app: str | None, debug: bool) -> Path
 @build_task(
     default=True, help={"nspe": NSPE_HELP, "app": APP_HELP, "debug": DEBUG_HELP}
 )
-def build(ctx: Context, nspe="test", app=None, debug=False):
+def build(ctx: Context, nspe: str | None = None, app=None, debug=False):
     """Build the secure IPC kernel and selected services, merge with NSPE."""
+    if nspe is None:
+        _build_merged(ctx, "tock", app, bool(debug))
+        _build_merged(ctx, "test", app, bool(debug))
+        return
     return _build_merged(ctx, nspe, app, bool(debug))
 
 
@@ -228,7 +232,7 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
             "preLaunchCommands": [
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock_kernel",
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure_ipc",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock_app",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/tock_psa_app",
             ]
             + service_symbols,
             "preLaunchTask": f"build{profile_short_snake}.psc3m5_evk_tock_ipc",

@@ -32,3 +32,4 @@ ignorePaths:
   - "tock"
   - "go.sum"
   - "go.mod"
+  - "*.svg"

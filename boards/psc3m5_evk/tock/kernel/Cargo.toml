@@ -10,6 +10,7 @@ edition.workspace = true
 build = "./build.rs"
 
 [dependencies]
+cortex_m = { path = "../../../../libraries/cortex_m" }
 cortexm33 = { path = "../../../../tock/arch/cortex-m33" }
 kernel = { path = "../../../../tock/kernel" }
 # kernel = { path = "../../../../tock/kernel", features = ["debug_load_processes"] }

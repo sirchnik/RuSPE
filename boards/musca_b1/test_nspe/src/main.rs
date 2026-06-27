@@ -9,11 +9,9 @@
 
 use core::ptr::addr_of_mut;
 
-use cortexm33::{CortexM33, CortexMVariant, initialize_ram_jump_to_main, unhandled_interrupt};
+use shared_test_nspe::{initialize_ram_jump_to_test_main, unhandled_interrupt};
 
 unsafe extern "C" {
-    // _estack is not really a function, but it makes the types work
-    // You should never actually invoke it!!
     fn _estack();
 }
 
@@ -24,21 +22,21 @@ unsafe extern "C" {
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     _estack,
-    initialize_ram_jump_to_main,
-    unhandled_interrupt,           // NMI
-    CortexM33::HARD_FAULT_HANDLER, // Hard Fault
-    unhandled_interrupt,           // MemManage
-    unhandled_interrupt,           // BusFault
-    unhandled_interrupt,           // UsageFault
-    unhandled_interrupt,           // SecureFault
+    initialize_ram_jump_to_test_main,
+    unhandled_interrupt, // NMI
+    unhandled_interrupt, // Hard Fault
+    unhandled_interrupt, // MemManage
+    unhandled_interrupt, // BusFault
+    unhandled_interrupt, // UsageFault
+    unhandled_interrupt, // SecureFault
     unhandled_interrupt,
     unhandled_interrupt,
     unhandled_interrupt,
-    CortexM33::SVC_HANDLER, // SVC
-    unhandled_interrupt,    // DebugMon
+    unhandled_interrupt, // SVC
+    unhandled_interrupt, // DebugMon
     unhandled_interrupt,
-    unhandled_interrupt,        // PendSV
-    CortexM33::SYSTICK_HANDLER, // SysTick
+    unhandled_interrupt, // PendSV
+    unhandled_interrupt, // SysTick
 ];
 
 #[cfg_attr(
@@ -46,7 +44,7 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     unsafe(link_section = ".irqs")
 )]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
-pub static IRQS: [unsafe extern "C" fn(); 97] = [CortexM33::GENERIC_ISR; 97];
+pub static IRQS: [unsafe extern "C" fn(); 97] = [unhandled_interrupt; 97];
 
 use helpers::static_init;
 
@@ -76,11 +74,10 @@ unsafe extern "C" {
 /// Main function called after RAM initialized.
 #[unsafe(no_mangle)]
 pub unsafe fn main() {
-    cortexm33::support::dmb();
     // set vector-table when coming from secure world
-    unsafe { cortexm33::scb::set_vector_table_offset(BASE_VECTORS.as_ptr().cast::<()>()) };
+    unsafe { shared_test_nspe::set_vector_table_offset(BASE_VECTORS.as_ptr().cast::<()>()) };
 
-    cortexm33::support::set_msplim(core::ptr::addr_of!(_sstack) as u32);
+    unsafe { cortex_m::register::set_msplim(core::ptr::addr_of!(_sstack) as u32) };
 
     let serial = unsafe { static_init!(uart::UartMin, uart::UartMin::new_uart1_nsec()) };
 

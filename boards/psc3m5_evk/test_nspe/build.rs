@@ -2,16 +2,16 @@
 //
 // SPDX-License-Identifier: MIT
 
-use tock_build_scripts::default as tock_build;
+use board_build_scripts::linker;
 
 const LINKER_SCRIPT_NSEC: &str = "layout.ld";
 const SECURE_VENEERS_OBJ: &str = "target/thumbv8m.main-none-eabi/psc3m5_secure-veneers.o";
 
 fn main() {
-    tock_build::include_tock_kernel_layout();
-    tock_build::add_board_dir_to_linker_search_path();
+    linker::include_test_nspe_layout();
+    linker::add_board_dir_to_linker_search_path();
 
     println!("cargo:rustc-link-arg={}", SECURE_VENEERS_OBJ);
     println!("cargo:rerun-if-changed={}", SECURE_VENEERS_OBJ);
-    tock_build::set_and_track_linker_script(LINKER_SCRIPT_NSEC);
+    linker::set_and_track_linker_script(LINKER_SCRIPT_NSEC);
 }

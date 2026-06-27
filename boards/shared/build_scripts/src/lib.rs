@@ -1,11 +1,6 @@
-#![no_std]
-
 // SPDX-FileCopyrightText: Infineon Technologies AG
 //
 // SPDX-License-Identifier: MIT
 
-pub mod cmse;
-pub mod mpu;
-pub mod nvic;
-pub mod register;
-pub mod sau;
+pub mod ipc;
+pub mod linker;

@@ -15,8 +15,6 @@ use helpers::static_init;
 use ruspe_musca_b1::uart;
 
 mod io;
-mod mpc;
-mod spcb;
 mod startup;
 
 #[allow(unexpected_cfgs)]
@@ -28,10 +26,6 @@ pub mod global_spm_api {
 
 #[unsafe(no_mangle)]
 pub unsafe fn main() {
-    unsafe {
-        cortexm33::nvic::enable_all();
-    }
-
     let serial = unsafe { static_init!(uart::UartMin, uart::UartMin::new_uart0_sec()) };
 
     // Configure UART (assuming musca_b1 system clock is 50MHz, baud 115200)
@@ -79,49 +73,49 @@ pub unsafe fn main() {
         )
     };
 
-    let mut sau = cortexm33::sau::new();
+    let mut sau = cortex_m::sau::new();
     sau.set_region(
         0,
-        cortexm33::sau::SauRegion {
+        cortex_m::sau::SauRegion {
             base_address: 0x0010_2000,
             limit_address: 0x0027_FFFF, // Covers rom and prog
-            attribute: cortexm33::sau::SauRegionAttribute::NonSecure,
+            attribute: cortex_m::sau::SauRegionAttribute::NonSecure,
         },
     )
     .unwrap();
     sau.set_region(
         1,
-        cortexm33::sau::SauRegion {
+        cortex_m::sau::SauRegion {
             base_address: 0x1010_0000,
             limit_address: 0x1010_1FFF,
-            attribute: cortexm33::sau::SauRegionAttribute::NonSecureCallable,
+            attribute: cortex_m::sau::SauRegionAttribute::NonSecureCallable,
         },
     )
     .unwrap();
     sau.set_region(
         2,
-        cortexm33::sau::SauRegion {
+        cortex_m::sau::SauRegion {
             base_address: 0x2003_0000,
             limit_address: 0x2007_FFFF,
-            attribute: cortexm33::sau::SauRegionAttribute::NonSecure,
+            attribute: cortex_m::sau::SauRegionAttribute::NonSecure,
         },
     )
     .unwrap();
     sau.set_region(
         3,
-        cortexm33::sau::SauRegion {
+        cortex_m::sau::SauRegion {
             base_address: 0x4000_0000,
             limit_address: 0x4FFF_FFFF,
-            attribute: cortexm33::sau::SauRegionAttribute::NonSecure,
+            attribute: cortex_m::sau::SauRegionAttribute::NonSecure,
         },
     )
     .unwrap();
     sau.set_region(
         4,
-        cortexm33::sau::SauRegion {
+        cortex_m::sau::SauRegion {
             base_address: 0x4010_5000,
             limit_address: 0x4010_5FFF,
-            attribute: cortexm33::sau::SauRegionAttribute::NonSecure,
+            attribute: cortex_m::sau::SauRegionAttribute::NonSecure,
         },
     )
     .unwrap();
@@ -130,29 +124,29 @@ pub unsafe fn main() {
     let _ = global_spm_api::SPM.try_set(spm);
 
     // Allows SAU to define the code region as a NSC
-    spcb::enable_idau_nsc_code();
+    ruspe_musca_b1::spcb::enable_idau_nsc_code();
 
     // Allow non-secure access to UART1
-    spcb::enable_uart1_ns();
+    ruspe_musca_b1::spcb::enable_uart1_ns();
 
     // QSPI MPC
-    let mut eflash_mpc = mpc::Mpc::new(0x52000000, 0x00000000);
+    let mut eflash_mpc = ruspe_musca_b1::mpc::Mpc::new(0x52000000, 0x00000000);
     eflash_mpc.set_non_secure(0x00102000, 0x003F7FFF);
 
     // External SRAM MPC (QEMU musca-b1 mpc2)
-    let mut ext_sram_mpc = mpc::Mpc::new(0x52100000, 0x20000000);
+    let mut ext_sram_mpc = ruspe_musca_b1::mpc::Mpc::new(0x52100000, 0x20000000);
     ext_sram_mpc.set_non_secure(0x20030000, 0x2007FFFF);
 
     // Internal SRAM Bank 1 MPC (0x20020000 - 0x2003FFFF)
-    let mut sram1_mpc = mpc::Mpc::new(0x50084000, 0x20020000);
+    let mut sram1_mpc = ruspe_musca_b1::mpc::Mpc::new(0x50084000, 0x20020000);
     sram1_mpc.set_non_secure(0x20030000, 0x2003FFFF);
 
     // Internal SRAM Bank 2 MPC (0x20040000 - 0x2005FFFF)
-    let mut sram2_mpc = mpc::Mpc::new(0x50085000, 0x20040000);
+    let mut sram2_mpc = ruspe_musca_b1::mpc::Mpc::new(0x50085000, 0x20040000);
     sram2_mpc.set_non_secure(0x20040000, 0x2005FFFF);
 
     // Internal SRAM Bank 3 MPC (0x20060000 - 0x2007FFFF)
-    let mut sram3_mpc = mpc::Mpc::new(0x50086000, 0x20060000);
+    let mut sram3_mpc = ruspe_musca_b1::mpc::Mpc::new(0x50086000, 0x20060000);
     sram3_mpc.set_non_secure(0x20060000, 0x2007FFFF);
 
     io::debugln(format_args!("Init SPE done, jumping to non-secure"));

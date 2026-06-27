@@ -143,7 +143,7 @@ pub unsafe fn main() {
         cortexm33::scb::set_vector_table_offset(BASE_VECTORS.as_ptr().cast::<()>());
     }
 
-    cortexm33::support::set_msplim(core::ptr::addr_of!(_sstack) as u32);
+    unsafe { cortex_m::register::set_msplim(core::ptr::addr_of!(_sstack) as u32) };
 
     /* !Only after chip_init::preinit_peripherals() was called peripheral view for debugging works! */
     chip_init::preinit_peripherals();
@@ -336,10 +336,9 @@ pub unsafe fn main() {
     #[cfg(feature = "non_secure_tz")]
     let spe_client = static_init!(
         tock_spe_adapter::SpeAdapter,
-        tock_spe_adapter::SpeAdapter::new(board_kernel.create_grant(
-            tock_spe_adapter::DRIVER_NUM,
-            &memory_allocation_capability,
-        ),)
+        tock_spe_adapter::SpeAdapter::new(
+            board_kernel.create_grant(tock_spe_adapter::DRIVER_NUM, &memory_allocation_capability,),
+        )
     );
 
     let psc3_platform = Psc3Plattform {

@@ -112,7 +112,7 @@ psa_interface = {{ path = \"../../../../spe/psa_interface\" }}
 helpers = {{ path = \"../../../../libraries/helpers\" }}
 
 [build-dependencies]
-tock_build_scripts = {{ path = \"../../../../tock/boards/build_scripts\" }}
+board_build_scripts = {{ path = \"../../../shared/build_scripts\" }}
 
 [lints]
 workspace = true
@@ -127,7 +127,7 @@ def _render_build_rs() -> str:
 use std::env;
 use std::fs;
 use std::path::Path;
-use tock_build_scripts::default as tock_build;
+use board_build_scripts::default as tock_build;
 
 fn main() {
     let flash_origin = env::var("SERVICE_FLASH_ORIGIN")
