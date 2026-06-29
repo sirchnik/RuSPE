@@ -33,40 +33,41 @@ pub unsafe extern "C" fn init() {
         static _etext: *const u32;
         static _stack_top: *const u32;
     }
+
     naked_asm!(
-        "
+        r#"
         // Initialize BSS section (zero out)
         ldr r0, ={szero}        // r0 = start of BSS
         ldr r1, ={ezero}        // r1 = end of BSS
         movs r2, #0             // r2 = 0
 
-    bss_loop:
+    100:
         cmp r0, r1              // compare pointers
-        beq bss_done            // if equal, done
+        beq 101f            // if equal, done
         stm r0!, {{r2}}         // *(r0++) = r2 (zero word)
-        b bss_loop
+        b 100b
 
-    bss_done:
+    101:
 
         // Initialize DATA section (copy from ROM to RAM)
         ldr r0, ={sdata}        // r0 = start of data in RAM
         ldr r1, ={edata}        // r1 = end of data in RAM
         ldr r2, ={etext}        // r2 = start of data in ROM
 
-    data_loop:
+    200:
         cmp r0, r1              // compare pointers
-        beq data_done           // if equal, done
+        beq 201f                // if equal, done
         ldm r2!, {{r3}}         // r3 = *(r2++), load from ROM
         stm r0!, {{r3}}         // *(r0++) = r3, store to RAM
-        b data_loop
+        b 200b 
 
-    data_done:
+    201:
 
         // Initialize stack pointer
         ldr sp, ={stack_top}
 
         bx lr
-        ",
+        "#,
         szero = sym _szero,
         ezero = sym _ezero,
         sdata = sym _sdata,
