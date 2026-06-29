@@ -53,8 +53,8 @@ For trying it out follow these steps.
 
 2. Build and flash the tock board image:
   ```bash
-  cd boards/tock/psc3m5_evk_tock
-  inv flash
+  cd boards/psc3m5_evk/secure
+  inv flash --nspe=tock
   ```
 
 3. Run tests against a flashed device using the client tester go application:

@@ -83,12 +83,11 @@ def _build_exclude_args(exclude_list: list[str]) -> str:
 
 
 def _build_task_directories() -> list[Path]:
-    excluded_dirs = {".git", ".venv", "target"}
+    excluded_dirs = {".git", ".venv", "target", "tock-sub"}
     task_files = sorted(
         path
         for path in REPO_ROOT.rglob(TASKS_FILE_NAME)
         if path != REPO_ROOT / TASKS_FILE_NAME
-        and path.relative_to(REPO_ROOT).parts[0] != "tock"
         and not excluded_dirs.intersection(path.relative_to(REPO_ROOT).parts)
     )
     return [path.parent for path in task_files]
@@ -224,7 +223,7 @@ def coverage(ctx: Context, html=False):
 
 @build_task
 def fmt(ctx: Context, check=False):
-    """Run rustfmt on all git-tracked files using run_command, ignoring the tock folder."""
+    """Run rustfmt on all git-tracked files using run_command, ignoring the tock-sub folder."""
     result = run_command(
         ["git", "ls-files"],
         capture_output=True,
@@ -232,7 +231,7 @@ def fmt(ctx: Context, check=False):
     tracked_files = result.stdout.splitlines()
 
     rust_files = [
-        f for f in tracked_files if f.endswith(".rs") and not f.startswith("tock/")
+        f for f in tracked_files if f.endswith(".rs") and not f.startswith("integrations/tock/tock-sub/")
     ]
 
     if not rust_files:

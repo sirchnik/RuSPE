@@ -11,20 +11,20 @@ build = "./build.rs"
 
 [dependencies]
 cortex_m = { path = "../../../../libraries/cortex_m" }
-cortexm33 = { path = "../../../../tock/arch/cortex-m33" }
-kernel = { path = "../../../../tock/kernel" }
-# kernel = { path = "../../../../tock/kernel", features = ["debug_load_processes"] }
-psc3 = { path = "../../../../tock/chips/psc3" }
-components = { path = "../../../../tock/boards/components" }
+cortexm33 = { path = "../../../../integrations/tock/tock-sub/arch/cortex-m33" }
+kernel = { path = "../../../../integrations/tock/tock-sub/kernel" }
+# kernel = { path = "../../../../integrations/tock/tock-sub/kernel", features = ["debug_load_processes"] }
+psc3 = { path = "../../../../integrations/tock/tock-sub/chips/psc3" }
+components = { path = "../../../../integrations/tock/tock-sub/boards/components" }
 
-capsules-core = { path = "../../../../tock/capsules/core" }
-capsules-extra = { path = "../../../../tock/capsules/extra" }
-capsules-system = { path = "../../../../tock/capsules/system" }
+capsules-core = { path = "../../../../integrations/tock/tock-sub/capsules/core" }
+capsules-extra = { path = "../../../../integrations/tock/tock-sub/capsules/extra" }
+capsules-system = { path = "../../../../integrations/tock/tock-sub/capsules/system" }
 
 psa_veneer_client = { path = "../../../../spe/psa_veneer_client" }
 psa_interface = { path = "../../../../spe/psa_interface" }
 
-enum_primitive = { path = "../../../../tock/libraries/enum_primitive" }
+enum_primitive = { path = "../../../../integrations/tock/tock-sub/libraries/enum_primitive" }
 tock_spe_adapter = { path = "../../../../integrations/tock/tock_spe_adapter" }
 
 [features]
@@ -33,7 +33,7 @@ default = ["non_secure_tz"]
 non_secure_tz = []
 
 [build-dependencies]
-tock_build_scripts = { path = "../../../../tock/boards/build_scripts" }
+tock_build_scripts = { path = "../../../../integrations/tock/tock-sub/boards/build_scripts" }
 
 [lints]
 workspace = true

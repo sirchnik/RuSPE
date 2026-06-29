@@ -13,7 +13,7 @@ infineon = { path = "../../chips/infineon" }
 psa_interface = { path = "../../spe/psa_interface" }
 spe = { path = "../../spe/spe" }
 cortex_m = { package = "cortex_m", path = "../../libraries/cortex_m" }
-tock_psc3 = { package = "psc3", path = "../../tock/chips/psc3", default-features = false }
+tock_psc3 = { package = "psc3", path = "../../integrations/tock/tock-sub/chips/psc3", default-features = false }
 spe_services = { path = "../../spe/spe_services" }
 
 [lints]

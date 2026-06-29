@@ -29,7 +29,7 @@ members = [
     "boards/musca_b1/test_nspe",
     "boards/shared/test_nspe",
 ]
-exclude = ["tock"]
+exclude = ["integrations/tock/tock-sub"]
 resolver = "3"
 
 [profile.dev]

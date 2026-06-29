@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [tool.ruff]
-exclude = ["./tock"]
+exclude = ["./integrations/tock/tock-sub"]
 
 [tool.ruff.lint]
 ignore = [
@@ -28,4 +28,4 @@ ignore = [
 ]
 
 [tool.ty.src]
-exclude = ["./tock"]
+exclude = ["./integrations/tock/tock-sub"]

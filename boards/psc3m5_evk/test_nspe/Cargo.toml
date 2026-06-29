@@ -11,7 +11,7 @@ build = "./build.rs"
 
 [dependencies]
 cortex_m = { path = "../../../libraries/cortex_m" }
-psc3 = { path = "../../../tock/chips/psc3" }
+psc3 = { path = "../../../integrations/tock/tock-sub/chips/psc3" }
 
 shared_test_nspe = { path = "../../shared/test_nspe" }
 helpers = { path = "../../../libraries/helpers" }

@@ -33,10 +33,6 @@ pub fn default_linker_script() {
 /// Include the folder where the board's Cargo.toml is in the linker file
 /// search path.
 pub fn add_board_dir_to_linker_search_path() {
-    // Note this is a different path than the one returned by
-    // `std::env!("CARGO_MANIFEST_DIR")` in `include_tock_kernel_layout()`,
-    // since that is evaluated at compile
-    // time while this `std::env::var("CARGO_MANIFEST_DIR")` is evaluated at runtime.
     println!(
         "cargo:rustc-link-arg=-L{}",
         std::env::var("CARGO_MANIFEST_DIR").unwrap()

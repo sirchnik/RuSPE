@@ -153,7 +153,7 @@ unsafe impl IpcProcess for FlashProcess {
     }
 
     fn version(&self) -> u32 {
-        unsafe { (*self.vectors).version }
+        (*self.vectors).version
     }
 
     unsafe fn init_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(

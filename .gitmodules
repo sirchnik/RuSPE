@@ -3,5 +3,5 @@
 # SPDX-License-Identifier: MIT
 
 [submodule "tock"]
-	path = tock
+	path = integrations/tock/tock-sub
 	url = https://github.com/sirchnik/tock
