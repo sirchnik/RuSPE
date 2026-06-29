@@ -39,7 +39,9 @@ mod startup;
 
 #[allow(unexpected_cfgs)]
 pub mod global_spm_api {
-    spe::define_spm_api!(spe::spm::SpmFn<crate::Psc3SecPlatform<InternalPsaClient, SfnApi>>);
+    spe::define_spm_api!(
+        spe::spm::spm_fn::SpmFn<crate::Psc3SecPlatform<InternalPsaClient, SfnApi>>
+    );
 }
 
 #[unsafe(no_mangle)]
@@ -128,8 +130,10 @@ pub unsafe fn main() {
 
     let spm = unsafe {
         static_init!(
-            spm::SpmFn<Psc3SecPlatform<global_spm_api::InternalPsaClient, global_spm_api::SfnApi>>,
-            spm::SpmFn::new(sec_platform)
+            spm::spm_fn::SpmFn<
+                Psc3SecPlatform<global_spm_api::InternalPsaClient, global_spm_api::SfnApi>,
+            >,
+            spm::spm_fn::SpmFn::new(sec_platform)
         )
     };
 

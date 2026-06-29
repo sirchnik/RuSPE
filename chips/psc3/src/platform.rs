@@ -5,7 +5,7 @@
 use psa_interface;
 use spe::{
     service::Service,
-    spm::{CustomMpuRegion, Permissions, SpmPlatform},
+    spm::spm_fn::SfnPlatform,
     spm_api::{CallerAttributes, PsaMsg},
 };
 
@@ -22,7 +22,7 @@ pub struct Psc3SecPlatform<
     pub crypto: services::Crypto,
 }
 
-impl<C: psa_interface::PsaApiCallInterface + Sync, A: spe::spm_api::SpmApi + Sync> SpmPlatform
+impl<C: psa_interface::PsaApiCallInterface + Sync, A: spe::spm_api::SpmApi + Sync> SfnPlatform
     for Psc3SecPlatform<C, A>
 {
     fn call(&self, msg: PsaMsg) -> Result<(), spe::StatusCode> {
@@ -80,29 +80,6 @@ impl<C: psa_interface::PsaApiCallInterface + Sync, A: spe::spm_api::SpmApi + Syn
             }
         } else {
             false
-        }
-    }
-
-    fn custom_mpu_regions(
-        &self,
-        handle: psa_interface::types::ServiceHandle,
-    ) -> &[CustomMpuRegion] {
-        if (handle as isize) == (psa_interface::types::ServiceHandle::AttestationService as isize) {
-            static REGIONS: [CustomMpuRegion; 2] = [
-                CustomMpuRegion {
-                    base: 0x4223_0000 as *const u8,
-                    size: 0x200,
-                    permissions: Permissions::ReadWriteOnly,
-                },
-                CustomMpuRegion {
-                    base: 0x4261_0180 as *const u8,
-                    size: 0x20,
-                    permissions: Permissions::ReadOnly,
-                },
-            ];
-            &REGIONS
-        } else {
-            &[]
         }
     }
 

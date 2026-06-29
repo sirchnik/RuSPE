@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::spm::SpmCall;
+use crate::spm::spm::SpmCall;
 use core::{mem, panic, slice};
 use psa_interface::{
     status::StatusCode,

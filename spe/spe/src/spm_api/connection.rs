@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::spm::{Connection, PSA_MAX_IOVEC, SpmCall, SpmError};
+use crate::spm::spm::{Connection, PSA_MAX_IOVEC, SpmCall, SpmError};
 use core::{panic, ptr, slice};
 use psa_interface::{
     status::StatusCode,

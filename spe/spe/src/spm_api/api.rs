@@ -74,7 +74,7 @@ macro_rules! define_spm_api {
                 let caller = $crate::spm_api::CallerAttributes::SECURE_PRIVILEGED;
                 let connection = $crate::spm_api::call_from_slices(handle, ctrl_param, in_vecs, out_vecs, caller)?;
 
-                $crate::spm::SpmCall::call(spm, connection)
+                $crate::spm::spm::SpmCall::call(spm, connection)
             }
         }
 
@@ -106,7 +106,7 @@ macro_rules! define_spm_api {
                 Ok(h) => h,
                 Err(_) => return 0,
             };
-            $crate::spm::SpmCall::version(get_spm(), handle).unwrap_or(0)
+            $crate::spm::spm::SpmCall::version(get_spm(), handle).unwrap_or(0)
         }
 
         pub struct InternalPsaClient;
@@ -216,7 +216,7 @@ macro_rules! define_spm_api {
     };
 }
 
-use crate::spm::PSA_MAX_IOVEC;
+use crate::spm::spm::PSA_MAX_IOVEC;
 use psa_interface::{
     status::StatusCode,
     types::{CtrlParam, FFInVec, FFOutVec, ServiceHandle},

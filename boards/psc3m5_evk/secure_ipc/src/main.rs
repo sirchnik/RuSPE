@@ -11,10 +11,11 @@
 
 use core::ptr::addr_of_mut;
 
+use cortex_m::mpu::Permissions;
 use helpers::static_init;
-use spe::spm::{
-    self, CustomMpuRegion, FlashProcess, FlashProcessVectors, IpcProcessPlatform, Permissions,
-    SpmPlatform,
+use spe::spm;
+use spe::spm::spm_ipc::{
+    CustomMpuRegion, IpcPlatform, IpcProcessPlatform, ServiceProcess, ServiceVectors,
 };
 use tock_psc3::{chip, chip_init, gpio, icache, peri_clk, scb};
 
@@ -40,7 +41,7 @@ mod startup;
 
 #[allow(unexpected_cfgs)]
 pub mod global_spm_api {
-    spe::define_spm_api!(spe::spm::SpmIpc<crate::Psc3IpcPlatform, { crate::service_config::SERVICE_COUNT }, spe::spm::FlashProcess>);
+    spe::define_spm_api!(spe::spm::spm_ipc::SpmIpc<crate::Psc3IpcPlatform, { crate::service_config::SERVICE_COUNT }, spe::spm::spm_ipc::ServiceProcess>);
 }
 
 const NONSECURE_FLASH_START: u32 = 0x2202_0000;
@@ -52,13 +53,7 @@ const NONSECURE_RAM_LIMIT: u32 = 0x2400_EFFF;
 /// Service dispatch is handled by the SpmIpc process table, not by this platform.
 pub struct Psc3IpcPlatform;
 
-impl SpmPlatform for Psc3IpcPlatform {
-    fn call(&self, _msg: spe::spm_api::PsaMsg) -> Result<(), spe::StatusCode> {
-        // In the IPC model, services are dispatched via the process table.
-        // This method is never called directly.
-        Err(spe::StatusCode::NotSupported)
-    }
-
+impl IpcPlatform for Psc3IpcPlatform {
     fn has_permission_on_memory(
         &self,
         _base: *const u8,
@@ -110,7 +105,7 @@ impl SpmPlatform for Psc3IpcPlatform {
         handle: psa_interface::types::ServiceHandle,
     ) -> &[CustomMpuRegion] {
         if (handle as isize) == (psa_interface::types::ServiceHandle::AttestationService as isize) {
-            static REGIONS: [CustomMpuRegion; 2] = [
+            const REGIONS: [CustomMpuRegion; 2] = [
                 CustomMpuRegion {
                     base: 0x4223_0000 as *const u8,
                     size: 0x200,
@@ -198,13 +193,13 @@ pub unsafe fn main() {
     );
 
     // Service binaries are placed in dedicated secure flash slots.
-    // Vector tables (FlashProcessVectors) are at the start of each service's ROM region.
+    // Vector tables (ServiceVectors) are at the start of each service's ROM region.
     // Addresses and handles are generated at build time from board task settings.
 
     // Load service configuration generated at build time and build the exact process table.
-    let processes: [FlashProcess; service_config::SERVICE_COUNT] = core::array::from_fn(|i| {
-        FlashProcess::new(service_config::SERVICE_HANDLES[i], unsafe {
-            &*(service_config::SERVICE_ADDRS[i] as *const FlashProcessVectors)
+    let processes: [ServiceProcess; service_config::SERVICE_COUNT] = core::array::from_fn(|i| {
+        ServiceProcess::new(service_config::SERVICE_HANDLES[i], unsafe {
+            &*(service_config::SERVICE_ADDRS[i] as *const ServiceVectors)
         })
     });
 
@@ -212,8 +207,8 @@ pub unsafe fn main() {
 
     let spm = unsafe {
         static_init!(
-            spm::SpmIpc<Psc3IpcPlatform, { service_config::SERVICE_COUNT }, FlashProcess>,
-            spm::SpmIpc::new(platform, processes)
+            spm::spm_ipc::SpmIpc<Psc3IpcPlatform, { service_config::SERVICE_COUNT }, ServiceProcess>,
+            spm::spm_ipc::SpmIpc::new(platform, processes)
         )
     };
 

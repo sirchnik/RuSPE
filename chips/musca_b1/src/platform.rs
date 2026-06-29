@@ -5,7 +5,7 @@
 use psa_interface;
 use spe::{
     service::Service,
-    spm::{CustomMpuRegion, SpmPlatform},
+    spm::spm_fn::SfnPlatform,
     spm_api::{CallerAttributes, PsaMsg},
 };
 
@@ -21,7 +21,7 @@ pub struct MuscaB1SecPlatform<
     pub crypto: services::Crypto,
 }
 
-impl<C: psa_interface::PsaApiCallInterface + Sync, A: spe::spm_api::SpmApi + Sync> SpmPlatform
+impl<C: psa_interface::PsaApiCallInterface + Sync, A: spe::spm_api::SpmApi + Sync> SfnPlatform
     for MuscaB1SecPlatform<C, A>
 {
     fn call(&self, msg: PsaMsg) -> Result<(), spe::StatusCode> {
@@ -73,13 +73,6 @@ impl<C: psa_interface::PsaApiCallInterface + Sync, A: spe::spm_api::SpmApi + Syn
         } else {
             false
         }
-    }
-
-    fn custom_mpu_regions(
-        &self,
-        _handle: psa_interface::types::ServiceHandle,
-    ) -> &[CustomMpuRegion] {
-        &[]
     }
 
     fn version(&self, handle: psa_interface::types::ServiceHandle) -> Option<u32> {

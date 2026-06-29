@@ -35,7 +35,7 @@ def _render_main_rs(spec: ServiceSpec) -> str:
 
 {spec.generated_import}
 use psa_interface::status::into_psa_status;
-use spe::{{service::Service, spm::FlashProcessVectors, spm_api::PsaMsg}};
+use spe::{{service::Service, spm::spm_ipc::ServiceVectors, spm_api::PsaMsg}};
 
 static SERVICE: {spec.generated_service_type} = {spec.generated_service_ctor};
 
@@ -73,7 +73,7 @@ pub unsafe extern \"C\" fn svc_return() {{
     unsafe(link_section = \".vectors\")
 )]
 #[cfg_attr(all(target_arch = \"arm\", target_os = \"none\"), used)]
-pub static BASE_VECTORS: FlashProcessVectors = FlashProcessVectors {{
+pub static BASE_VECTORS: ServiceVectors = ServiceVectors {{
     init_entry: spe::service::init,
     call_entry: call,
     rom_start: unsafe {{ &_rom_start as *const _ as *const u8 }},

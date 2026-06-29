@@ -20,7 +20,7 @@ mod startup;
 #[allow(unexpected_cfgs)]
 pub mod global_spm_api {
     spe::define_spm_api!(
-        spe::spm::SpmFn<ruspe_musca_b1::MuscaB1SecPlatform<InternalPsaClient, SfnApi>>
+        spe::spm::spm_fn::SpmFn<ruspe_musca_b1::MuscaB1SecPlatform<InternalPsaClient, SfnApi>>
     );
 }
 
@@ -63,13 +63,13 @@ pub unsafe fn main() {
 
     let spm = unsafe {
         static_init!(
-            spe::spm::SpmFn<
+            spe::spm::spm_fn::SpmFn<
                 ruspe_musca_b1::MuscaB1SecPlatform<
                     global_spm_api::InternalPsaClient,
                     global_spm_api::SfnApi,
                 >,
             >,
-            spe::spm::SpmFn::new(sec_platform)
+            spe::spm::spm_fn::SpmFn::new(sec_platform)
         )
     };
 

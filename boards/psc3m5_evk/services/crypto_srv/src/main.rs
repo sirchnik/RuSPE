@@ -7,7 +7,7 @@
 
 use psa_interface::status::into_psa_status;
 use ruspe_psc3::services::crypto::Crypto;
-use spe::{service::Service, spm::FlashProcessVectors, spm_api::PsaMsg};
+use spe::{service::Service, spm::spm_ipc::ServiceVectors, spm_api::PsaMsg};
 
 static SERVICE: Crypto = Crypto::new([
     0xc3, 0xfe, 0xe8, 0x4c, 0x73, 0x49, 0xd8, 0xe8, 0x44, 0x3d, 0xe4, 0xae, 0x65, 0xf7, 0xea, 0x3b,
@@ -48,7 +48,7 @@ pub unsafe extern "C" fn svc_return() {
     unsafe(link_section = ".vectors")
 )]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
-pub static BASE_VECTORS: FlashProcessVectors = FlashProcessVectors {
+pub static BASE_VECTORS: ServiceVectors = ServiceVectors {
     version: Crypto::VERSION,
     init_entry: spe::service::init,
     call_entry: call,
