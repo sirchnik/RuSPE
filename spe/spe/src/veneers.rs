@@ -18,27 +18,14 @@
 /// Retrieve the version of the PSA Framework API that is implemented.
 #[unsafe(no_mangle)]
 pub extern "cmse-nonsecure-entry" fn psa_framework_version_veneer() -> u32 {
-    unimplemented!("PSA framework version veneer not implemented")
+    psa_interface::types::PSA_FRAMEWORK_VERSION
 }
 
 /// Return version of secure function provided by secure binary.
 #[unsafe(no_mangle)]
 pub extern "cmse-nonsecure-entry" fn psa_version_veneer(service_id: u32) -> u32 {
-    let _ = service_id;
-    unimplemented!("PSA version veneer not implemented")
+    unsafe extern "Rust" {
+        fn __spm_api_psa_version(service_id: u32) -> u32;
+    }
+    unsafe { __spm_api_psa_version(service_id) }
 }
-
-// /// Close connection to secure function referenced by a connection handle.
-// #[unsafe(no_mangle)]
-// pub extern "cmse-nonsecure-entry" fn tfm_psa_close_veneer(handle: PsaHandle) {
-//     let _ = handle;
-//     unimplemented!("PSA close veneer not implemented")
-// }
-
-// TODO: Do I need this?
-// /// Connect to secure function.
-// #[unsafe(no_mangle)]
-// pub extern "cmse-nonsecure-entry"  fn tfm_psa_connect_veneer(sid: u32, version: u32) -> psa_handle_t {
-//     let _ = (sid, version);
-//     unimplemented!("PSA connect veneer not implemented")
-// }

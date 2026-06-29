@@ -8,11 +8,7 @@ use crate::attest::psa_token::{
 };
 use core::mem::size_of;
 use psa_interface::status::StatusCode;
-use spe::{
-    service::{Info, Service},
-    spm_api::PsaMsg,
-    spm_api::SpmApi,
-};
+use spe::{service::Service, spm_api::PsaMsg, spm_api::SpmApi};
 
 /// Maximum token buffer size used by default TF-M builds.
 pub const PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE: usize = 0x250;
@@ -53,6 +49,8 @@ pub struct AttestService<P: AttestPlatform, C: psa_interface::PsaApiCallInterfac
 }
 
 impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, C> {
+    pub const VERSION: u32 = 1;
+
     pub const fn new(platform: P) -> Self {
         Self {
             platform,
@@ -281,10 +279,6 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
 impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface, A: SpmApi> Service<A>
     for AttestService<P, C>
 {
-    fn info(&self) -> Info {
-        Info { version: 1 }
-    }
-
     fn call(&self, msg: PsaMsg, api: &A) -> Result<(), psa_interface::status::StatusCode> {
         if !Self::has_exactly_one_iovec(&msg) {
             return Err(psa_interface::status::StatusCode::InvalidArgument);

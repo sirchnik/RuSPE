@@ -4,13 +4,32 @@
 
 use bytemuck::{Pod, Zeroable};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(C)]
 pub enum ServiceHandle {
     InternalTrustedStorageService = 0x40000102,
     Crypto = 0x40000100,
     AttestationService = 0x40000103,
 }
+
+impl core::convert::TryFrom<i32> for ServiceHandle {
+    type Error = ();
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        match value {
+            v if v == Self::Crypto as i32 => Ok(Self::Crypto),
+            v if v == Self::InternalTrustedStorageService as i32 => {
+                Ok(Self::InternalTrustedStorageService)
+            }
+            v if v == Self::AttestationService as i32 => Ok(Self::AttestationService),
+            _ => Err(()),
+        }
+    }
+}
+
+const _PSA_FF_1_0: u32 = 0x0100;
+const _PSA_FF_1_1: u32 = 0x0101;
+pub const PSA_FRAMEWORK_VERSION: u32 = 0x0100;
 
 #[repr(C)]
 pub enum AttestationServiceType {

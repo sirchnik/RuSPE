@@ -100,15 +100,24 @@ macro_rules! define_spm_api {
             }
         }
 
+        #[unsafe(no_mangle)]
+        pub fn __spm_api_psa_version(service_id: u32) -> u32 {
+            let handle = match psa_interface::types::ServiceHandle::try_from(service_id as i32) {
+                Ok(h) => h,
+                Err(_) => return 0,
+            };
+            $crate::spm::SpmCall::version(get_spm(), handle).unwrap_or(0)
+        }
+
         pub struct InternalPsaClient;
 
         impl psa_interface::PsaApiCallInterface for InternalPsaClient {
             fn psa_framework_version() -> u32 {
-                todo!();
+                psa_interface::types::PSA_FRAMEWORK_VERSION
             }
 
-            fn psa_version(_service_id: u32) -> u32 {
-                todo!();
+            fn psa_version(service_id: u32) -> u32 {
+                __spm_api_psa_version(service_id)
             }
 
             fn psa_call(

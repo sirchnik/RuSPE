@@ -47,6 +47,7 @@ pub unsafe extern "C" fn svc_return() {
 )]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static BASE_VECTORS: FlashProcessVectors = FlashProcessVectors {
+    version: InitialAttestation::<spe::spm_api::IpcPsaClient>::VERSION,
     init_entry: spe::service::init,
     call_entry: call,
     rom_start: unsafe { &_rom_start as *const _ as *const u8 },

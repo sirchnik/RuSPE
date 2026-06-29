@@ -126,6 +126,11 @@ pub trait SpmPlatform: Sync {
     ) -> &[crate::spm::CustomMpuRegion] {
         &[]
     }
+
+    fn version(&self, handle: psa_interface::types::ServiceHandle) -> Option<u32> {
+        let _ = handle;
+        None
+    }
 }
 
 /// Object-safe trait for SPM operations, used for type-erased storage in statics.
@@ -141,6 +146,7 @@ pub trait SpmCall: Sync {
     ) -> bool;
     fn map_vec(&self, is_outvec: bool, vec_idx: u32, base: *const u8, size: usize);
     fn unmap_vec(&self, is_outvec: bool, vec_idx: u32);
+    fn version(&self, handle: psa_interface::types::ServiceHandle) -> Option<u32>;
 }
 
 pub struct SpmFn<P: SpmPlatform + 'static> {
@@ -232,4 +238,8 @@ impl<P: SpmPlatform + 'static> SpmCall for SpmFn<P> {
 
     fn map_vec(&self, _is_outvec: bool, _vec_idx: u32, _base: *const u8, _size: usize) {}
     fn unmap_vec(&self, _is_outvec: bool, _vec_idx: u32) {}
+
+    fn version(&self, handle: psa_interface::types::ServiceHandle) -> Option<u32> {
+        self.platform.version(handle)
+    }
 }

@@ -4,12 +4,7 @@
 
 use p256::ecdsa::{Signature, SigningKey, signature::hazmat::PrehashSigner};
 use psa_interface::types::{TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID, TfmCryptoPackIovec};
-use spe::{
-    StatusCode,
-    service::{Info, Service},
-    spm_api::PsaMsg,
-    spm_api::SpmApi,
-};
+use spe::{StatusCode, service::Service, spm_api::PsaMsg, spm_api::SpmApi};
 
 /// P-256 ECDSA signature size in bytes (r || s, 32 + 32).
 const P256_SIGNATURE_SIZE: usize = 64;
@@ -21,6 +16,8 @@ pub struct CryptoService {
 }
 
 impl CryptoService {
+    pub const VERSION: u32 = 1;
+
     pub const fn new(signing_key: [u8; 32]) -> Self {
         Self { signing_key }
     }
@@ -47,10 +44,6 @@ impl CryptoService {
 }
 
 impl<A: SpmApi> Service<A> for CryptoService {
-    fn info(&self) -> Info {
-        Info { version: 1 }
-    }
-
     fn call(&self, msg: PsaMsg, api: &A) -> Result<(), psa_interface::status::StatusCode> {
         // TF-M layout: invec[0] = TfmCryptoPackIovec, invec[1] = hash,
         //              outvec[0] = signature buffer.

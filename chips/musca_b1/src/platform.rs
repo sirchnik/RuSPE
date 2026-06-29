@@ -81,4 +81,14 @@ impl<C: psa_interface::PsaApiCallInterface + Sync, A: spe::spm_api::SpmApi + Syn
     ) -> &[CustomMpuRegion] {
         &[]
     }
+
+    fn version(&self, handle: psa_interface::types::ServiceHandle) -> Option<u32> {
+        match handle {
+            psa_interface::types::ServiceHandle::AttestationService => {
+                Some(services::InitialAttestation::<C>::VERSION)
+            }
+            psa_interface::types::ServiceHandle::Crypto => Some(services::Crypto::VERSION),
+            _ => None,
+        }
+    }
 }

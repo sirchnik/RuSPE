@@ -19,6 +19,7 @@ const EXCEPTION_FRAME_WORDS: usize = 8;
 #[repr(C)]
 #[derive(Debug)]
 pub struct FlashProcessVectors {
+    pub version: u32,
     pub init_entry: unsafe extern "C" fn(),
     pub call_entry: unsafe extern "C" fn(*const PsaMsg) -> PsaStatus,
     /// Start of the service ROM window containing executable code and rodata.
@@ -56,6 +57,7 @@ pub trait IpcProcessPlatform: SpmPlatform {
 pub unsafe trait IpcProcess: Sync {
     fn handle(&self) -> ServiceHandle;
     fn get_vectors(&self) -> Option<&'static FlashProcessVectors>;
+    fn version(&self) -> u32;
 
     /// One-time initialization, called before the first `call()`.
     ///
@@ -150,6 +152,10 @@ unsafe impl IpcProcess for FlashProcess {
         Some(self.vectors)
     }
 
+    fn version(&self) -> u32 {
+        unsafe { (*self.vectors).version }
+    }
+
     unsafe fn init_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
         &self,
         _platform: &P,
@@ -198,6 +204,7 @@ unsafe impl IpcProcess for FlashProcess {
 
 pub struct EmbeddedProcess<A: crate::spm_api::SpmApi + Sync + 'static> {
     pub handle: ServiceHandle,
+    pub version: u32,
     service: &'static (dyn Service<A> + Sync),
     api: &'static A,
 }
@@ -208,11 +215,13 @@ unsafe impl<A: crate::spm_api::SpmApi + Sync + 'static> Sync for EmbeddedProcess
 impl<A: crate::spm_api::SpmApi + Sync + 'static> EmbeddedProcess<A> {
     pub const fn new(
         handle: ServiceHandle,
+        version: u32,
         service: &'static (dyn Service<A> + Sync),
         api: &'static A,
     ) -> Self {
         Self {
             handle,
+            version,
             service,
             api,
         }
@@ -228,6 +237,10 @@ unsafe impl<A: crate::spm_api::SpmApi + Sync + 'static> IpcProcess for EmbeddedP
 
     fn get_vectors(&self) -> Option<&'static FlashProcessVectors> {
         None
+    }
+
+    fn version(&self) -> u32 {
+        self.version
     }
 
     unsafe fn init_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
@@ -545,5 +558,10 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmCall
             .unwrap();
 
         self.apply_mpu_config(process_index);
+    }
+
+    fn version(&self, handle: ServiceHandle) -> Option<u32> {
+        self.find_process_index(handle)
+            .map(|i| self.processes[i].version())
     }
 }
