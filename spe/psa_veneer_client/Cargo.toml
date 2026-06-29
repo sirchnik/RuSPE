@@ -4,8 +4,9 @@
 
 [package]
 name = "psa_veneer_client"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 psa_interface = { path = "../psa_interface" }

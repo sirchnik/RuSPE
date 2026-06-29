@@ -4,8 +4,9 @@
 
 [package]
 name = "psa_interface"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 bytemuck = { version = "1.25.0", features = ["derive"] }
