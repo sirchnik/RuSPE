@@ -60,15 +60,19 @@ pub unsafe trait IpcProcess: Sync {
     ///
     /// # Safety
     /// For flash processes, the entry point vectors must be valid.
-    unsafe fn init_process<S: SpmCall>(&self, platform: &dyn IpcProcessPlatform, spm: &S);
+    unsafe fn init_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
+        &self,
+        platform: &P,
+        spm: &S,
+    );
 
     /// Dispatch a service call. The connection is already on the SPM stack.
     ///
     /// # Safety
     /// For flash processes, the entry point vectors must be valid.
-    unsafe fn call_process<S: SpmCall>(
+    unsafe fn call_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
         &self,
-        platform: &dyn IpcProcessPlatform,
+        platform: &P,
         spm: &S,
         msg: PsaMsg,
     ) -> Result<(), crate::StatusCode>;
@@ -155,7 +159,11 @@ unsafe impl IpcProcess for FlashProcess {
         Some(self.vectors)
     }
 
-    unsafe fn init_process<S: SpmCall>(&self, _platform: &dyn IpcProcessPlatform, _spm: &S) {
+    unsafe fn init_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
+        &self,
+        _platform: &P,
+        _spm: &S,
+    ) {
         let vectors = unsafe { &*self.vectors };
         unsafe {
             svc_call_unpriv(
@@ -168,9 +176,9 @@ unsafe impl IpcProcess for FlashProcess {
         }
     }
 
-    unsafe fn call_process<S: SpmCall>(
+    unsafe fn call_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
         &self,
-        _platform: &dyn IpcProcessPlatform,
+        _platform: &P,
         _spm: &S,
         msg: PsaMsg,
     ) -> Result<(), crate::StatusCode> {
@@ -231,13 +239,17 @@ unsafe impl<A: crate::spm_api::SpmApi + Sync + 'static> IpcProcess for EmbeddedP
         None
     }
 
-    unsafe fn init_process<S: SpmCall>(&self, _platform: &dyn IpcProcessPlatform, _spm: &S) {
+    unsafe fn init_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
+        &self,
+        _platform: &P,
+        _spm: &S,
+    ) {
         // Embedded services are fully initialized at construction time.
     }
 
-    unsafe fn call_process<S: SpmCall>(
+    unsafe fn call_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
         &self,
-        _platform: &dyn IpcProcessPlatform,
+        _platform: &P,
         _spm: &S,
         msg: PsaMsg,
     ) -> Result<(), crate::StatusCode> {
