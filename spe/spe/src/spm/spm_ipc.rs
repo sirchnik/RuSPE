@@ -17,6 +17,7 @@ const EXCEPTION_FRAME_WORDS: usize = 8;
 // ---------------------------------------------------------------------------
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct FlashProcessVectors {
     pub init_entry: unsafe extern "C" fn(),
     pub call_entry: unsafe extern "C" fn(*const PsaMsg) -> PsaStatus,
@@ -54,7 +55,7 @@ pub trait IpcProcessPlatform: SpmPlatform {
 /// in the unprivileged execution context provided by the SPM.
 pub unsafe trait IpcProcess: Sync {
     fn handle(&self) -> ServiceHandle;
-    fn get_vectors(&self) -> Option<*const FlashProcessVectors>;
+    fn get_vectors(&self) -> Option<&'static FlashProcessVectors>;
 
     /// One-time initialization, called before the first `call()`.
     ///
@@ -86,21 +87,11 @@ unsafe impl Sync for FlashProcessVectors {}
 #[derive(Clone, Copy, Debug)]
 pub struct FlashProcess {
     pub handle: ServiceHandle,
-    pub vectors: *const FlashProcessVectors,
+    pub vectors: &'static FlashProcessVectors,
 }
 
-// # Safety
-// FlashProcess is Sync because it only contains a raw pointer to flash-resident
-// vectors that are assumed immutable for the lifetime of the program.
-unsafe impl Sync for FlashProcess {}
-
-// # Safety
-// FlashProcess is Send because the entry point pointers are immutable and can be
-// invoked from any context that upholds the platform's execution constraints.
-unsafe impl Send for FlashProcess {}
-
 impl FlashProcess {
-    pub const fn new(handle: ServiceHandle, vectors: *const FlashProcessVectors) -> Self {
+    pub const fn new(handle: ServiceHandle, vectors: &'static FlashProcessVectors) -> Self {
         Self { handle, vectors }
     }
 
@@ -155,7 +146,7 @@ unsafe impl IpcProcess for FlashProcess {
         self.handle
     }
 
-    fn get_vectors(&self) -> Option<*const FlashProcessVectors> {
+    fn get_vectors(&self) -> Option<&'static FlashProcessVectors> {
         Some(self.vectors)
     }
 
@@ -164,7 +155,7 @@ unsafe impl IpcProcess for FlashProcess {
         _platform: &P,
         _spm: &S,
     ) {
-        let vectors = unsafe { &*self.vectors };
+        let vectors = self.vectors;
         unsafe {
             svc_call_unpriv(
                 vectors.init_entry as usize,
@@ -182,7 +173,7 @@ unsafe impl IpcProcess for FlashProcess {
         _spm: &S,
         msg: PsaMsg,
     ) -> Result<(), crate::StatusCode> {
-        let vectors = unsafe { &*self.vectors };
+        let vectors = self.vectors;
         let (staged_msg, stack_top) = Self::stage_msg_mailbox(vectors, msg);
         let status = unsafe {
             svc_call_unpriv(
@@ -235,7 +226,7 @@ unsafe impl<A: crate::spm_api::SpmApi + Sync + 'static> IpcProcess for EmbeddedP
         self.handle
     }
 
-    fn get_vectors(&self) -> Option<*const FlashProcessVectors> {
+    fn get_vectors(&self) -> Option<&'static FlashProcessVectors> {
         None
     }
 
@@ -340,11 +331,10 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
     fn apply_mpu_config(&self, process_index: usize) {
         use cortex_m::mpu::{MPU, Permissions};
 
-        let vectors_ptr = self.processes[process_index].get_vectors();
-        let Some(vectors_ptr) = vectors_ptr else {
+        let vectors = self.processes[process_index].get_vectors();
+        let Some(vectors) = vectors else {
             return;
         };
-        let vectors = unsafe { &*vectors_ptr };
 
         let mpu = unsafe { MPU::<8>::new() };
 

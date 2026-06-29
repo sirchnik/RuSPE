@@ -203,10 +203,9 @@ pub unsafe fn main() {
 
     // Load service configuration generated at build time and build the exact process table.
     let processes: [FlashProcess; service_config::SERVICE_COUNT] = core::array::from_fn(|i| {
-        FlashProcess::new(
-            service_config::SERVICE_HANDLES[i],
-            service_config::SERVICE_ADDRS[i] as *const FlashProcessVectors,
-        )
+        FlashProcess::new(service_config::SERVICE_HANDLES[i], unsafe {
+            &*(service_config::SERVICE_ADDRS[i] as *const FlashProcessVectors)
+        })
     });
 
     let platform = unsafe { static_init!(Psc3IpcPlatform, Psc3IpcPlatform) };

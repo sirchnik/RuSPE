@@ -5,8 +5,8 @@
 //
 // SPDX-License-Identifier: MIT
 
-use ruspe_psc3::services::crypto::Crypto;
 use psa_interface::status::into_psa_status;
+use ruspe_psc3::services::crypto::Crypto;
 use spe::{service::Service, spm::FlashProcessVectors, spm_api::PsaMsg};
 
 static SERVICE: Crypto = Crypto::new([

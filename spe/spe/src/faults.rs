@@ -88,11 +88,19 @@ unsafe extern "C" fn fault_handler_real(
     stack_overflow: u32,
     kind: u32,
 ) -> ! {
+    let pc = unsafe { *_faulting_stack.add(6) };
+    let lr = unsafe { *_faulting_stack.add(5) };
+    let r0 = unsafe { *_faulting_stack.add(0) };
+    let r1 = unsafe { *_faulting_stack.add(1) };
     panic!(
-        "Fault {} ISR {} stk_ovf {}",
+        "Fault {} ISR {} stk_ovf {}\nPC: {:#010X}, LR: {:#010X}\nR0: {:#010X}, R1: {:#010X}",
         kind,
         interrupt_number & 0x1ff,
-        stack_overflow
+        stack_overflow,
+        pc,
+        lr,
+        r0,
+        r1
     );
 }
 
