@@ -94,7 +94,7 @@ pub unsafe fn main() {
 
     writer.write_fmt(format_args!("NSPE init done")).unwrap();
 
-    shared_test_nspe::run_attestation_test(writer);
+    shared_test_nspe::run_test(writer);
 
     loop {}
 }

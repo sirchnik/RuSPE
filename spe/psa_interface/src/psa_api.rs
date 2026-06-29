@@ -15,7 +15,11 @@ fn status_from_raw(status: types::PsaStatus) -> Result<(), StatusCode> {
     }
 }
 
-pub fn initial_attest_get_token<T: PsaApiCallInterface>(
+pub fn psa_version<T: PsaApiCallInterface>(service_handle: types::ServiceHandle) -> u32 {
+    T::psa_version(service_handle as u32)
+}
+
+pub fn psa_initial_attest_get_token<T: PsaApiCallInterface>(
     challenge: &[u8],
     token_buf: &mut [u8],
 ) -> Result<(), StatusCode> {
@@ -152,7 +156,7 @@ mod tests {
         MOCK_RETURN_STATUS.store(0, Ordering::Relaxed);
         let challenge = [0u8; 32];
         let mut token = [0u8; 256];
-        let result = initial_attest_get_token::<MockPsaClient>(&challenge, &mut token);
+        let result = psa_initial_attest_get_token::<MockPsaClient>(&challenge, &mut token);
         assert!(result.is_ok());
     }
 
@@ -162,7 +166,7 @@ mod tests {
         MOCK_RETURN_STATUS.store(-132, Ordering::Relaxed); // GenericError
         let challenge = [0u8; 32];
         let mut token = [0u8; 256];
-        let result = initial_attest_get_token::<MockPsaClient>(&challenge, &mut token);
+        let result = psa_initial_attest_get_token::<MockPsaClient>(&challenge, &mut token);
         assert_eq!(result, Err(StatusCode::GenericError));
     }
 

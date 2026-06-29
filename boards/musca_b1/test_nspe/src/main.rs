@@ -99,7 +99,7 @@ pub unsafe fn main() {
     io::debugln(format_args!("Init NSPE done"));
 
     let writer = unsafe { &mut *addr_of_mut!(io::WRITER) };
-    shared_test_nspe::run_attestation_test(writer);
+    shared_test_nspe::run_test(writer);
 
     loop {
         core::hint::spin_loop();

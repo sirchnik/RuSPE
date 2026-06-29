@@ -5,17 +5,41 @@
 #![no_std]
 
 use core::fmt::Write;
-use psa_interface::psa_api;
+use psa_interface::{psa_api, types::ServiceHandle};
 use psa_veneer_client::PsaVeneerClient;
 
 #[repr(align(32))]
 struct Aligned32<T>(T);
 
-pub fn run_attestation_test(writer: &mut dyn Write) {
+pub fn run_test(writer: &mut dyn Write) {
+    print_version(writer);
+    run_attest(writer);
+}
+fn print_version(writer: &mut dyn Write) {
+    let initial_attest_version =
+        psa_api::psa_version::<PsaVeneerClient>(ServiceHandle::AttestationService);
+    let internal_trusted_storage =
+        psa_api::psa_version::<PsaVeneerClient>(ServiceHandle::InternalTrustedStorageService);
+
+    writer
+        .write_fmt(format_args!(
+            "initial_attest_version: {}\n",
+            initial_attest_version
+        ))
+        .unwrap();
+    writer
+        .write_fmt(format_args!(
+            "internal_trusted_storage: {}\n",
+            internal_trusted_storage
+        ))
+        .unwrap();
+}
+fn run_attest(writer: &mut dyn Write) {
     let challenge = Aligned32([0u8; 32]);
     let mut token_buf = Aligned32([0u8; 512]);
 
-    psa_api::initial_attest_get_token::<PsaVeneerClient>(&challenge.0, &mut token_buf.0).unwrap();
+    psa_api::psa_initial_attest_get_token::<PsaVeneerClient>(&challenge.0, &mut token_buf.0)
+        .unwrap();
 
     let _ = write!(writer, "\r\ntoken_buf: ");
 

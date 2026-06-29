@@ -120,10 +120,6 @@ pub const fn new() -> SAU {
     }
 }
 
-// Ensure SAU is Send/Sync since it's just a pointer wrapper
-unsafe impl Send for SAU {}
-unsafe impl Sync for SAU {}
-
 impl SAU {
     fn registers(&self) -> &SauRegisters {
         unsafe { &*self.registers }

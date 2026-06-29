@@ -176,7 +176,7 @@ impl SpeAdapter {
                 };
 
                 let mut token = [0u8; MAX_TOKEN_LEN];
-                let status = psa_api::initial_attest_get_token::<PsaVeneerClient>(
+                let status = psa_api::psa_initial_attest_get_token::<PsaVeneerClient>(
                     &challenge[..challenge_len],
                     &mut token[..token_len],
                 );

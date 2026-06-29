@@ -57,7 +57,7 @@ impl attest_service::AttestPlatform for Psc3AttestPlatform {
             seed: core::cell::UnsafeCell<[u8; 32]>,
             init: core::cell::UnsafeCell<bool>,
         }
-        unsafe impl Sync for BootSeedState {}
+        unsafe impl Sync for BootSeedState {} // TODO remove unsafe here.
         static STATE: BootSeedState = BootSeedState {
             seed: core::cell::UnsafeCell::new([0; 32]),
             init: core::cell::UnsafeCell::new(false),

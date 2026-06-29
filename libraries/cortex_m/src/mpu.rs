@@ -35,10 +35,6 @@ pub struct MPU<const N: usize> {
     base: *mut u32,
 }
 
-// Ensure it implements Send and Sync since it's just a stateless wrapper over a pointer.
-unsafe impl<const N: usize> Send for MPU<N> {}
-unsafe impl<const N: usize> Sync for MPU<N> {}
-
 impl<const N: usize> MPU<N> {
     const MPU_CTRL: isize = 1; // 0x04 / 4
     const MPU_RNR: isize = 2; // 0x08 / 4
