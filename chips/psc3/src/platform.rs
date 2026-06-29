@@ -9,7 +9,7 @@ use spe::{
     spm_api::{CallerAttributes, PsaMsg},
 };
 
-use ruspe_cortexm::cmse;
+use cortex_m::cmse;
 
 use crate::services;
 

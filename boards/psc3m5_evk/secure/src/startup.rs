@@ -29,7 +29,7 @@ pub unsafe extern "C" fn sec_initialize_ram_jump_to_main() {
     use core::arch::naked_asm;
     naked_asm!(
         "
-    // Start by initializing .bss memory. The Tock linker script defines
+    // Start by initializing .bss memory.
     // `_szero` and `_ezero` to mark the .bss segment.
     ldr r0, ={sbss}     // r0 = first address of .bss
     ldr r1, ={ebss}     // r1 = first address after .bss

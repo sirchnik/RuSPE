@@ -10,7 +10,7 @@ use spe::{
 };
 
 use crate::services;
-use ruspe_cortexm::cmse;
+use cortex_m::cmse;
 
 pub struct MuscaB1SecPlatform<
     C: psa_interface::PsaApiCallInterface + Sync,

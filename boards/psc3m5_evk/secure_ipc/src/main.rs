@@ -69,7 +69,7 @@ impl SpmPlatform for Psc3IpcPlatform {
         // TODO find something better
         return true;
         /*
-        use ruspe_cortexm::cmse;
+        use cortex_m::cmse;
 
         if _len == 0 {
             return true;
@@ -148,12 +148,12 @@ pub unsafe fn main() {
     unsafe {
         (*addr_of_mut!(io::WRITER)).set_serial(scb0);
 
-        ruspe_cortexm::nvic::set_interrupt_non_secure(0, 140);
-        ruspe_cortexm::nvic::enable_all();
+        cortex_m::nvic::set_interrupt_non_secure(0, 140);
+        cortex_m::nvic::enable_all();
     }
 
     // set msplim. There was one incident where then non-secure handled stack overflow.
-    unsafe { ruspe_cortexm::register::set_msplim(core::ptr::addr_of!(_sstack) as u32) };
+    unsafe { cortex_m::register::set_msplim(core::ptr::addr_of!(_sstack) as u32) };
 
     unsafe {
         let aircr = 0xe000ed0c as *mut u32;

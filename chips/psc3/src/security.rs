@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use cortexm33::sau;
+use cortex_m::sau;
 use tock_psc3::ppc;
 use tock_psc3::ppc::PpcRegion;
 

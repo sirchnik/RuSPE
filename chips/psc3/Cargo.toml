@@ -12,8 +12,7 @@ edition.workspace = true
 infineon = { path = "../../chips/infineon" }
 psa_interface = { path = "../../spe/psa_interface" }
 spe = { path = "../../spe/spe" }
-cortexm33 = { path = "../../tock/arch/cortex-m33" }
-ruspe_cortexm = { package = "cortex_m", path = "../../libraries/cortex_m" }
+cortex_m = { package = "cortex_m", path = "../../libraries/cortex_m" }
 tock_psc3 = { package = "psc3", path = "../../tock/chips/psc3", default-features = false }
 spe_services = { path = "../../spe/spe_services" }
 
