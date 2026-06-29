@@ -53,19 +53,38 @@ impl attest_service::AttestPlatform for Psc3AttestPlatform {
     }
 
     fn boot_seed(&self, seed: &mut [u8; 32]) -> Result<(), spe::StatusCode> {
-        let cryptolite = cryptolite::Cryptolite::new();
-        if cryptolite
-            .trng_init(&cryptolite::TrngConfig::default())
-            .and_then(|()| cryptolite.trng_enable())
-            .is_err()
-        {
-            return Err(spe::StatusCode::GenericError);
+        struct BootSeedState {
+            seed: core::cell::UnsafeCell<[u8; 32]>,
+            init: core::cell::UnsafeCell<bool>,
         }
-        cryptolite
-            .trng_try_fill_bytes(seed)
-            .map_err(|_| spe::StatusCode::GenericError)
+        unsafe impl Sync for BootSeedState {}
+        static STATE: BootSeedState = BootSeedState {
+            seed: core::cell::UnsafeCell::new([0; 32]),
+            init: core::cell::UnsafeCell::new(false),
+        };
+
+        unsafe {
+            if !*STATE.init.get() {
+                let cryptolite = cryptolite::Cryptolite::new();
+                if cryptolite
+                    .trng_init(&cryptolite::TrngConfig::default())
+                    .and_then(|()| cryptolite.trng_enable())
+                    .is_err()
+                {
+                    return Err(spe::StatusCode::GenericError);
+                }
+                if cryptolite
+                    .trng_try_fill_bytes(&mut *STATE.seed.get())
+                    .is_err()
+                {
+                    return Err(spe::StatusCode::GenericError);
+                }
+                *STATE.init.get() = true;
+            }
+            seed.copy_from_slice(&*STATE.seed.get());
+        }
+        Ok(())
     }
-    // TODO get key from `raw_data_pc012`
 
     fn implementation_id(&self, buf: &mut [u8; 32]) -> Result<(), spe::StatusCode> {
         let s = b"acme-implementation-id-000000001";
