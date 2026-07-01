@@ -17,6 +17,7 @@ pub const SVC_PSA_MAP_VEC: u8 = 1;
 pub const SVC_PSA_UNMAP_VEC: u8 = 2;
 pub const SVC_START_PROCESS: u8 = 3;
 pub const SVC_PSA_CALL: u8 = 4;
+pub const SVC_PSA_VERSION: u8 = 5;
 pub const SVC_PSA_CALL_RETURN: u8 = 7;
 
 #[repr(C)]
@@ -127,6 +128,9 @@ pub fn handle_svc_with_spm<S: SpmCall, A: SpmApi>(
                 Ok(()) => set_success(frame),
                 Err(status) => set_error(frame, status),
             }
+        }
+        SVC_PSA_VERSION => {
+            frame.r0 = spm.version(handle).unwrap_or(0) as usize;
         }
         _ => return false,
     }
@@ -308,11 +312,16 @@ pub struct IpcPsaClient;
 
 impl psa_interface::PsaApiCallInterface for IpcPsaClient {
     fn psa_framework_version() -> u32 {
-        todo!();
+        psa_interface::types::PSA_FRAMEWORK_VERSION
     }
 
-    fn psa_version(_service_id: u32) -> u32 {
-        todo!();
+    fn psa_version(service_id: u32) -> u32 {
+        let handle = match psa_interface::types::ServiceHandle::try_from(service_id as i32) {
+            Ok(h) => h,
+            Err(()) => return 0,
+        };
+        let (version, _, _, _) = unsafe { svc_call::<SVC_PSA_VERSION>(handle as usize, 0, 0, 0) };
+        version as u32
     }
 
     fn psa_call(
