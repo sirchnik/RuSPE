@@ -254,3 +254,70 @@ unsafe impl<A: crate::spm_api::SpmApi + Sync + 'static> IpcProcess for EmbeddedP
         self.service.call(msg, self.api)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::mem::size_of;
+
+    #[test]
+    fn test_align_down() {
+        assert_eq!(ServiceProcess::align_down(100, 8), 96);
+        assert_eq!(ServiceProcess::align_down(100, 16), 96);
+        assert_eq!(ServiceProcess::align_down(100, 32), 96);
+        assert_eq!(ServiceProcess::align_down(64, 8), 64);
+        assert_eq!(ServiceProcess::align_down(0, 8), 0);
+    }
+
+    #[test]
+    fn test_stage_msg_mailbox() {
+        // Create a dummy RAM buffer
+        let ram = [0u8; 1024];
+        let ram_start = ram.as_ptr();
+        let ram_limit = unsafe { ram_start.add(ram.len()) };
+
+        let stack_top = unsafe { ram_limit.sub(16) }; // 16 bytes for padding
+        let stack_limit = ram_start;
+
+        let msg = PsaMsg {
+            handle: ServiceHandle::Crypto,
+            msg_type: 0,
+            caller: crate::spm_api::CallerAttributes::SECURE_UNPRIVILEGED,
+            in_size: [None; 4],
+            out_size: [None; 4],
+        };
+
+        unsafe extern "C" fn dummy_init() {}
+        unsafe extern "C" fn dummy_call(_: *const PsaMsg) -> PsaStatus { 0 }
+        unsafe extern "C" fn dummy_svc_return() {}
+
+        // Create a dummy ServiceVectors
+        let vectors = ServiceVectors {
+            version: 1,
+            init_entry: dummy_init,
+            call_entry: dummy_call,
+            rom_start: core::ptr::null(),
+            rom_limit: core::ptr::null(),
+            ram_start,
+            ram_limit,
+            svc_return: dummy_svc_return,
+            stack_limit,
+            stack_top,
+        };
+
+        let (msg_ptr, msg_addr) = ServiceProcess::stage_msg_mailbox(&vectors, msg);
+
+        // Assertions
+        assert_eq!(msg_addr, msg_ptr as usize);
+        assert!(msg_addr >= ram_start as usize);
+        assert!(msg_addr + size_of::<PsaMsg>() <= stack_top as usize);
+        assert_eq!(
+            msg_addr % core::cmp::max(core::mem::align_of::<PsaMsg>(), 8),
+            0
+        );
+
+        // Ensure message was written
+        let read_msg = unsafe { &*msg_ptr };
+        assert_eq!(read_msg.handle, ServiceHandle::Crypto);
+    }
+}

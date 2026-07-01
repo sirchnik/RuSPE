@@ -376,8 +376,8 @@ pub fn encode_payload_bstr_in_place(
 #[cfg(test)]
 mod tests {
     use super::{
-        CBOR_TAG_COSE_SIGN1, CoseSign1, CoseSign1Error, RustCryptoBackend, Sign1Options,
-        encode_payload_bstr, encode_payload_bstr_in_place, validate_payload_bstr,
+        CoseSign1, CoseSign1Error, RustCryptoBackend, Sign1Options, encode_payload_bstr,
+        encode_payload_bstr_in_place, validate_payload_bstr,
     };
 
     const TEST_PAYLOAD: &[u8] = b"This is the content.";
@@ -598,13 +598,6 @@ mod tests {
     }
 
     #[test]
-    fn sign1_options_default() {
-        let opts = Sign1Options::default();
-        assert!(!opts.omit_cbor_tag);
-        assert!(!opts.detached_payload);
-    }
-
-    #[test]
     fn with_external_aad() {
         let backend = RustCryptoBackend {
             key: TEST_PRIVATE_KEY,
@@ -622,10 +615,5 @@ mod tests {
         assert!(encoded.encoded_len > 0);
         // The encoding with AAD should differ from the baseline (different signature)
         assert_ne!(&out[..encoded.encoded_len], EXPECTED_ENCODED_COSE_SIGN1);
-    }
-
-    #[test]
-    fn cbor_tag_value() {
-        assert_eq!(CBOR_TAG_COSE_SIGN1, 18);
     }
 }

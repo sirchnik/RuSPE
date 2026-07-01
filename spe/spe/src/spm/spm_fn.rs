@@ -115,3 +115,136 @@ impl<P: SfnPlatform + 'static> SpmCall for SpmFn<P> {
         self.platform.version(handle)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::ptr;
+    use psa_interface::types::ServiceHandle;
+
+    struct MockPlatform;
+    impl SfnPlatform for MockPlatform {
+        fn call(&self, _msg: PsaMsg) -> Result<(), crate::StatusCode> {
+            Ok(())
+        }
+        fn has_permission_on_memory(
+            &self,
+            _base: *const u8,
+            _len: usize,
+            _is_write: bool,
+            _caller: CallerAttributes,
+        ) -> bool {
+            true
+        }
+        fn version(&self, _handle: ServiceHandle) -> Option<u32> {
+            Some(1)
+        }
+    }
+
+    static MOCK_PLATFORM: MockPlatform = MockPlatform;
+
+    fn create_dummy_connection_with_handle(handle: ServiceHandle) -> Connection {
+        use crate::spm::spm::PSA_MAX_IOVEC;
+        Connection {
+            msg: PsaMsg::new(handle, 1, CallerAttributes::SECURE_UNPRIVILEGED),
+            invec_base: [ptr::null(); PSA_MAX_IOVEC],
+            invec_accessed: [0; PSA_MAX_IOVEC],
+            invec_mapped: [false; PSA_MAX_IOVEC],
+            invec_unmapped: [false; PSA_MAX_IOVEC],
+            outvec_base: [ptr::null_mut(); PSA_MAX_IOVEC],
+            outvec_written: [0; PSA_MAX_IOVEC],
+            outvec_mapped: [false; PSA_MAX_IOVEC],
+            outvec_unmapped: [false; PSA_MAX_IOVEC],
+        }
+    }
+
+    fn create_dummy_connection() -> Connection {
+        create_dummy_connection_with_handle(ServiceHandle::Crypto)
+    }
+
+    #[test]
+    fn test_spm_fn_call_success() {
+        let spm = SpmFn::new(&MOCK_PLATFORM);
+        let conn = create_dummy_connection();
+        let res = spm.call(conn);
+        assert_eq!(res, Ok(()));
+    }
+
+    #[test]
+    fn test_spm_fn_has_permission() {
+        let spm = SpmFn::new(&MOCK_PLATFORM);
+        let perm = spm.has_real_permission(
+            ptr::null(),
+            10,
+            false,
+            CallerAttributes::SECURE_UNPRIVILEGED,
+        );
+        assert!(perm);
+    }
+
+    #[test]
+    fn test_spm_fn_version() {
+        let spm = SpmFn::new(&MOCK_PLATFORM);
+        assert_eq!(spm.version(ServiceHandle::Crypto), Some(1));
+    }
+
+    #[test]
+    fn test_with_active_connection() {
+        let spm = SpmFn::new(&MOCK_PLATFORM);
+        let conn = create_dummy_connection();
+        let _ = spm.add_connection(conn);
+
+        let res = spm.with_active_connection(|c| c.msg.handle == ServiceHandle::Crypto);
+        assert_eq!(res, Ok(true));
+
+        // clean up
+        spm.connections
+            .try_lock(|connections| connections.pop_connection())
+            .unwrap();
+    }
+
+    #[test]
+    fn test_multiple_psa_calls_nested() {
+        let spm = SpmFn::new(&MOCK_PLATFORM);
+
+        let conn1 = create_dummy_connection_with_handle(ServiceHandle::Crypto);
+        let conn2 = create_dummy_connection_with_handle(ServiceHandle::AttestationService);
+        let conn3 =
+            create_dummy_connection_with_handle(ServiceHandle::InternalTrustedStorageService);
+
+        // Simulate nested PSA calls
+        assert_eq!(spm.add_connection(conn1), Ok(()));
+        assert_eq!(spm.add_connection(conn2), Ok(()));
+        assert_eq!(spm.add_connection(conn3), Ok(()));
+
+        // Top should be conn3
+        spm.with_active_connection(|c| {
+            assert_eq!(c.msg.handle, ServiceHandle::InternalTrustedStorageService);
+        })
+        .unwrap();
+        spm.connections.try_lock(|c| c.pop_connection()).unwrap();
+
+        // Top should be conn2
+        spm.with_active_connection(|c| {
+            assert_eq!(c.msg.handle, ServiceHandle::AttestationService);
+        })
+        .unwrap();
+        spm.connections.try_lock(|c| c.pop_connection()).unwrap();
+
+        // Top should be conn1
+        spm.with_active_connection(|c| {
+            assert_eq!(c.msg.handle, ServiceHandle::Crypto);
+        })
+        .unwrap();
+        spm.connections.try_lock(|c| c.pop_connection()).unwrap();
+    }
+
+    #[test]
+    fn test_multiple_psa_calls_sequential() {
+        let spm = SpmFn::new(&MOCK_PLATFORM);
+        for _ in 0..10 {
+            let conn = create_dummy_connection();
+            assert_eq!(spm.call(conn), Ok(()));
+        }
+    }
+}

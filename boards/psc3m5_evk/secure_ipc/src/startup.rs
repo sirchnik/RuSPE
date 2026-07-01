@@ -91,8 +91,8 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     faults::unhandled_interrupt,
     faults::unhandled_interrupt,
     faults::unhandled_interrupt,
-    crate::global_spm_api::svc_handler,    // SVC
-    faults::unhandled_interrupt, // DebugMon
+    crate::global_spm_api::svc_handler, // SVC
+    faults::unhandled_interrupt,        // DebugMon
     faults::unhandled_interrupt,
     faults::unhandled_interrupt, // PendSV
     faults::unhandled_interrupt, // SysTick

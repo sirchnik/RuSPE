@@ -444,3 +444,83 @@ pub fn finish_outvec_raw<S: SpmCall>(
         Err(_) => Err(StatusCode::CommunicationFailure),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::ptr;
+    use psa_interface::status::StatusCode;
+    use psa_interface::types::{CtrlParam, FFInVec, FFOutVec};
+
+    #[test]
+    fn test_validate_call_params_invalid_msg_type() {
+        let param = CtrlParam::new(-1, 0, false, 0, false);
+        let res = validate_call_params(param);
+        assert_eq!(res, Err(StatusCode::ProgrammerError));
+    }
+
+    #[test]
+    fn test_validate_call_params_valid() {
+        let param = CtrlParam::new(1, 2, false, 1, false);
+        let res = validate_call_params(param);
+        assert_eq!(res, Ok((1, 2, 1)));
+    }
+
+    #[test]
+    fn test_validate_call_params_max_iovec_exceeded() {
+        let param = CtrlParam::new(1, 3, false, 2, false); // 3+2 = 5 > 4 (PSA_MAX_IOVEC)
+        let res = validate_call_params(param);
+        assert_eq!(res, Err(StatusCode::ProgrammerError));
+    }
+
+    #[test]
+    fn test_validate_vec_pointer_shape() {
+        let invec = FFInVec {
+            base: ptr::null(),
+            len: 0,
+        };
+        let mut outvec = FFOutVec {
+            base: ptr::null_mut(),
+            len: 0,
+        };
+
+        let res = validate_vec_pointer_shape(true, 1, 0, ptr::null(), &mut outvec as *mut _);
+        assert_eq!(res, Err(StatusCode::ProgrammerError));
+
+        let res = validate_vec_pointer_shape(true, 0, 1, &invec as *const _, ptr::null_mut());
+        assert_eq!(res, Err(StatusCode::ProgrammerError));
+
+        let res = validate_vec_pointer_shape(true, 1, 1, &invec as *const _, &mut outvec as *mut _);
+        assert_eq!(res, Ok(()));
+
+        let res = validate_vec_pointer_shape(false, 1, 1, ptr::null(), ptr::null_mut());
+        assert_eq!(res, Ok(()));
+    }
+
+    #[test]
+    fn test_validate_invec_payload_nonoverlap() {
+        let buf = [0u8; 100];
+        let ptr = buf.as_ptr();
+
+        let in_vecs_ok = [
+            FFInVec { base: ptr, len: 10 },
+            FFInVec {
+                base: unsafe { ptr.add(10) },
+                len: 10,
+            },
+        ];
+        assert_eq!(validate_invec_payload_nonoverlap(&in_vecs_ok), Ok(()));
+
+        let in_vecs_overlap = [
+            FFInVec { base: ptr, len: 15 },
+            FFInVec {
+                base: unsafe { ptr.add(10) },
+                len: 10,
+            },
+        ];
+        assert_eq!(
+            validate_invec_payload_nonoverlap(&in_vecs_overlap),
+            Err(StatusCode::ProgrammerError)
+        );
+    }
+}

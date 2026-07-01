@@ -24,10 +24,7 @@ pub trait IpcPlatform: Sync {
         caller: CallerAttributes,
     ) -> bool;
 
-    fn custom_mpu_regions(
-        &self,
-        _handle: ServiceHandle,
-    ) -> &[CustomMpuRegion];
+    fn custom_mpu_regions(&self, _handle: ServiceHandle) -> &[CustomMpuRegion];
 }
 
 pub trait IpcProcessPlatform: IpcPlatform {

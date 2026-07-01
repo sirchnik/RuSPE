@@ -81,3 +81,45 @@ impl<A: SpmApi> Service<A> for CryptoService {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use psa_interface::status::StatusCode;
+
+    #[test]
+    fn test_sign_hash_success() {
+        let mut key = [0u8; 32];
+        key[31] = 1; // A valid scalar
+        let service = CryptoService::new(key);
+        let hash = [0u8; 32];
+        let mut sig_buf = [0u8; 64];
+
+        let res = service.sign_hash(&hash, &mut sig_buf);
+        assert_eq!(res, Ok(64));
+    }
+
+    #[test]
+    fn test_sign_hash_invalid_hash_len() {
+        let mut key = [0u8; 32];
+        key[31] = 1;
+        let service = CryptoService::new(key);
+        let hash = [0u8; 31];
+        let mut sig_buf = [0u8; 64];
+
+        let res = service.sign_hash(&hash, &mut sig_buf);
+        assert_eq!(res, Err(StatusCode::InvalidArgument));
+    }
+
+    #[test]
+    fn test_sign_hash_buffer_too_small() {
+        let mut key = [0u8; 32];
+        key[31] = 1;
+        let service = CryptoService::new(key);
+        let hash = [0u8; 32];
+        let mut sig_buf = [0u8; 63];
+
+        let res = service.sign_hash(&hash, &mut sig_buf);
+        assert_eq!(res, Err(StatusCode::BufferTooSmall));
+    }
+}

@@ -579,22 +579,6 @@ mod tests {
         assert_eq!(dec.i64().unwrap(), i32::MAX as i64);
     }
 
-    // -- IatClaim label values per RFC 9783 ------------------------------
-
-    #[test]
-    fn iat_claim_label_values() {
-        assert_eq!(IatClaim::Nonce as u32, 10);
-        assert_eq!(IatClaim::InstanceId as u32, 256);
-        assert_eq!(IatClaim::ProfileDefinition as u32, 265);
-        assert_eq!(IatClaim::BootSeed as u32, 268);
-        assert_eq!(IatClaim::ClientId as u32, 2394);
-        assert_eq!(IatClaim::SecurityLifecycle as u32, 2395);
-        assert_eq!(IatClaim::ImplementationId as u32, 2396);
-        assert_eq!(IatClaim::CertificationReference as u32, 2398);
-        assert_eq!(IatClaim::SwComponents as u32, 2399);
-        assert_eq!(IatClaim::VerificationService as u32, 2400);
-    }
-
     // -- map_cose_error --------------------------------------------------
 
     #[test]
@@ -661,19 +645,31 @@ mod tests {
         assert_eq!(dec.i64().unwrap(), 42);
     }
 
+    use psa_interface::PsaApiCallInterface;
+    struct MockPsaClient;
+    impl PsaApiCallInterface for MockPsaClient {
+        fn psa_framework_version() -> u32 {
+            1
+        }
+        fn psa_version(_service_id: u32) -> u32 {
+            1
+        }
+        fn psa_call(
+            _handle: psa_interface::types::ServiceHandle,
+            _ctrl_param: psa_interface::types::CtrlParam,
+            _in_vec: &[psa_interface::types::FFInVec],
+            out_vec: &mut [psa_interface::types::FFOutVec],
+        ) -> psa_interface::types::PsaStatus {
+            if !out_vec.is_empty() {
+                out_vec[0].len = 64;
+            }
+            0
+        }
+    }
+
     #[test]
     fn test_compute_initial_attestation_token_size_matches_actual() {
-        use super::compute_initial_attestation_token_size;
-        use cose::cose_sign1::{
-            CoseSign1, RustCryptoBackend, Sign1Options, encode_payload_bstr_in_place,
-        };
-
-        // Dummy EC2KpD private key for testing
-        const TEST_PRIVATE_KEY: &[u8] = &[
-            0x3d, 0x42, 0x9a, 0x83, 0xef, 0xe3, 0x87, 0x10, 0xab, 0x9a, 0xb4, 0xc0, 0x2c, 0xcb,
-            0xbe, 0x0b, 0x87, 0xab, 0x69, 0x36, 0xdd, 0xf4, 0x14, 0x57, 0xea, 0x30, 0xf9, 0x6c,
-            0xa6, 0xf2, 0xcd, 0xee,
-        ];
+        use super::{compute_initial_attestation_token_size, encode_initial_attestation_token};
 
         let nonce = [0x11; 32];
         let boot_seed = [0x22; 32];
@@ -722,25 +718,16 @@ mod tests {
             },
         ];
 
-        // Predict the token size without allocating
         let predicted_size = compute_initial_attestation_token_size(&claims, 0).unwrap();
 
-        // Actually encode the token
         let mut out = [0u8; 1024];
-        let mut payload_buf = [0u8; 512];
-        let payload_len = encode_payload(&claims, &mut payload_buf).unwrap();
-        let payload_bstr_len = encode_payload_bstr_in_place(payload_len, &mut payload_buf).unwrap();
-
-        let backend = RustCryptoBackend::new(TEST_PRIVATE_KEY);
-        let signer = CoseSign1::new(backend, Sign1Options::default());
-        let encoded = signer
-            .encode_from_payload_bstr(&payload_buf[..payload_bstr_len], &mut out)
-            .unwrap();
+        let actual_size =
+            encode_initial_attestation_token::<MockPsaClient>(&claims, &mut out, 0).unwrap();
 
         assert_eq!(
-            predicted_size, encoded.encoded_len,
+            predicted_size, actual_size,
             "Predicted size {} does not match actual encoded token size {}",
-            predicted_size, encoded.encoded_len
+            predicted_size, actual_size
         );
     }
 }

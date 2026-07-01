@@ -321,3 +321,110 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmCall
             .map(|i| self.processes[i].version())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::spm_api::{CallerAttributes, PsaMsg};
+    use psa_interface::types::ServiceHandle;
+
+    #[test]
+    fn test_spm_ipc_state_init() {
+        let mut state = SpmIpcState::<2>::new();
+        assert_eq!(state.mark_init_done(0), Ok(true));
+        assert_eq!(state.mark_init_done(0), Ok(false)); // already done
+
+        assert_eq!(state.mark_init_done(1), Ok(true));
+
+        // Out of bounds
+        assert_eq!(
+            state.mark_init_done(2),
+            Err(SpmError::CorruptedConnectionStack)
+        );
+    }
+
+    struct MockPlatform;
+    impl IpcPlatform for MockPlatform {
+        fn has_permission_on_memory(
+            &self,
+            _base: *const u8,
+            _len: usize,
+            _is_write: bool,
+            _caller: CallerAttributes,
+        ) -> bool {
+            true
+        }
+
+        fn custom_mpu_regions(&self, _handle: ServiceHandle) -> &[CustomMpuRegion] {
+            &[]
+        }
+    }
+    impl IpcProcessPlatform for MockPlatform {}
+
+    struct MockProcess {
+        handle: ServiceHandle,
+    }
+
+    // # Safety: test stub
+    unsafe impl IpcProcess for MockProcess {
+        fn handle(&self) -> ServiceHandle {
+            self.handle
+        }
+        fn get_vectors(&self) -> Option<&'static ServiceVectors> {
+            None
+        }
+        fn version(&self) -> u32 {
+            1
+        }
+        unsafe fn init_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
+            &self,
+            _platform: &P,
+            _spm: &S,
+        ) {
+        }
+        unsafe fn call_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
+            &self,
+            _platform: &P,
+            _spm: &S,
+            _msg: PsaMsg,
+        ) -> Result<(), crate::StatusCode> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_spm_ipc_find_process() {
+        static PLATFORM: MockPlatform = MockPlatform;
+        let processes = [
+            MockProcess {
+                handle: ServiceHandle::Crypto,
+            },
+            MockProcess {
+                handle: ServiceHandle::AttestationService,
+            },
+        ];
+        let spm = SpmIpc::new(&PLATFORM, processes);
+
+        assert_eq!(spm.find_process_index(ServiceHandle::Crypto), Some(0));
+        assert_eq!(
+            spm.find_process_index(ServiceHandle::AttestationService),
+            Some(1)
+        );
+        assert_eq!(
+            spm.find_process_index(ServiceHandle::InternalTrustedStorageService),
+            None
+        );
+    }
+
+    #[test]
+    fn test_spm_ipc_version() {
+        static PLATFORM: MockPlatform = MockPlatform;
+        let processes = [MockProcess {
+            handle: ServiceHandle::Crypto,
+        }];
+        let spm = SpmIpc::new(&PLATFORM, processes);
+
+        assert_eq!(spm.version(ServiceHandle::Crypto), Some(1));
+        assert_eq!(spm.version(ServiceHandle::AttestationService), None);
+    }
+}
