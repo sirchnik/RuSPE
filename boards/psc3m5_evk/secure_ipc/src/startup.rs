@@ -16,7 +16,6 @@ unsafe extern "C" {
 }
 
 use spe::faults;
-use spe::svc_handler;
 
 #[unsafe(link_section = ".stack_buffer")]
 #[unsafe(no_mangle)]
@@ -92,7 +91,7 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     faults::unhandled_interrupt,
     faults::unhandled_interrupt,
     faults::unhandled_interrupt,
-    svc_handler::svc_handler,    // SVC
+    crate::global_spm_api::svc_handler,    // SVC
     faults::unhandled_interrupt, // DebugMon
     faults::unhandled_interrupt,
     faults::unhandled_interrupt, // PendSV
