@@ -194,20 +194,12 @@ impl<'a, C: CoseCrypto> CoseSign1<'a, C> {
                 .map_err(map_encode_error)?;
         }
 
-        sign1_enc
-            .array(4)
-            .map_err(map_encode_error)?
-            .bytes(protected_headers)
-            .map_err(map_encode_error)?;
+        sign1_enc.array(4).map_err(map_encode_error)?.bytes(protected_headers).map_err(map_encode_error)?;
 
-        if self.key_id.is_some() {
-            sign1_enc
-                .map(1)
-                .map_err(map_encode_error)?
-                .u8(CoseHeaderLabels::Kid as u8)
-                .map_err(map_encode_error)?
-                .bytes(self.key_id.unwrap_or(&[]))
-                .map_err(map_encode_error)?;
+        if let Some(kid) = self.key_id {
+            sign1_enc.map(1).map_err(map_encode_error)?
+                .u8(CoseHeaderLabels::Kid as u8).map_err(map_encode_error)?
+                .bytes(kid).map_err(map_encode_error)?;
         } else {
             sign1_enc.map(0).map_err(map_encode_error)?;
         }
@@ -294,26 +286,7 @@ fn hash_cbor_bstr(hasher: &mut impl CoseHasher, value: &[u8]) {
 
 fn hash_cbor_major_len(hasher: &mut impl CoseHasher, major: u8, len: usize) {
     let mut header = [0u8; 9];
-    let header_len = if len <= 23 {
-        header[0] = (major << 5) | (len as u8);
-        1
-    } else if len <= 0xff {
-        header[0] = (major << 5) | 0x18;
-        header[1] = len as u8;
-        2
-    } else if len <= 0xffff {
-        header[0] = (major << 5) | 0x19;
-        header[1..3].copy_from_slice(&(len as u16).to_be_bytes());
-        3
-    } else if len <= 0xffff_ffff {
-        header[0] = (major << 5) | 0x1a;
-        header[1..5].copy_from_slice(&(len as u32).to_be_bytes());
-        5
-    } else {
-        header[0] = (major << 5) | 0x1b;
-        header[1..9].copy_from_slice(&(len as u64).to_be_bytes());
-        9
-    };
+    let header_len = encode_cbor_major_len_header(major, len, &mut header);
     hasher.update(&header[..header_len]);
 }
 

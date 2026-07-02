@@ -64,29 +64,13 @@ fn map_cose_error(err: CoseSign1Error) -> StatusCode {
 fn encode_sw_components<W: minicbor::encode::Write>(
     enc: &mut Encoder<W>,
     components: &[SwComponent<'_>],
-) -> Result<(), StatusCode> {
-    enc.array(components.len() as u64)
-        .map_err(|_| StatusCode::BufferTooSmall)?;
+) -> Result<(), minicbor::encode::Error<W::Error>> {
+    enc.array(components.len() as u64)?;
     for comp in components {
-        let mut entries: u64 = 2;
-        if comp.measurement_type.is_some() {
-            entries += 1;
-        }
-        enc.map(entries)
-            .map_err(|_| StatusCode::BufferTooSmall)?
-            .u8(5)
-            .map_err(|_| StatusCode::BufferTooSmall)?
-            .bytes(comp.signer_id)
-            .map_err(|_| StatusCode::BufferTooSmall)?
-            .u8(2)
-            .map_err(|_| StatusCode::BufferTooSmall)?
-            .bytes(comp.measurement_value)
-            .map_err(|_| StatusCode::BufferTooSmall)?;
+        let entries = if comp.measurement_type.is_some() { 3 } else { 2 };
+        enc.map(entries)?.u8(5)?.bytes(comp.signer_id)?.u8(2)?.bytes(comp.measurement_value)?;
         if let Some(mt) = comp.measurement_type {
-            enc.u8(1)
-                .map_err(|_| StatusCode::BufferTooSmall)?
-                .str(mt)
-                .map_err(|_| StatusCode::BufferTooSmall)?;
+            enc.u8(1)?.str(mt)?;
         }
     }
     Ok(())
@@ -95,47 +79,32 @@ fn encode_sw_components<W: minicbor::encode::Write>(
 fn encode_claim_value<W: minicbor::encode::Write>(
     enc: &mut Encoder<W>,
     value: AttestClaimValue<'_>,
-) -> Result<(), StatusCode> {
+) -> Result<(), minicbor::encode::Error<W::Error>> {
     match value {
-        AttestClaimValue::Bytes(bytes) => {
-            enc.bytes(bytes).map_err(|_| StatusCode::BufferTooSmall)?;
-        }
-        AttestClaimValue::Text(text) => {
-            enc.str(text).map_err(|_| StatusCode::BufferTooSmall)?;
-        }
-        AttestClaimValue::Unsigned(value) => {
-            enc.u64(value).map_err(|_| StatusCode::BufferTooSmall)?;
-        }
-        AttestClaimValue::Signed(value) => {
-            enc.i64(value).map_err(|_| StatusCode::BufferTooSmall)?;
-        }
-        AttestClaimValue::SwComponents(components) => {
-            encode_sw_components(enc, components)?;
-        }
+        AttestClaimValue::Bytes(bytes) => { enc.bytes(bytes)?; }
+        AttestClaimValue::Text(text) => { enc.str(text)?; }
+        AttestClaimValue::Unsigned(value) => { enc.u64(value)?; }
+        AttestClaimValue::Signed(value) => { enc.i64(value)?; }
+        AttestClaimValue::SwComponents(components) => encode_sw_components(enc, components)?,
     }
-
     Ok(())
 }
 
 fn encode_payload_to<W: minicbor::encode::Write>(
     claims: &[AttestClaim<'_>],
     enc: &mut Encoder<W>,
-) -> Result<(), StatusCode> {
-    enc.map(claims.len() as u64)
-        .map_err(|_| StatusCode::BufferTooSmall)?;
-
+) -> Result<(), minicbor::encode::Error<W::Error>> {
+    enc.map(claims.len() as u64)?;
     for claim in claims {
-        enc.i32(claim.key as i32)
-            .map_err(|_| StatusCode::BufferTooSmall)?;
+        enc.i32(claim.key as i32)?;
         encode_claim_value(enc, claim.value)?;
     }
-
     Ok(())
 }
 
 fn encode_payload(claims: &[AttestClaim<'_>], out: &mut [u8]) -> Result<usize, StatusCode> {
     let mut enc = Encoder::new(Cursor::new(out));
-    encode_payload_to(claims, &mut enc)?;
+    encode_payload_to(claims, &mut enc).map_err(|_| StatusCode::BufferTooSmall)?;
     Ok(enc.writer().position())
 }
 
@@ -219,7 +188,7 @@ pub fn compute_initial_attestation_token_size(
 ) -> Result<usize, StatusCode> {
     let mut counter = SizeCounter::default();
     let mut enc = Encoder::new(&mut counter);
-    encode_payload_to(claims, &mut enc)?;
+    encode_payload_to(claims, &mut enc).map_err(|_| StatusCode::BufferTooSmall)?;
 
     let payload_len = counter.len;
 
