@@ -288,7 +288,9 @@ mod tests {
         };
 
         unsafe extern "C" fn dummy_init() {}
-        unsafe extern "C" fn dummy_call(_: *const PsaMsg) -> PsaStatus { 0 }
+        unsafe extern "C" fn dummy_call(_: *const PsaMsg) -> PsaStatus {
+            0
+        }
         unsafe extern "C" fn dummy_svc_return() {}
 
         // Create a dummy ServiceVectors
