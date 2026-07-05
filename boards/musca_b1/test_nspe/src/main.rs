@@ -9,6 +9,7 @@
 
 use core::ptr::addr_of_mut;
 
+use cortex_m::nvic;
 use shared_test_nspe::{initialize_ram_jump_to_test_main, unhandled_interrupt};
 
 unsafe extern "C" {
@@ -78,6 +79,8 @@ pub unsafe fn main() {
     unsafe { shared_test_nspe::set_vector_table_offset(BASE_VECTORS.as_ptr().cast::<()>()) };
 
     unsafe { cortex_m::register::set_msplim(core::ptr::addr_of!(_sstack) as u32) };
+
+    unsafe { nvic::enable_all() };
 
     let serial = unsafe { static_init!(uart::UartMin, uart::UartMin::new_uart1_nsec()) };
 

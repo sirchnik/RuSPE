@@ -11,6 +11,7 @@
 
 use core::ptr::addr_of_mut;
 
+use cortex_m::nvic;
 use helpers::static_init;
 use ruspe_musca_b1::uart;
 
@@ -42,6 +43,9 @@ pub unsafe fn main() {
 
     unsafe {
         (*addr_of_mut!(io::WRITER)).set_serial(serial);
+
+        nvic::set_interrupt_non_secure(0, 127);
+        nvic::enable_all();
     }
 
     let sec_platform = unsafe {

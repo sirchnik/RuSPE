@@ -133,7 +133,7 @@ pub unsafe fn clear_all_pending() {
 
 /// Set all interrupts in the range [start_id, end_id] to be non-secure. Note
 /// end_id is inclusive.
-pub fn set_interrupt_non_secure(start_id: u32, end_id: u32) {
+pub unsafe fn set_interrupt_non_secure(start_id: u32, end_id: u32) {
     for block in (start_id / 32)..=(end_id / 32) {
         let mut mask = nvic().itns[block as usize].get();
         for interrupt in (block * 32)..((block + 1) * 32) {
