@@ -6,6 +6,7 @@
 
 #![no_main]
 #![no_std]
+#![allow(dead_code)]
 
 use core::fmt::Write;
 use libtock::console::Console;
@@ -15,7 +16,7 @@ mod spe_driver;
 use spe_driver::SpeDriver;
 
 set_main! {main}
-stack_size! {0x1000}
+stack_size! {0x400}
 
 #[derive(Debug)]
 enum TokenError {
@@ -151,17 +152,49 @@ fn create_psa_token(writer: &mut impl Write) -> Result<(), TokenError> {
 }
 
 fn main() {
-    // TODO prevent jump to secure from non-privileged
-    // unsafe {
-    //     // jump to 0x3201ff01
-    //     let func: extern "C" fn() = core::mem::transmute(0x3201ff01usize);
-    //     func();
-    // }
+    run_app();
+}
 
-    let mut writer = Console::writer();
+fn run_app() -> ! {
+    #[cfg(feature = "test_unpriv_spe")]
+    {
+        // TODO prevent jump to secure from non-privileged
+        unsafe {
+            // jump to 0x3201ff01
+            let func: extern "C" fn() = core::mem::transmute(0x3201ff01usize);
+            func();
+        }
+        loop {
+            TockSyscalls::yield_wait();
+        }
+    }
 
-    loop {
-        let _ = create_psa_token(&mut writer);
+    #[cfg(feature = "test_loop_token")]
+    {
+        let mut token = [0u8; 512];
+        let nonce = [0u8; 32];
+        let mut writer = Console::writer();
+        loop {
+            use libtock::alarm::{Alarm, Milliseconds};
+
+            writeln!(writer, "start-spe").unwrap();
+            if SpeDriver::<TockSyscalls>::initial_attest_get_token_sync(&nonce[..32], &mut token)
+                .is_err()
+            {
+                writeln!(writer, "Request failed").unwrap();
+                continue;
+            };
+            writeln!(writer, "end-spe").unwrap();
+            Alarm::sleep_for(Milliseconds(250)).unwrap();
+        }
+    }
+
+    #[cfg(not(any(feature = "test_unpriv_spe", feature = "test_loop_token")))]
+    {
+        let mut writer = Console::writer();
+        loop {
+            let _ = create_psa_token(&mut writer);
+        }
     }
 }
 

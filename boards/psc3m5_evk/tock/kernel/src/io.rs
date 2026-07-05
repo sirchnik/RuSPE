@@ -50,7 +50,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     use core::ptr::addr_of_mut;
     let writer = unsafe { &mut *addr_of_mut!(WRITER) };
 
-    let led_kernel_pin = &GpioPin::new(gpio::PsocPin::P8_5);
+    let led_kernel_pin = &GpioPin::new_with_tz_regs(gpio::PsocPin::P8_5, false);
     let led = &mut LedHigh::new(led_kernel_pin);
 
     unsafe {

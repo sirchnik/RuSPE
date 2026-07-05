@@ -156,7 +156,7 @@ pub unsafe fn main() {
         value &= 0x0 << 16; // Clear VECTKEY
         aircr.write_volatile(value);
         value |= 0x5fa << 16; // VECTKEY
-        value |= 1 << 4; // SYSRESETREQS: allow reset request only from secure
+        value |= 1 << 3; // SYSRESETREQS: allow reset request only from secure
         // disallowed!
         value |= 0 << 13; // BFHFNMINS: allow hardfault, busfault, nmi handled in non-secure
         aircr.write_volatile(value);

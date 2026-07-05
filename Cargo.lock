@@ -882,6 +882,14 @@ name = "tock_build_scripts"
 version = "0.2.3-dev"
 
 [[package]]
+name = "tock_interrupt_test_app"
+version = "0.1.0"
+dependencies = [
+ "libtock",
+ "libtock_build_scripts",
+]
+
+[[package]]
 name = "tock_psa_app"
 version = "0.1.0"
 dependencies = [

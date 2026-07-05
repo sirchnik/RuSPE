@@ -13,7 +13,9 @@ build = "./build.rs"
 cortex_m = { path = "../../../../libraries/cortex_m" }
 cortexm33 = { path = "../../../../integrations/tock/tock-sub/arch/cortex-m33" }
 kernel = { path = "../../../../integrations/tock/tock-sub/kernel" }
-# kernel = { path = "../../../../integrations/tock/tock-sub/kernel", features = ["debug_load_processes"] }
+# kernel = { path = "../../../../integrations/tock/tock-sub/kernel", features = [
+#     "debug_load_processes",
+# ] }
 psc3 = { path = "../../../../integrations/tock/tock-sub/chips/psc3" }
 components = { path = "../../../../integrations/tock/tock-sub/boards/components" }
 

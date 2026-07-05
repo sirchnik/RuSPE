@@ -242,7 +242,7 @@ pub fn configure_security(
         .wrapping_sub(0x100);
 
     // Sometimes while debugging no BUS_ERROR is generated and the debugger just hangs. Change to RZWI then.
-    ppc::set_viloation_response(ppc::PPC_CTL::RESP_CFG::RZWI);
+    ppc::set_viloation_response(ppc::PPC_CTL::RESP_CFG::BUS_ERROR);
 
     for region in NONSECURE_PRIV.iter().copied() {
         ppc::set_permissions(region, true, false, false);

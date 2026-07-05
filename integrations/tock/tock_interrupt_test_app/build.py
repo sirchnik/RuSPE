@@ -102,11 +102,11 @@ APP_DIR = Path(__file__).resolve().parent
 APP = AppConfig(
     repo_root=REPO_ROOT,
     app_dir=APP_DIR,
-    flash_start="0x22036000",
+    flash_start="0x2203A000",
     flash_length="0x3000",
-    ram_start="0x2400A000",
+    ram_start="0x2400D000",
     ram_length="0x3000",
-    app_name="tock_psa_app",
+    app_name="tock_interrupt_test_app",
 )
 
 DEBUG_HELP = "Build the debug profile instead of release."

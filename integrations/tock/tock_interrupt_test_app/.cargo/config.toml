@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: Infineon Technologies AG
+#
+# SPDX-License-Identifier: MIT
+
+runner = ["cargo", "run", "-p", "runner", "--release"]
+[build]
+target = "thumbv8m.main-none-eabi"

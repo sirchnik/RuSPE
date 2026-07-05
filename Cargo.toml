@@ -23,6 +23,7 @@ members = [
     "boards/psc3m5_evk/test_nspe",
     "boards/psc3m5_evk/tock/kernel",
     "integrations/tock/tock_psa_app",
+    "integrations/tock/tock_interrupt_test_app",
     "integrations/tock/tock_spe_adapter",
     "boards/psc3m5_evk/services/*_srv",
     "boards/musca_b1/secure",
