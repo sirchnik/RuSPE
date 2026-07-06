@@ -33,7 +33,7 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
 // Number of concurrent processes this platform supports.
-const NUM_PROCS: usize = 4;
+const NUM_PROCS: usize = 2;
 
 #[unsafe(link_section = ".apps")]
 #[used]

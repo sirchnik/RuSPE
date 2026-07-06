@@ -57,13 +57,40 @@ APP_HELP = "Path to a TBF application image (only for tock NSPE)."
 def _build_merged(
     ctx: Context, nspe: str, app: str | None, debug: bool
 ) -> tuple[Path, Path, Path]:
+    from integrations.tock.tock_psa_app import build as tock_psa_app_build
+    from integrations.tock.tock_interrupt_test_app import (
+        build as tock_interrupt_test_app_build,
+    )
+
     secure_elf = cargo_build(ctx, SECURE_BOARD, debug)
 
     if nspe == "test":
         non_secure_elf = test_nspe_build.build(ctx, debug=debug)
         nspe_board = test_nspe_build.NON_SECURE_BOARD
     elif nspe == "tock":
-        non_secure_elf = tock_kernel_build.build(ctx, app=app, debug=debug)
+        if app is None:
+            app1_tbf = tock_psa_app_build.build(
+                ctx,
+                flash_start="0x00182000",
+                flash_length="0x4000",
+                ram_start="0x20030000",
+                ram_length="0x4000",
+                debug=debug,
+            )
+            app2_tbf = tock_interrupt_test_app_build.build(
+                ctx,
+                flash_start="0x00186000",
+                flash_length="0x4000",
+                ram_start="0x20034000",
+                ram_length="0x4000",
+                debug=debug,
+            )
+            from tools.build.board import combine_tock_apps
+
+            app_path = combine_tock_apps(app1_tbf, app2_tbf, pad_len=0x4000)
+        else:
+            app_path = Path(app)
+        non_secure_elf = tock_kernel_build.build(ctx, app=app_path, debug=debug)
         nspe_board = tock_kernel_build.NON_SECURE_BOARD
     else:
         raise ValueError(f"Unknown NSPE: {nspe}")
@@ -167,7 +194,7 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
 
     return [
         {
-            "name": f"Musca-B1 Test {profile_short}",
+            "name": f"Test-Musca-B1 FN {profile_short}",
             **base_conf,
             "executable": f"target/thumbv8m.main-none-eabi/{profile}/musca_b1_secure",
             "serverArgs": [
@@ -199,10 +226,10 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
                 "-serial",
                 "telnet:127.0.0.1:4321,server,nowait",
                 "-device",
-                f"loader,file=target/thumbv8m.main-none-eabi/{profile}/musca_b1_tock_kernel",
+                f"loader,file=target/thumbv8m.main-none-eabi/{profile}/musca_b1_kernel-app.elf",
             ],
             "preLaunchCommands": [
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/musca_b1_tock_kernel",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/musca_b1_kernel-app.elf",
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/tock_psa_app",
             ],
             "preLaunchTask": f"build{profile_short_snake}.musca_b1_tock",

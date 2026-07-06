@@ -99,20 +99,22 @@ def elf_to_tbf(ctx: Context, app: AppConfig, debug: bool) -> Path:
 
 APP_DIR = Path(__file__).resolve().parent
 
-APP = AppConfig(
-    repo_root=REPO_ROOT,
-    app_dir=APP_DIR,
-    flash_start="0x22036000",
-    flash_length="0x3000",
-    ram_start="0x2400A000",
-    ram_length="0x3000",
-    app_name="tock_psa_app",
-)
-
-DEBUG_HELP = "Build the debug profile instead of release."
-
-
-def build(ctx: Context, debug=False):
+def build(
+    ctx: Context,
+    flash_start: str,
+    flash_length: str,
+    ram_start: str,
+    ram_length: str,
+    debug: bool = False,
+) -> Path:
     """Build the Tock userland app and convert it to TBF."""
-
-    return elf_to_tbf(ctx, APP, bool(debug))
+    app = AppConfig(
+        repo_root=REPO_ROOT,
+        app_dir=APP_DIR,
+        flash_start=flash_start,
+        flash_length=flash_length,
+        ram_start=ram_start,
+        ram_length=ram_length,
+        app_name="tock_psa_app",
+    )
+    return elf_to_tbf(ctx, app, bool(debug))
