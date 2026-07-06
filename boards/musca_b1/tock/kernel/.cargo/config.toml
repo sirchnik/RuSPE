@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: Infineon Technologies AG
+#
+# SPDX-License-Identifier: MIT
+
+include = [
+    "../../../../../integrations/tock/tock-sub/boards/cargo/tock_flags.toml",
+    "../../../../../integrations/tock/tock-sub/boards/cargo/unstable_flags.toml",
+]
+
+[build]
+target = "thumbv8m.main-none-eabi"

@@ -29,6 +29,7 @@ from tools.build.board import (
 )
 
 from boards.musca_b1.test_nspe import build as test_nspe_build
+from boards.musca_b1.tock.kernel import build as tock_kernel_build
 
 SVD_INFO = (
     "musca_b1.svd",
@@ -61,6 +62,9 @@ def _build_merged(
     if nspe == "test":
         non_secure_elf = test_nspe_build.build(ctx, debug=debug)
         nspe_board = test_nspe_build.NON_SECURE_BOARD
+    elif nspe == "tock":
+        non_secure_elf = tock_kernel_build.build(ctx, app=app, debug=debug)
+        nspe_board = tock_kernel_build.NON_SECURE_BOARD
     else:
         raise ValueError(f"Unknown NSPE: {nspe}")
 
@@ -80,8 +84,12 @@ def _build_merged(
 @build_task(
     default=True, help={"nspe": NSPE_HELP, "app": APP_HELP, "debug": DEBUG_HELP}
 )
-def build(ctx: Context, nspe="test", app=None, debug=False):
+def build(ctx: Context, nspe: str | None = None, app=None, debug=False):
     """Build the secure image, merge it with the non-secure kernel, and write a HEX output."""
+    if nspe is None:
+        _build_merged(ctx, "tock", app, bool(debug))
+        _, _, merged_hex = _build_merged(ctx, "test", app, bool(debug))
+        return merged_hex
     _, _, merged_hex = _build_merged(ctx, nspe, app, bool(debug))
     return merged_hex
 
@@ -178,5 +186,25 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/musca_b1_test_nspe",
             ],
             "preLaunchTask": f"build{profile_short_snake}.musca_b1_test",
+        },
+        {
+            "name": f"Tock-Musca-B1 FN {profile_short}",
+            **base_conf,
+            "executable": f"target/thumbv8m.main-none-eabi/{profile}/musca_b1_secure",
+            "serverArgs": [
+                "-monitor",
+                "none",
+                "-serial",
+                "stdio",
+                "-serial",
+                "telnet:127.0.0.1:4321,server,nowait",
+                "-device",
+                f"loader,file=target/thumbv8m.main-none-eabi/{profile}/musca_b1_tock_kernel",
+            ],
+            "preLaunchCommands": [
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/musca_b1_tock_kernel",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/tock_psa_app",
+            ],
+            "preLaunchTask": f"build{profile_short_snake}.musca_b1_tock",
         },
     ]
