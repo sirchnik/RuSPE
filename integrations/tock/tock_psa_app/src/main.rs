@@ -155,19 +155,26 @@ fn main() {
     run_app();
 }
 
+fn jump_to_spe() -> ! {
+    // TODO prevent jump to secure from non-privileged
+
+    unsafe { core::arch::asm!("nop") }
+
+    unsafe {
+        // with tumb bit!
+        let func: extern "C" fn() = core::mem::transmute(0x3201ff01usize);
+        func();
+    }
+    loop {
+        use libtock::platform::Syscalls;
+
+        TockSyscalls::yield_wait();
+    }
+}
+
 fn run_app() -> ! {
     #[cfg(feature = "test_unpriv_spe")]
-    {
-        // TODO prevent jump to secure from non-privileged
-        unsafe {
-            // jump to 0x3201ff01
-            let func: extern "C" fn() = core::mem::transmute(0x3201ff01usize);
-            func();
-        }
-        loop {
-            TockSyscalls::yield_wait();
-        }
-    }
+    jump_to_spe();
 
     #[cfg(feature = "test_loop_token")]
     {
@@ -178,9 +185,14 @@ fn run_app() -> ! {
             use libtock::alarm::{Alarm, Milliseconds};
 
             writeln!(writer, "start-spe").unwrap();
-            if SpeDriver::<TockSyscalls>::initial_attest_get_token_sync(&nonce[..32], &mut token)
-                .is_err()
-            {
+            let res =
+                SpeDriver::<TockSyscalls>::initial_attest_get_token_sync(&nonce[..32], &mut token);
+
+            unsafe {
+                core::arch::asm!("nop");
+            }
+
+            if res.is_err() {
                 writeln!(writer, "Request failed").unwrap();
                 continue;
             };
