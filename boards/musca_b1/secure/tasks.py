@@ -73,16 +73,16 @@ def _build_merged(
                 ctx,
                 flash_start="0x00182000",
                 flash_length="0x4000",
-                ram_start="0x20030000",
-                ram_length="0x4000",
+                ram_start="0x20035000",
+                ram_length="0x2000",
                 debug=debug,
             )
             app2_tbf = tock_interrupt_test_app_build.build(
                 ctx,
                 flash_start="0x00186000",
                 flash_length="0x4000",
-                ram_start="0x20034000",
-                ram_length="0x4000",
+                ram_start="0x20037000",
+                ram_length="0x2000",
                 debug=debug,
             )
             from tools.build.board import combine_tock_apps
@@ -135,6 +135,14 @@ def _run_qemu(secure_elf: Path, non_secure_elf: Path, gdb_listen: bool = False):
         "-device",
         f"loader,file={non_secure_elf}",
     ]
+
+    if "musca_b1_kernel-app.elf" in non_secure_elf.name:
+        noapps_bin = non_secure_elf.with_name("musca_b1_kernel-noapps.bin")
+        app_tbf = non_secure_elf.parent / "combined_apps.tbf"
+        cmd[-1] = f"loader,file={noapps_bin},addr=0x00102000"
+        if app_tbf.exists():
+            cmd.extend(["-device", f"loader,file={app_tbf},addr=0x00182000"])
+
     if gdb_listen:
         cmd.extend(["-S", "-gdb", "tcp::1234"])
 
@@ -226,11 +234,14 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
                 "-serial",
                 "telnet:127.0.0.1:4321,server,nowait",
                 "-device",
-                f"loader,file=target/thumbv8m.main-none-eabi/{profile}/musca_b1_kernel-app.elf",
+                f"loader,file=target/thumbv8m.main-none-eabi/{profile}/musca_b1_kernel-noapps.bin,addr=0x00102000",
+                "-device",
+                f"loader,file=target/thumbv8m.main-none-eabi/{profile}/combined_apps.tbf,addr=0x00182000",
             ],
             "preLaunchCommands": [
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/musca_b1_kernel-app.elf",
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/tock_psa_app",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/tock_interrupt_test_app",
             ],
             "preLaunchTask": f"build{profile_short_snake}.musca_b1_tock",
         },

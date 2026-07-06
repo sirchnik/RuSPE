@@ -181,6 +181,22 @@ def inject_app(ctx: Context, board: BoardConfig, debug: bool, app: str | None) -
         [str(objcopy), "--update-section", f".apps={app_path}", str(kernel_with_app)],
         cwd=board.board_dir,
     )
+
+    # Generate a raw binary to bypass QEMU processing the empty .apps segment left by llvm-objcopy
+    noapps_bin = kernel_with_app.with_name(f"{board.prefixed_platform}-noapps.bin")
+    run_command(
+        [
+            str(objcopy),
+            "-O",
+            "binary",
+            "--remove-section",
+            ".apps",
+            str(kernel_with_app),
+            str(noapps_bin),
+        ],
+        cwd=board.board_dir,
+    )
+
     return kernel_with_app
 
 
@@ -366,6 +382,7 @@ def debug_with_gdb(
     gdb_args.extend(["-ex", "monitor reset halt"])
 
     run_command(gdb_args, cwd=board.board_dir)
+
 
 def combine_tock_apps(app1_tbf: Path, app2_tbf: Path, pad_len: int) -> Path:
     combined_tbf = app1_tbf.parent / "combined_apps.tbf"
