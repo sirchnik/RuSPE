@@ -71,6 +71,14 @@ def _build_merged(
         payload_end=0x100FFEFF,
     )
 
+    from intelhex import IntelHex
+    ih = IntelHex(str(secure_hex))
+    # Extract the MCUboot signature (76 bytes) for QEMU execution
+    mcuboot_sig_data = ih.tobinarray(start=0x100FFF00, end=0x100FFF00 + 75)
+    mcuboot_sig_bin = secure_elf.with_name(f"{SECURE_BOARD.prefixed_platform}_mcuboot_sig.bin")
+    with open(mcuboot_sig_bin, "wb") as f:
+        f.write(mcuboot_sig_data)
+
     if nspe == "test":
         non_secure_elf = test_nspe_build.build(ctx, debug=debug)
         nspe_board = test_nspe_build.NON_SECURE_BOARD
@@ -100,6 +108,7 @@ def build(ctx: Context, nspe="test", app=None, debug=False):
 
 
 def _run_qemu(secure_elf: Path, non_secure_elf: Path, gdb_listen: bool = False):
+    mcuboot_sig_bin = secure_elf.with_name(f"{SECURE_BOARD.prefixed_platform}_mcuboot_sig.bin")
     cmd = [
         "qemu-system-arm",
         "-machine",
@@ -113,6 +122,8 @@ def _run_qemu(secure_elf: Path, non_secure_elf: Path, gdb_listen: bool = False):
         "-device",
         f"loader,file={non_secure_elf}",
     ]
+    if mcuboot_sig_bin.exists():
+        cmd.extend(["-device", f"loader,file={mcuboot_sig_bin},addr=0x100FFF00"])
     if gdb_listen:
         cmd.extend(["-S", "-gdb", "tcp::1234"])
 
@@ -186,6 +197,8 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
                 "telnet:127.0.0.1:4321,server,nowait",
                 "-device",
                 f"loader,file=target/thumbv8m.main-none-eabi/{profile}/musca_b1_test_nspe",
+                "-device",
+                f"loader,file=target/thumbv8m.main-none-eabi/{profile}/musca_b1_secure_mcuboot_sig.bin,addr=0x100FFF00",
             ],
             "preLaunchCommands": [
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/musca_b1_test_nspe",

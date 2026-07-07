@@ -56,7 +56,7 @@ fn parse_boot_data<'a>(data: &'a [u8]) -> Option<SwComponent<'a>> {
     let mut magic_bytes = [0u8; 2];
     magic_bytes.copy_from_slice(&data[0..2]);
     let magic = u16::from_le_bytes(magic_bytes);
-    
+
     let mut len_bytes = [0u8; 2];
     len_bytes.copy_from_slice(&data[2..4]);
     let tot_len = u16::from_le_bytes(len_bytes) as usize;
@@ -77,7 +77,7 @@ fn parse_boot_data<'a>(data: &'a [u8]) -> Option<SwComponent<'a>> {
         let mut tlv_len_bytes = [0u8; 2];
         tlv_len_bytes.copy_from_slice(&data[offset + 2..offset + 4]);
         let tlv_len = u16::from_le_bytes(tlv_len_bytes) as usize;
-        
+
         offset += 4;
         if offset + tlv_len > tot_len {
             break;
