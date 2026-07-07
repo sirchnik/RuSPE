@@ -5,7 +5,15 @@
 use core::cmp;
 use spe_services::attest::attest_service::{self, CERTIFICATION_REF_MAX_SIZE};
 
-pub struct MuscaB1AttestPlatform;
+pub struct MuscaB1AttestPlatform {
+    boot_record_addr: Option<usize>,
+}
+
+impl MuscaB1AttestPlatform {
+    pub const fn new(boot_record_addr: Option<usize>) -> Self {
+        Self { boot_record_addr }
+    }
+}
 
 impl attest_service::AttestPlatform for MuscaB1AttestPlatform {
     fn security_lifecycle(&self) -> Result<u32, spe::StatusCode> {
@@ -58,6 +66,19 @@ impl attest_service::AttestPlatform for MuscaB1AttestPlatform {
             buf[len..].fill(0);
         }
         Ok(len)
+    }
+
+    fn boot_record(&self) -> Option<&'static [u8]> {
+        let addr = self.boot_record_addr?;
+        unsafe {
+            let ptr = addr as *const u8;
+            let magic = u16::from_le_bytes([*ptr, *ptr.add(1)]);
+            if magic == 0x2016 {
+                Some(core::slice::from_raw_parts(ptr, 0x100))
+            } else {
+                None
+            }
+        }
     }
 }
 

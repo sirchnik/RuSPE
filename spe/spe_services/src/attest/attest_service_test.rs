@@ -35,6 +35,9 @@ impl AttestPlatform for MockPlatform {
         buf[..s.len()].copy_from_slice(s);
         Ok(s.len())
     }
+    fn boot_record(&self) -> Option<&'static [u8]> {
+        None
+    }
 }
 
 struct MockPsaClient;

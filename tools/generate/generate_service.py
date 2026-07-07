@@ -12,8 +12,19 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from dataclasses import dataclass
+
 from tools.build.invoke_support import BuildError
-from tools.generate.service_catalog import ServiceSpec
+
+@dataclass(frozen=True)
+class ServiceSpec:
+    name: str
+    package_name: str
+    mode: str
+    service_dir: Path
+    generated_import: str
+    generated_service_type: str
+    generated_service_ctor: str
 
 
 def _render_main_rs(spec: ServiceSpec) -> str:
@@ -170,32 +181,4 @@ def generate_service_crate(
     return service_dir
 
 
-if __name__ == "__main__":
-    import argparse
-    from tools.generate.service_catalog import CATALOG
 
-    parser = argparse.ArgumentParser(
-        description="Generate a service from the service catalog."
-    )
-    parser.add_argument(
-        "--service",
-        required=True,
-        choices=list(CATALOG.keys()),
-        help="Name of the service to generate",
-    )
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Overwrite generated files if they already exist",
-    )
-
-    args = parser.parse_args()
-    spec = CATALOG[args.service]
-
-    # repo_root is implicitly spec.service_dir.parents[4] based on structure
-    # but generate_service_crate doesn't actually use repo_root, it just takes it.
-    repo_root = spec.service_dir.parents[4]
-
-    print(f"Generating service '{spec.name}' at {spec.service_dir}")
-    generate_service_crate(repo_root, spec, force=args.force)
-    print("Done!")

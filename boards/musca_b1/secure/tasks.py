@@ -25,6 +25,7 @@ from tools.build.board import (
     BoardConfig,
     Manufacturer,
     cargo_build,
+    elf_to_hex,
     merge_secure_non_secure_hex,
 )
 
@@ -58,6 +59,18 @@ def _build_merged(
 ) -> tuple[Path, Path, Path]:
     secure_elf = cargo_build(ctx, SECURE_BOARD, debug)
 
+    target_root = SECURE_BOARD.target_root(debug)
+    secure_hex = target_root / f"{SECURE_BOARD.prefixed_platform}.hex"
+    elf_to_hex(ctx, secure_elf, secure_hex)
+
+    from tools.build.mcuboot import patch_mcuboot_sig
+    patch_mcuboot_sig(
+        secure_hex,
+        mcuboot_addr=0x100FFF00,
+        payload_start=0x10000000,
+        payload_end=0x100FFEFF,
+    )
+
     if nspe == "test":
         non_secure_elf = test_nspe_build.build(ctx, debug=debug)
         nspe_board = test_nspe_build.NON_SECURE_BOARD
@@ -68,7 +81,7 @@ def _build_merged(
         ctx,
         SECURE_BOARD,
         nspe_board,
-        secure_elf,
+        secure_hex,
         non_secure_elf,
         debug,
         [],

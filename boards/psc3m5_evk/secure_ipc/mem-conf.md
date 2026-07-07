@@ -14,7 +14,7 @@ See also standard [secure board docs](../secure/mem-conf.md) for general informa
 ## Configuration
 
 **Service placement is configurable at build time** via Python configuration in [tasks.py](./tasks.py).
-The selected service entry in `tools/build/service_catalog.py` controls the service handle and memory placement
+The selected service entry in `service_catalog.py` controls the service handle and memory placement
 (flash origin/length and SRAM origin/length).
 Both the selected service crate and secure IPC board are compiled from the same configuration, ensuring a coherent merged image.
 
@@ -22,7 +22,7 @@ Default values (current configuration):
 - Flash: `0x3201_0000` - `0x3201_3F00` (31.75 KB)
 - SRAM: `0x3400_2F00` - `0x3400_4000` (8.7 KB)
 
-To change service placement or switch services, update `tools/build/service_catalog.py` and rebuild.
+To change service placement or switch services, update `service_catalog.py` and rebuild.
 
 ## Regions Overview
 

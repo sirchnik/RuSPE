@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from shutil import copy2
+import sys
 
 from invoke.context import Context
 
@@ -242,16 +243,24 @@ def merge_secure_non_secure_hex(
         raise BuildError(f"Secure image does not exist: {secure_elf}")
 
     target_root = secure_board.target_root(debug)
-    secure_hex = elf_to_hex(
-        ctx,
-        secure_elf,
-        target_root / f"{secure_board.prefixed_platform}.hex",
-    )
-    non_secure_hex = elf_to_hex(
-        ctx,
-        non_secure_elf,
-        target_root / f"{non_secure_board.prefixed_platform}-app.hex",
-    )
+    
+    if secure_elf.suffix == ".hex":
+        secure_hex = secure_elf
+    else:
+        secure_hex = elf_to_hex(
+            ctx,
+            secure_elf,
+            target_root / f"{secure_board.prefixed_platform}.hex",
+        )
+
+    if non_secure_elf.suffix == ".hex":
+        non_secure_hex = non_secure_elf
+    else:
+        non_secure_hex = elf_to_hex(
+            ctx,
+            non_secure_elf,
+            target_root / f"{non_secure_board.prefixed_platform}-app.hex",
+        )
     merged_hex = target_root / f"{non_secure_board.prefixed_platform}_merged.hex"
     inputs = [secure_hex, non_secure_hex]
     if extra_hexes:

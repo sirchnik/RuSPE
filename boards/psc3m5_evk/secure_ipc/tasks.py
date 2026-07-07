@@ -38,6 +38,7 @@ from boards.psc3m5_evk.services.attest_srv.build import build as build_attest
 from boards.psc3m5_evk.services.crypto_srv.build import build as build_crypto
 from boards.psc3m5_evk.test_nspe import build as test_nspe_build
 from boards.psc3m5_evk.tock.kernel import build as tock_kernel_build
+from tools.generate.generate_service import generate_service_crate
 
 BOARD_DIR = Path(__file__).resolve().parent
 
@@ -119,6 +120,18 @@ def _build_merged(ctx: Context, nspe: str, app: str | None, debug: bool) -> Path
 
     secure_elf = cargo_build(ctx, BOARD, debug, env=service_env)
 
+    target_root = BOARD.target_root(debug)
+    secure_hex = target_root / f"{BOARD.prefixed_platform}.hex"
+    elf_to_hex(ctx, secure_elf, secure_hex)
+
+    from tools.build.mcuboot import patch_mcuboot_sig
+    patch_mcuboot_sig(
+        secure_hex,
+        mcuboot_addr=0x32007F00,
+        payload_start=0x32000000,
+        payload_end=0x32007EFF,
+    )
+
     if nspe == "test":
         non_secure_elf = test_nspe_build.build(ctx, debug=debug)
         nspe_board = test_nspe_build.NON_SECURE_BOARD
@@ -134,11 +147,22 @@ def _build_merged(ctx: Context, nspe: str, app: str | None, debug: bool) -> Path
         ctx,
         BOARD,
         nspe_board,
-        secure_elf,
+        secure_hex,
         non_secure_elf,
         debug,
         extra_hexes,
     )
+
+
+@build_task(help={"force": "Overwrite existing generated code if they already exist."})
+def generate(ctx: Context, force=False):
+    """Generate all services defined in the local service catalog."""
+    from .service_catalog import CATALOG
+    for name, spec in CATALOG.items():
+        if spec.mode == "generated":
+            print(f"Generating service '{spec.name}' at {spec.service_dir}")
+            generate_service_crate(REPO_ROOT, spec, force=force)
+    print("Done generating services.")
 
 
 @build_task(

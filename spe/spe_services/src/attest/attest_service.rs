@@ -35,6 +35,8 @@ pub trait AttestPlatform {
     fn instance_id(&self, buf: &mut [u8; 33]) -> Result<(), StatusCode>;
     /// Get the hardware version (UTF-8 text, EAN-13 format). Returns number of bytes written.
     fn cert_ref(&self, buf: &mut [u8; CERTIFICATION_REF_MAX_SIZE]) -> Result<usize, StatusCode>;
+    /// Get the raw boot record (TLV) shared by the bootloader.
+    fn boot_record(&self) -> Option<&'static [u8]>;
 }
 
 /// Upper bound on the number of claims (Nonce + caller-supplied) that can be
@@ -42,6 +44,65 @@ pub trait AttestPlatform {
 const MAX_TOTAL_CLAIMS: usize = 16;
 
 const TEMP_KEY_ID: u32 = 0x1234_5678;
+
+const SHARED_DATA_TLV_INFO_MAGIC: u16 = 0x2016;
+const IAS_MEASURE_VALUE_TYPE: u16 = (0x1 << 12) | (0x00 << 6) | 0x08;
+const IAS_SIGNER_ID_TYPE: u16 = (0x1 << 12) | (0x00 << 6) | 0x01;
+
+fn parse_boot_data<'a>(data: &'a [u8]) -> Option<SwComponent<'a>> {
+    if data.len() < 4 {
+        return None;
+    }
+    let mut magic_bytes = [0u8; 2];
+    magic_bytes.copy_from_slice(&data[0..2]);
+    let magic = u16::from_le_bytes(magic_bytes);
+    
+    let mut len_bytes = [0u8; 2];
+    len_bytes.copy_from_slice(&data[2..4]);
+    let tot_len = u16::from_le_bytes(len_bytes) as usize;
+
+    if magic != SHARED_DATA_TLV_INFO_MAGIC || tot_len > data.len() || tot_len < 4 {
+        return None;
+    }
+
+    let mut measure_val = None;
+    let mut signer_id = None;
+    let mut offset = 4;
+
+    while offset + 4 <= tot_len {
+        let mut type_bytes = [0u8; 2];
+        type_bytes.copy_from_slice(&data[offset..offset + 2]);
+        let tlv_type = u16::from_le_bytes(type_bytes);
+
+        let mut tlv_len_bytes = [0u8; 2];
+        tlv_len_bytes.copy_from_slice(&data[offset + 2..offset + 4]);
+        let tlv_len = u16::from_le_bytes(tlv_len_bytes) as usize;
+        
+        offset += 4;
+        if offset + tlv_len > tot_len {
+            break;
+        }
+
+        let payload = &data[offset..offset + tlv_len];
+        if tlv_type == IAS_MEASURE_VALUE_TYPE {
+            measure_val = Some(payload);
+        } else if tlv_type == IAS_SIGNER_ID_TYPE {
+            signer_id = Some(payload);
+        }
+
+        offset += tlv_len;
+    }
+
+    if let (Some(m), Some(s)) = (measure_val, signer_id) {
+        Some(SwComponent {
+            measurement_type: None,
+            measurement_value: m,
+            signer_id: s,
+        })
+    } else {
+        None
+    }
+}
 
 pub struct AttestService<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> {
     platform: P,
@@ -148,6 +209,7 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
         cert_ref_str: &'a str,
         impl_id: &'a [u8; 32],
         instance_id: &'a [u8; 33],
+        sw_components: &'a [SwComponent<'a>],
     ) -> [AttestClaim<'a>; 9] {
         [
             AttestClaim {
@@ -172,11 +234,7 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
             },
             AttestClaim {
                 key: IatClaim::SwComponents,
-                value: AttestClaimValue::SwComponents(&[SwComponent {
-                    measurement_type: None,
-                    measurement_value: &[0x03; 32],
-                    signer_id: &[0x08; 32],
-                }]),
+                value: AttestClaimValue::SwComponents(sw_components),
             },
             AttestClaim {
                 key: IatClaim::CertificationReference,
@@ -220,6 +278,19 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
         let mut instance_id = [0u8; 33];
         self.platform.instance_id(&mut instance_id)?;
 
+        let mut sw_components = [SwComponent {
+            measurement_type: None,
+            measurement_value: &[],
+            signer_id: &[],
+        }];
+        let parsed_comp = self.platform.boot_record().and_then(parse_boot_data);
+        let sw_components_slice = if let Some(comp) = parsed_comp {
+            sw_components[0] = comp;
+            &sw_components[..1]
+        } else {
+            &sw_components[..0]
+        };
+
         let additional_claims = self.build_token_claims(
             &boot_seed,
             profile_str,
@@ -228,6 +299,7 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
             cert_ref_str,
             &impl_id,
             &instance_id,
+            sw_components_slice,
         );
 
         api.map_invec_outvec(msg.handle, 0, 0, |challenge, outvec| {
@@ -255,10 +327,29 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
         let mut boot_seed = [0u8; 32];
         self.platform.boot_seed(&mut boot_seed)?;
 
-        let additional_claims = [AttestClaim {
-            key: IatClaim::BootSeed,
-            value: AttestClaimValue::Bytes(&boot_seed),
+        let mut sw_components = [SwComponent {
+            measurement_type: None,
+            measurement_value: &[],
+            signer_id: &[],
         }];
+        let parsed_comp = self.platform.boot_record().and_then(parse_boot_data);
+        let sw_components_slice = if let Some(comp) = parsed_comp {
+            sw_components[0] = comp;
+            &sw_components[..1]
+        } else {
+            &sw_components[..0]
+        };
+
+        let additional_claims = [
+            AttestClaim {
+                key: IatClaim::BootSeed,
+                value: AttestClaimValue::Bytes(&boot_seed),
+            },
+            AttestClaim {
+                key: IatClaim::SwComponents,
+                value: AttestClaimValue::SwComponents(sw_components_slice),
+            },
+        ];
 
         let token_size = self.initial_attest_get_token_size(challenge_size, &additional_claims)?;
 

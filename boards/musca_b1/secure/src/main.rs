@@ -53,7 +53,7 @@ pub unsafe fn main() {
             ruspe_musca_b1::MuscaB1SecPlatform<global_spm_api::InternalPsaClient, global_spm_api::SfnApi>,
             ruspe_musca_b1::MuscaB1SecPlatform {
                 initial_attestation: spe_services::attest::attest_service::AttestService::new(
-                    ruspe_musca_b1::services::attest::MuscaB1AttestPlatform
+                    ruspe_musca_b1::services::attest::MuscaB1AttestPlatform::new(Some(0x1A0FFF00))
                 ),
                 crypto: spe_services::crypto::crypto_service::CryptoService::new([
                     0xc3, 0xfe, 0xe8, 0x4c, 0x73, 0x49, 0xd8, 0xe8, 0x44, 0x3d, 0xe4, 0xae, 0x65,

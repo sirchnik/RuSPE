@@ -117,7 +117,7 @@ pub unsafe fn main() {
         static_init!(
             Psc3SecPlatform<global_spm_api::InternalPsaClient, global_spm_api::SfnApi>,
             Psc3SecPlatform {
-                initial_attestation: attest_service::AttestService::new(Psc3AttestPlatform),
+                initial_attestation: attest_service::AttestService::new(Psc3AttestPlatform::new(Some(0x3200FF00))),
                 crypto: crypto_service::CryptoService::new([
                     0xc3, 0xfe, 0xe8, 0x4c, 0x73, 0x49, 0xd8, 0xe8, 0x44, 0x3d, 0xe4, 0xae, 0x65,
                     0xf7, 0xea, 0x3b, 0xb8, 0x09, 0x3b, 0xe9, 0xb1, 0x5b, 0xc4, 0xbd, 0x4a, 0x54,

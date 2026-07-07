@@ -8,6 +8,11 @@ ENTRY(sec_initialize_ram_jump_to_main)
 
 SECTIONS
 {
+	.mcuboot :
+	{
+		KEEP(*(.mcuboot))
+	} > mcuboot
+
 	.text :
 	{
         . = ALIGN(4);
@@ -23,6 +28,8 @@ SECTIONS
          * http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/BABIFJFG.html
          */
 		KEEP(*(.vectors .vectors.*))
+		KEEP(*(.irqs))
+		KEEP(*(.tock.attr.*))
         /* .text and .rodata hold most program code and immutable constants.
          * .gnu.linkonce hold C++ elements with vague linkage.
          * https://gcc.gnu.org/onlinedocs/gcc/Vague-Linkage.html

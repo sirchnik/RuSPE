@@ -2,20 +2,10 @@
 #
 # SPDX-License-Identifier: MIT
 
-from dataclasses import dataclass
 from pathlib import Path
+from tools.generate.generate_service import ServiceSpec
 
-@dataclass(frozen=True)
-class ServiceSpec:
-    name: str
-    package_name: str
-    mode: str
-    service_dir: Path
-    generated_import: str
-    generated_service_type: str
-    generated_service_ctor: str
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 ATTEST_SPEC = ServiceSpec(
     name="attest",
@@ -24,7 +14,7 @@ ATTEST_SPEC = ServiceSpec(
     service_dir=REPO_ROOT / "boards" / "psc3m5_evk" / "services" / "attest_srv",
     generated_import="use ruspe_psc3::services::attest::{InitialAttestation, Psc3AttestPlatform};",
     generated_service_type="InitialAttestation<spe::spm_api::IpcPsaClient>",
-    generated_service_ctor="InitialAttestation::new(Psc3AttestPlatform)",
+    generated_service_ctor="InitialAttestation::new(Psc3AttestPlatform::new(Some(0x32007F00)))",
 )
 
 CRYPTO_SPEC = ServiceSpec(

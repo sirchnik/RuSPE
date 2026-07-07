@@ -10,7 +10,8 @@
 **/
 MEMORY
 {
-	rom (rx)  : ORIGIN = 0x32000000, LENGTH = 0x10000
+	rom (rx)  : ORIGIN = 0x32000000, LENGTH = 0xFF00
+	mcuboot (r) : ORIGIN = 0x3200FF00, LENGTH = 0x100
 	nsc (rx)  : ORIGIN = 0x3201FF00, LENGTH = 0x100
   	ram (rwx) : ORIGIN = 0x34000000, LENGTH = 0x4000
 }
