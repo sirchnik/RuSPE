@@ -13,50 +13,42 @@ static SERVICE: InitialAttestation<spe::spm_api::IpcPsaClient> =
     InitialAttestation::new(Psc3AttestPlatform);
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn call(msg: *const PsaMsg) -> psa_interface::types::PsaStatus {
+pub unsafe extern "C" fn call(msg: *const PsaMsg) -> ! {
     let msg = unsafe { &*msg };
-    into_psa_status(SERVICE.call(*msg, &spe::spm_api::SvcApi))
+    let status = into_psa_status(SERVICE.call(*msg, &spe::spm_api::SvcApi));
+    // stack gets reset by SPM on every call, so we can just exit the process here
+    unsafe {
+        core::arch::asm!(
+            "svc {SVC_PROCESS_EXIT}",
+            SVC_PROCESS_EXIT = const spe::spm_api::SVC_PROCESS_EXIT,
+            in("r0") status,
+            options(noreturn)
+        )
+    }
 }
 
 // External linker symbols for memory initialization
 unsafe extern "C" {
-    static _rom_start: *const u32;
-    static _rom_limit: *const u32;
-    static _ram_start: *const u32;
-    static _ram_limit: *const u32;
-    static _stack_limit: *const u32;
-    static _stack_top: *const u32;
+    static _rom_start: u8;
+    static _rom_limit: u8;
+    static _ram_start: u8;
+    static _ram_limit: u8;
+    static _stack_limit: u8;
+    static _stack_top: u8;
 }
 
-/// Minimal thunk placed in service flash. When the service function returns,
-/// it branches here via LR. The `svc` traps back to the SPM's SVC handler
-/// which re-elevates to privileged mode and returns to the original caller.
-#[unsafe(naked)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn svc_return() {
-    use core::arch::naked_asm;
-    naked_asm!(
-        "svc {SVC_PROCESS_EXIT}",
-        SVC_PROCESS_EXIT = const spe::spm_api::SVC_PROCESS_EXIT,
-    );
-}
-
-#[cfg_attr(
-    all(target_arch = "arm", target_os = "none"),
-    unsafe(link_section = ".vectors")
-)]
-#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
+#[unsafe(link_section = ".vectors")]
+#[used]
 pub static BASE_VECTORS: ServiceVectors = ServiceVectors {
-    version: InitialAttestation::<spe::spm_api::IpcPsaClient>::VERSION,
+    version: <InitialAttestation<spe::spm_api::IpcPsaClient>>::VERSION,
     init_entry: spe::service::init,
     call_entry: call,
-    rom_start: unsafe { &_rom_start as *const _ as *const u8 },
-    rom_limit: unsafe { &_rom_limit as *const _ as *const u8 },
-    ram_start: unsafe { &_ram_start as *const _ as *const u8 },
-    ram_limit: unsafe { &_ram_limit as *const _ as *const u8 },
-    svc_return,
-    stack_limit: unsafe { &_stack_limit as *const _ as *const u8 },
-    stack_top: unsafe { &_stack_top as *const _ as *const u8 },
+    rom_start: core::ptr::addr_of!(_rom_start),
+    rom_limit: core::ptr::addr_of!(_rom_limit),
+    ram_start: core::ptr::addr_of!(_ram_start),
+    ram_limit: core::ptr::addr_of!(_ram_limit),
+    stack_limit: core::ptr::addr_of!(_stack_limit),
+    stack_top: core::ptr::addr_of!(_stack_top),
 };
 
 #[panic_handler]

@@ -19,7 +19,7 @@ use psa_interface::types::{PsaStatus, ServiceHandle};
 pub struct ServiceVectors {
     pub version: u32,
     pub init_entry: unsafe extern "C" fn(),
-    pub call_entry: unsafe extern "C" fn(*const PsaMsg) -> PsaStatus,
+    pub call_entry: unsafe extern "C" fn(*const PsaMsg) -> !,
     /// Start of the service ROM window containing executable code and rodata.
     pub rom_start: *const u8,
     /// Exclusive end of the service ROM window.
@@ -28,9 +28,6 @@ pub struct ServiceVectors {
     pub ram_start: *const u8,
     /// Exclusive end of the service RAM window.
     pub ram_limit: *const u8,
-    /// A minimal thunk in the service's flash region that executes `svc {SVC_PROCESS_EXIT}`
-    /// to re-elevate after the unprivileged service function returns.
-    pub svc_return: unsafe extern "C" fn(),
     /// Lowest permitted PSP value for the service's dedicated stack window.
     /// The SPM programs PSPLIM to this address before entering the service.
     pub stack_limit: *const u8,
@@ -160,7 +157,6 @@ unsafe impl IpcProcess for ServiceProcess {
             svc_call_unpriv(
                 vectors.init_entry as usize,
                 0,
-                vectors.svc_return as usize,
                 vectors.stack_limit as usize,
                 vectors.stack_top as usize,
             );
@@ -179,7 +175,6 @@ unsafe impl IpcProcess for ServiceProcess {
             svc_call_unpriv(
                 vectors.call_entry as usize,
                 staged_msg as usize,
-                vectors.svc_return as usize,
                 vectors.stack_limit as usize,
                 stack_top,
             )
@@ -288,10 +283,9 @@ mod tests {
         };
 
         unsafe extern "C" fn dummy_init() {}
-        unsafe extern "C" fn dummy_call(_: *const PsaMsg) -> PsaStatus {
-            0
+        unsafe extern "C" fn dummy_call(_: *const PsaMsg) -> ! {
+            loop {}
         }
-        unsafe extern "C" fn dummy_svc_return() {}
 
         // Create a dummy ServiceVectors
         let vectors = ServiceVectors {
@@ -302,7 +296,6 @@ mod tests {
             rom_limit: core::ptr::null(),
             ram_start,
             ram_limit,
-            svc_return: dummy_svc_return,
             stack_limit,
             stack_top,
         };

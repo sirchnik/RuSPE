@@ -61,7 +61,8 @@ pub unsafe extern "C" fn init() {
         // Initialize stack pointer
         ldr sp, ={stack_top}
 
-        bx lr
+        movs r0, #0
+        svc {SVC_PROCESS_EXIT}
         "#,
         szero = sym _szero,
         ezero = sym _ezero,
@@ -69,6 +70,7 @@ pub unsafe extern "C" fn init() {
         edata = sym _edata,
         etext = sym _etext,
         stack_top = sym _stack_top,
+        SVC_PROCESS_EXIT = const crate::spm_api::SVC_PROCESS_EXIT,
     );
 }
 

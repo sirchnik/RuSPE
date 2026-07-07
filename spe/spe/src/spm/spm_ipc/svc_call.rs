@@ -14,15 +14,13 @@
 /// - Sets EXC_RETURN SPSEL bit -> exception return unstacks from PSP
 /// - bx lr -> hardware pops frame from PSP -> service runs unprivileged.
 ///
-/// When the service returns it hits the `thunk` which triggers
-/// `SVC_PROCESS_EXIT`: the handler copies the return value from the PSP frame to
-/// the orphaned MSP frame, clears nPRIV, flips EXC_RETURN back to MSP, and
-/// returns - landing us back here with the result in R0.
+/// The service is expected to issue `svc {SVC_PROCESS_EXIT}` when finished,
+/// which triggers the handler to copy the return value from the PSP frame to
+/// the orphaned MSP frame, clear nPRIV, flip EXC_RETURN back to MSP, and
+/// return - landing us back here with the result in R0.
 ///
 /// # Safety
 /// - `fn_ptr` must point to valid code in unprivileged-accessible memory.
-/// - `thunk` must point to an `svc {SVC_PROCESS_EXIT}` instruction in unprivileged-accessible
-///   memory.
 /// - `stack_limit` must be the lowest permitted PSP value for the service.
 /// - `stack_top` must be an 8-byte aligned address at the top of RAM accessible
 ///   to unprivileged code (the service's stack).
@@ -30,7 +28,6 @@
 pub(crate) unsafe fn svc_call_unpriv(
     fn_ptr: usize,
     arg: usize,
-    thunk: usize,
     stack_limit: usize,
     stack_top: usize,
 ) -> usize {
@@ -53,7 +50,7 @@ pub(crate) unsafe fn svc_call_unpriv(
         frame_base.add(2).write_volatile(0); // R2
         frame_base.add(3).write_volatile(0); // R3
         frame_base.add(4).write_volatile(0); // R12
-        frame_base.add(5).write_volatile(thunk); // LR = svc_return thunk
+        frame_base.add(5).write_volatile(0xFFFF_FFFF); // LR = dummy return address
         frame_base.add(6).write_volatile(fn_ptr); // PC = function entry
         frame_base.add(7).write_volatile(0x0100_0000); // xPSR (Thumb bit)
     }
@@ -70,7 +67,7 @@ pub(crate) unsafe fn svc_call_unpriv(
     }
 
     // Issue SVC_START_PROCESS. The handler returns via PSP (service runs).
-    // When the service finishes -> thunk -> SVC_PROCESS_EXIT -> handler returns via
+    // When the service finishes -> SVC_PROCESS_EXIT -> handler returns via
     // MSP -> we land back here with the return value in R0.
     let ret: usize;
     unsafe {
@@ -93,7 +90,6 @@ pub(crate) unsafe fn svc_call_unpriv(
 pub(crate) unsafe fn svc_call_unpriv(
     _fn_ptr: usize,
     _arg: usize,
-    _thunk: usize,
     _stack_limit: usize,
     _stack_top: usize,
 ) -> usize {
