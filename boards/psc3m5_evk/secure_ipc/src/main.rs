@@ -133,6 +133,15 @@ impl IpcProcessPlatform for Psc3IpcPlatform {}
 
 #[unsafe(no_mangle)]
 pub unsafe fn main() {
+    let nonsecure_reset = unsafe { start() };
+    nonsecure_reset();
+}
+
+/// Separated initialization function to ensure its stack frame is popped
+/// before jumping to the non-secure entry point in `main`.
+/// Returns the non-secure reset handler address.
+#[inline(never)]
+unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
     icache::sys_init_enable_cache();
     chip_init::preinit_peripherals();
     chip_init::init_system();
@@ -232,10 +241,8 @@ pub unsafe fn main() {
             options(nomem, nostack, preserves_flags),
         );
 
-        let nonsecure_reset = core::mem::transmute::<*const u32, extern "cmse-nonsecure-call" fn()>(
+        core::mem::transmute::<*const u32, extern "cmse-nonsecure-call" fn()>(
             nonsecure_reset as *const u32,
-        );
-
-        nonsecure_reset();
+        )
     }
 }

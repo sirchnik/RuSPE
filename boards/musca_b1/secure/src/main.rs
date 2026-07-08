@@ -27,6 +27,15 @@ pub mod global_spm_api {
 
 #[unsafe(no_mangle)]
 pub unsafe fn main() {
+    let nonsecure_reset = unsafe { start() };
+    nonsecure_reset();
+}
+
+/// Separated initialization function to ensure its stack frame is popped
+/// before jumping to the non-secure entry point in `main`.
+/// Returns the non-secure reset handler address.
+#[inline(never)]
+unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
     let serial = unsafe { static_init!(uart::UartMin, uart::UartMin::new_uart0_sec()) };
 
     // Configure UART (assuming musca_b1 system clock is 50MHz, baud 115200)
@@ -168,10 +177,8 @@ pub unsafe fn main() {
             options(nomem, nostack, preserves_flags),
         );
 
-        let nonsecure_reset = core::mem::transmute::<*const u32, extern "cmse-nonsecure-call" fn()>(
+        core::mem::transmute::<*const u32, extern "cmse-nonsecure-call" fn()>(
             nonsecure_reset as *const u32,
-        );
-
-        nonsecure_reset();
+        )
     }
 }
