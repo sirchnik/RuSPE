@@ -566,15 +566,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "musca_b1"
-version = "0.2.3-dev"
-dependencies = [
- "cortexm33",
- "enum_primitive",
- "kernel",
-]
-
-[[package]]
 name = "musca_b1_secure"
 version = "0.1.0"
 dependencies = [
@@ -582,7 +573,7 @@ dependencies = [
  "board_build_scripts",
  "cortex_m",
  "helpers",
- "musca_b1 0.1.0",
+ "musca_b1",
  "psa_interface",
  "spe",
  "spe_services",
@@ -596,27 +587,8 @@ dependencies = [
  "board_build_scripts",
  "cortex_m",
  "helpers",
- "musca_b1 0.1.0",
+ "musca_b1",
  "shared_test_nspe",
-]
-
-[[package]]
-name = "musca_b1_tock_kernel"
-version = "0.1.0"
-dependencies = [
- "capsules-core",
- "capsules-extra",
- "capsules-system",
- "components",
- "cortex_m",
- "cortexm33",
- "enum_primitive",
- "kernel",
- "musca_b1 0.2.3-dev",
- "psa_interface",
- "psa_veneer_client",
- "tock_build_scripts",
- "tock_spe_adapter",
 ]
 
 [[package]]
@@ -661,6 +633,109 @@ name = "psa_veneer_client"
 version = "0.1.0"
 dependencies = [
  "psa_interface",
+]
+
+[[package]]
+name = "psc3"
+version = "0.1.0"
+dependencies = [
+ "cortex_m",
+ "infineon",
+ "psa_interface",
+ "psc3 0.2.3-dev",
+ "spe",
+ "spe_services",
+]
+
+[[package]]
+name = "psc3"
+version = "0.2.3-dev"
+dependencies = [
+ "cortexm33",
+ "enum_primitive",
+ "kernel",
+]
+
+[[package]]
+name = "psc3m5_evk_attest_srv"
+version = "0.1.0"
+dependencies = [
+ "board_build_scripts",
+ "helpers",
+ "psa_interface",
+ "psc3 0.1.0",
+ "spe",
+ "spe_services",
+]
+
+[[package]]
+name = "psc3m5_evk_crypto_srv"
+version = "0.1.0"
+dependencies = [
+ "board_build_scripts",
+ "helpers",
+ "psa_interface",
+ "psc3 0.1.0",
+ "spe",
+ "spe_services",
+]
+
+[[package]]
+name = "psc3m5_evk_secure"
+version = "0.1.0"
+dependencies = [
+ "board_build_scripts",
+ "cortex_m",
+ "helpers",
+ "psa_interface",
+ "psc3 0.1.0",
+ "psc3 0.2.3-dev",
+ "spe",
+ "spe_services",
+]
+
+[[package]]
+name = "psc3m5_evk_secure_ipc"
+version = "0.1.0"
+dependencies = [
+ "board_build_scripts",
+ "cortex_m",
+ "helpers",
+ "psa_interface",
+ "psc3 0.1.0",
+ "psc3 0.2.3-dev",
+ "spe",
+ "spe_services",
+]
+
+[[package]]
+name = "psc3m5_evk_test_nspe"
+version = "0.1.0"
+dependencies = [
+ "board_build_scripts",
+ "cortex_m",
+ "helpers",
+ "psc3 0.2.3-dev",
+ "shared_test_nspe",
+]
+
+[[package]]
+name = "psc3m5_evk_tock_kernel"
+version = "0.1.0"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortex_m",
+ "cortexm33",
+ "enum_primitive",
+ "kernel",
+ "psa_interface",
+ "psa_veneer_client",
+ "psc3 0.2.3-dev",
+ "tock_build_scripts",
+ "tock_spe_adapter",
 ]
 
 [[package]]

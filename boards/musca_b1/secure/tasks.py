@@ -140,7 +140,8 @@ def _build_merged(
 def build(ctx: Context, nspe: str | None = None, app=None, debug=False):
     """Build the secure image, merge it with the non-secure kernel, and write a HEX output."""
     if nspe is None:
-        _build_merged(ctx, "tock", app, bool(debug))
+        # WIP
+        # _build_merged(ctx, "tock", app, bool(debug))
         _, _, merged_hex = _build_merged(ctx, "test", app, bool(debug))
         return merged_hex
     _, _, merged_hex = _build_merged(ctx, nspe, app, bool(debug))
