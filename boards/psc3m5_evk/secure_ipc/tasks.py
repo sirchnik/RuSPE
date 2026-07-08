@@ -197,18 +197,18 @@ def vscode_build_targets(release: bool = False) -> list[VscodeBuildTarget]:
     common_task = vscode_common_build_task()
 
     return [
-        {
-            **common_task,
-            "label": f"build{profile_short_snake}.psc3m5_evk_test_ipc",
-            "options": {"cwd": "${workspaceFolder}/boards/psc3m5_evk/secure_ipc"},
-            "command": build_test_cmd,
-        },
-        {
-            **common_task,
-            "label": f"build{profile_short_snake}.psc3m5_evk_tock_ipc",
-            "options": {"cwd": "${workspaceFolder}/boards/psc3m5_evk/secure_ipc"},
-            "command": build_tock_cmd,
-        },
+        VscodeBuildTarget(
+            **common_task.to_dict(),
+            label=f"build{profile_short_snake}.psc3m5_evk_test_ipc",
+            options={"cwd": "${workspaceFolder}/boards/psc3m5_evk/secure_ipc"},
+            command=build_test_cmd,
+        ),
+        VscodeBuildTarget(
+            **common_task.to_dict(),
+            label=f"build{profile_short_snake}.psc3m5_evk_tock_ipc",
+            options={"cwd": "${workspaceFolder}/boards/psc3m5_evk/secure_ipc"},
+            command=build_tock_cmd,
+        ),
     ]
 
 
@@ -218,16 +218,16 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
     profile_short = "(R)" if release else "(D)"
     profile_short_snake = "_r" if release else "_d"
 
-    base_conf: VscodeLaunchTarget = {
-        "type": "cortex-debug",
-        "servertype": "openocd",
-        "serverpath": openocd_path,
-        "request": "launch",
-        "cwd": "${workspaceFolder}",
-        "openOCDLaunchCommands": ["init; reset init;"],
-        "svdFile": "${workspaceFolder}/.local/svds/psc3.svd",
-        "configFiles": ["${workspaceFolder}/boards/psc3m5_evk/openocd.tcl"],
-    }
+    base_conf = VscodeLaunchTarget(
+        type="cortex-debug",
+        servertype="openocd",
+        serverpath=openocd_path,
+        request="launch",
+        cwd="${workspaceFolder}",
+        openOCDLaunchCommands=["init; reset init;"],
+        svdFile="${workspaceFolder}/.local/svds/psc3.svd",
+        configFiles=["${workspaceFolder}/boards/psc3m5_evk/openocd.tcl"],
+    )
 
     service_symbols = []
     for srv in SERVICES:
@@ -238,27 +238,27 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
         )
 
     return [
-        {
-            "name": f"Test-PSC3 IPC {profile_short}",
-            **base_conf,
-            "executable": f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test_nspe_merged.hex",
-            "preLaunchCommands": [
+        VscodeLaunchTarget(
+            **base_conf.to_dict(),
+            name=f"Test-PSC3 IPC {profile_short}",
+            executable=f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test_nspe_merged.hex",
+            preLaunchCommands=[
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test_nspe",
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure_ipc",
             ]
             + service_symbols,
-            "preLaunchTask": f"build{profile_short_snake}.psc3m5_evk_test_ipc",
-        },
-        {
-            "name": f"Tock-PSC3 IPC {profile_short}",
-            **base_conf,
-            "executable": f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_kernel_merged.hex",
-            "preLaunchCommands": [
+            preLaunchTask=f"build{profile_short_snake}.psc3m5_evk_test_ipc",
+        ),
+        VscodeLaunchTarget(
+            **base_conf.to_dict(),
+            name=f"Tock-PSC3 IPC {profile_short}",
+            executable=f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_kernel_merged.hex",
+            preLaunchCommands=[
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock_kernel",
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure_ipc",
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/tock_psa_app",
             ]
             + service_symbols,
-            "preLaunchTask": f"build{profile_short_snake}.psc3m5_evk_tock_ipc",
-        },
+            preLaunchTask=f"build{profile_short_snake}.psc3m5_evk_tock_ipc",
+        ),
     ]

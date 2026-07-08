@@ -11,40 +11,48 @@ from functools import wraps
 from pathlib import Path
 from shutil import which
 
-from typing import TypedDict, Any
+from typing import Any
+from dataclasses import dataclass, field, asdict
 
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
+@dataclass
+class VscodeLaunchTarget:
+    name: str | None = None
+    type: str | None = None
+    request: str | None = None
+    cwd: str | None = None
+    executable: str | None = None
+    servertype: str | None = None
+    serverpath: str | None = None
+    openOCDLaunchCommands: list[str] | None = None
+    svdFile: str | None = None
+    configFiles: list[str] | None = None
+    preLaunchCommands: list[str] | None = None
+    preLaunchTask: str | None = None
+    cpu: str | None = None
+    machine: str | None = None
+    serverArgs: list[str] | None = None
 
-class VscodeLaunchTarget(TypedDict, total=False):
-    name: str
-    type: str
-    request: str
-    cwd: str
-    executable: str
-    servertype: str
-    serverpath: str
-    openOCDLaunchCommands: list[str]
-    svdFile: str
-    configFiles: list[str]
-    preLaunchCommands: list[str]
-    preLaunchTask: str
-    cpu: str
-    machine: str
-    serverArgs: list[str]
+    def to_dict(self) -> dict[str, Any]:
+        return {k: v for k, v in asdict(self).items() if v is not None}
 
 
+@dataclass
+class VscodeBuildTarget:
+    type: str | None = None
+    args: list[str] | None = None
+    presentation: dict[str, object] | None = None
+    group: str | None = None
+    label: str | None = None
+    options: dict[str, object] | None = None
+    command: str | None = None
 
-class VscodeBuildTarget(TypedDict, total=False):
-    type: str
-    args: list[str]
-    presentation: dict[str, object]
-    group: str
-    label: str
-    options: dict[str, object]
-    command: str
+    def to_dict(self) -> dict[str, Any]:
+        return {k: v for k, v in asdict(self).items() if v is not None}
+
 
 
 def inv_executable() -> str:
@@ -53,13 +61,13 @@ def inv_executable() -> str:
     return "${workspaceFolder}/.venv/bin/inv"
 
 
-def vscode_common_build_task() -> dict[str, object]:
-    return {
-        "type": "shell",
-        "args": [],
-        "presentation": {"reveal": "silent"},
-        "group": "build",
-    }
+def vscode_common_build_task() -> VscodeBuildTarget:
+    return VscodeBuildTarget(
+        type="shell",
+        args=[],
+        presentation={"reveal": "silent"},
+        group="build",
+    )
 
 
 def get_vscode_build_commands(release: bool = False) -> tuple[str, str]:

@@ -150,18 +150,18 @@ def vscode_build_targets(release: bool = False) -> list[VscodeBuildTarget]:
     common_task = vscode_common_build_task()
 
     return [
-        {
-            **common_task,
-            "label": f"build{profile_short_snake}.musca_b1_test",
-            "options": {"cwd": "${workspaceFolder}/boards/musca_b1/secure"},
-            "command": build_test_cmd,
-        },
-        {
-            **common_task,
-            "label": f"build{profile_short_snake}.musca_b1_tock",
-            "options": {"cwd": "${workspaceFolder}/boards/musca_b1/secure"},
-            "command": build_tock_cmd,
-        },
+        VscodeBuildTarget(
+            **common_task.to_dict(),
+            label=f"build{profile_short_snake}.musca_b1_test",
+            options={"cwd": "${workspaceFolder}/boards/musca_b1/secure"},
+            command=build_test_cmd,
+        ),
+        VscodeBuildTarget(
+            **common_task.to_dict(),
+            label=f"build{profile_short_snake}.musca_b1_tock",
+            options={"cwd": "${workspaceFolder}/boards/musca_b1/secure"},
+            command=build_tock_cmd,
+        ),
     ]
 
 
@@ -170,23 +170,23 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
     profile_short = "(R)" if release else "(D)"
     profile_short_snake = "_r" if release else "_d"
 
-    base_conf: VscodeLaunchTarget = {
-        "type": "cortex-debug",
-        "servertype": "qemu",
-        "serverpath": "qemu-system-arm",
-        "request": "launch",
-        "cwd": "${workspaceFolder}",
-        "cpu": QEMU_CPU,
-        "machine": QEMU_MACHINE,
-        "svdFile": "${workspaceFolder}/.local/svds/musca_b1.svd",
-    }
+    base_conf = VscodeLaunchTarget(
+        type="cortex-debug",
+        servertype="qemu",
+        serverpath="qemu-system-arm",
+        request="launch",
+        cwd="${workspaceFolder}",
+        cpu=QEMU_CPU,
+        machine=QEMU_MACHINE,
+        svdFile="${workspaceFolder}/.local/svds/musca_b1.svd",
+    )
 
     return [
-        {
-            "name": f"Musca-B1 Test {profile_short}",
-            **base_conf,
-            "executable": f"target/thumbv8m.main-none-eabi/{profile}/musca_b1_secure",
-            "serverArgs": [
+        VscodeLaunchTarget(
+            **base_conf.to_dict(),
+            name=f"Musca-B1 Test {profile_short}",
+            executable=f"target/thumbv8m.main-none-eabi/{profile}/musca_b1_secure",
+            serverArgs=[
                 # "-serial",
                 # "stdio",
                 "-monitor",
@@ -200,9 +200,9 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
                 "-device",
                 f"loader,file=target/thumbv8m.main-none-eabi/{profile}/musca_b1_secure_mcuboot_sig.bin,addr=0x100FFF00",
             ],
-            "preLaunchCommands": [
+            preLaunchCommands=[
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/musca_b1_test_nspe",
             ],
-            "preLaunchTask": f"build{profile_short_snake}.musca_b1_test",
-        },
+            preLaunchTask=f"build{profile_short_snake}.musca_b1_test",
+        ),
     ]

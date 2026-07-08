@@ -106,7 +106,7 @@ def _tasks_targets(release: bool = False) -> list[VscodeBuildTarget]:
 
 
 def _tasks_conf(targets: list[VscodeBuildTarget]) -> dict[str, object]:
-    return {"version": "2.0.0", "tasks": targets}
+    return {"version": "2.0.0", "tasks": [t.to_dict() for t in targets]}
 
 
 def _launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
@@ -119,7 +119,7 @@ def _launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
 def _launch_conf(targets: list[VscodeLaunchTarget]) -> dict[str, object]:
     return {
         "version": "0.2.0",
-        "configurations": targets,
+        "configurations": [t.to_dict() for t in targets],
     }
 
 
