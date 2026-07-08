@@ -25,10 +25,9 @@ NON_SECURE_BOARD_DIR = Path(__file__).resolve().parent
 NON_SECURE_BOARD = BoardConfig(
     board_dir=NON_SECURE_BOARD_DIR,
     repo_root=REPO_ROOT,
-    manufacturer=Manufacturer.INFINEON,
-    chip="PSC3M5FDS2AFQ1",
-    crate_name="psc3m5_evk_tock_kernel",
-    openocd_tcl=BOARD_DIR / "openocd.tcl",
+    manufacturer=Manufacturer.OTHER,
+    chip="musca_b1",
+    crate_name="musca_b1_tock_kernel",
 )
 
 

@@ -30,6 +30,7 @@ from tools.build.board import (
 )
 
 from boards.musca_b1.test_nspe import build as test_nspe_build
+from boards.musca_b1.tock.kernel import build as tock_kernel_build
 
 SVD_INFO = (
     "musca_b1.svd",
@@ -57,6 +58,11 @@ APP_HELP = "Path to a TBF application image (only for tock NSPE)."
 def _build_merged(
     ctx: Context, nspe: str, app: str | None, debug: bool
 ) -> tuple[Path, Path, Path]:
+    from integrations.tock.tock_psa_app import build as tock_psa_app_build
+    from integrations.tock.tock_interrupt_test_app import (
+        build as tock_interrupt_test_app_build,
+    )
+
     secure_elf = cargo_build(ctx, SECURE_BOARD, debug)
 
     target_root = SECURE_BOARD.target_root(debug)
@@ -82,6 +88,31 @@ def _build_merged(
     if nspe == "test":
         non_secure_elf = test_nspe_build.build(ctx, debug=debug)
         nspe_board = test_nspe_build.NON_SECURE_BOARD
+    elif nspe == "tock":
+        if app is None:
+            app1_tbf = tock_psa_app_build.build(
+                ctx,
+                flash_start="0x00182000",
+                flash_length="0x4000",
+                ram_start="0x20035000",
+                ram_length="0x2000",
+                debug=debug,
+            )
+            app2_tbf = tock_interrupt_test_app_build.build(
+                ctx,
+                flash_start="0x00186000",
+                flash_length="0x4000",
+                ram_start="0x20037000",
+                ram_length="0x2000",
+                debug=debug,
+            )
+            from tools.build.board import combine_tock_apps
+
+            app_path = combine_tock_apps(app1_tbf, app2_tbf, pad_len=0x4000)
+        else:
+            app_path = Path(app)
+        non_secure_elf = tock_kernel_build.build(ctx, app=app_path, debug=debug)
+        nspe_board = tock_kernel_build.NON_SECURE_BOARD
     else:
         raise ValueError(f"Unknown NSPE: {nspe}")
 
@@ -101,8 +132,12 @@ def _build_merged(
 @build_task(
     default=True, help={"nspe": NSPE_HELP, "app": APP_HELP, "debug": DEBUG_HELP}
 )
-def build(ctx: Context, nspe="test", app=None, debug=False):
+def build(ctx: Context, nspe: str | None = None, app=None, debug=False):
     """Build the secure image, merge it with the non-secure kernel, and write a HEX output."""
+    if nspe is None:
+        _build_merged(ctx, "tock", app, bool(debug))
+        _, _, merged_hex = _build_merged(ctx, "test", app, bool(debug))
+        return merged_hex
     _, _, merged_hex = _build_merged(ctx, nspe, app, bool(debug))
     return merged_hex
 
@@ -122,6 +157,13 @@ def _run_qemu(secure_elf: Path, non_secure_elf: Path, gdb_listen: bool = False):
         "-device",
         f"loader,file={non_secure_elf}",
     ]
+    if "musca_b1_kernel-app.elf" in non_secure_elf.name:
+        noapps_bin = non_secure_elf.with_name("musca_b1_kernel-noapps.bin")
+        app_tbf = non_secure_elf.parent / "combined_apps.tbf"
+        cmd[-1] = f"loader,file={noapps_bin},addr=0x00102000"
+        if app_tbf.exists():
+            cmd.extend(["-device", f"loader,file={app_tbf},addr=0x00182000"])
+
     if mcuboot_sig_bin.exists():
         cmd.extend(["-device", f"loader,file={mcuboot_sig_bin},addr=0x100FFF00"])
     if gdb_listen:
@@ -204,5 +246,30 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/musca_b1_test_nspe",
             ],
             preLaunchTask=f"build{profile_short_snake}.musca_b1_test",
+        ),
+        VscodeLaunchTarget(
+            **base_conf.to_dict(),
+            name=f"Musca-B1 Tock {profile_short}",
+            executable=f"target/thumbv8m.main-none-eabi/{profile}/musca_b1_secure",
+            serverArgs=[
+                "-monitor",
+                "none",
+                "-serial",
+                "stdio",
+                "-serial",
+                "telnet:127.0.0.1:4321,server,nowait",
+                "-device",
+                f"loader,file=target/thumbv8m.main-none-eabi/{profile}/musca_b1_kernel-noapps.bin,addr=0x00102000",
+                "-device",
+                f"loader,file=target/thumbv8m.main-none-eabi/{profile}/combined_apps.tbf,addr=0x00182000",
+                "-device",
+                f"loader,file=target/thumbv8m.main-none-eabi/{profile}/musca_b1_secure_mcuboot_sig.bin,addr=0x100FFF00",
+            ],
+            preLaunchCommands=[
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/musca_b1_kernel-app.elf",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/tock_psa_app",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/tock_interrupt_test_app",
+            ],
+            preLaunchTask=f"build{profile_short_snake}.musca_b1_tock",
         ),
     ]

@@ -115,6 +115,11 @@ def merge_service_envs(services: list[BuiltService]) -> BuildEnv:
 
 
 def _build_merged(ctx: Context, nspe: str, app: str | None, debug: bool) -> Path:
+    from integrations.tock.tock_psa_app import build as tock_psa_app_build
+    from integrations.tock.tock_interrupt_test_app import (
+        build as tock_interrupt_test_app_build,
+    )
+
     services = [build_service_hex(ctx, service, debug) for service in SERVICES]
     service_env = merge_service_envs(services)
 
@@ -136,7 +141,29 @@ def _build_merged(ctx: Context, nspe: str, app: str | None, debug: bool) -> Path
         non_secure_elf = test_nspe_build.build(ctx, debug=debug)
         nspe_board = test_nspe_build.NON_SECURE_BOARD
     elif nspe == "tock":
-        non_secure_elf = tock_kernel_build.build(ctx, app=app, debug=debug)
+        if app is None:
+            app1_tbf = tock_psa_app_build.build(
+                ctx,
+                flash_start="0x22036000",
+                flash_length="0x3000",
+                ram_start="0x2400A000",
+                ram_length="0x3000",
+                debug=debug,
+            )
+            app2_tbf = tock_interrupt_test_app_build.build(
+                ctx,
+                flash_start="0x2203A000",
+                flash_length="0x3000",
+                ram_start="0x2400D000",
+                ram_length="0x3000",
+                debug=debug,
+            )
+            from tools.build.board import combine_tock_apps
+
+            app_path = combine_tock_apps(app1_tbf, app2_tbf, pad_len=0x4000)
+        else:
+            app_path = Path(app)
+        non_secure_elf = tock_kernel_build.build(ctx, app=app_path, debug=debug)
         nspe_board = tock_kernel_build.NON_SECURE_BOARD
     else:
         raise ValueError(f"Unknown NSPE: {nspe}")

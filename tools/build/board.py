@@ -181,6 +181,22 @@ def inject_app(ctx: Context, board: BoardConfig, debug: bool, app: str | None) -
         [str(objcopy), "--update-section", f".apps={app_path}", str(kernel_with_app)],
         cwd=board.board_dir,
     )
+
+    # Generate a raw binary to bypass QEMU processing the empty .apps segment left by llvm-objcopy
+    noapps_bin = kernel_with_app.with_name(f"{board.prefixed_platform}-noapps.bin")
+    run_command(
+        [
+            str(objcopy),
+            "-O",
+            "binary",
+            "--remove-section",
+            ".apps",
+            str(kernel_with_app),
+            str(noapps_bin),
+        ],
+        cwd=board.board_dir,
+    )
+
     return kernel_with_app
 
 
@@ -362,3 +378,34 @@ def debug_with_gdb(
     gdb_args.extend(["-ex", "monitor reset halt"])
 
     run_command(gdb_args, cwd=board.board_dir)
+
+
+def combine_tock_apps(app1_tbf: Path, app2_tbf: Path, pad_len: int) -> Path:
+    combined_tbf = app1_tbf.parent / "combined_apps.tbf"
+
+    with open(app1_tbf, "rb") as f:
+        app1_data = bytearray(f.read())
+
+    if len(app1_data) > pad_len:
+        raise BuildError(f"App 1 is larger than {pad_len} bytes")
+
+    # Read old size and checksum
+    old_size = int.from_bytes(app1_data[4:8], "little")
+    old_checksum = int.from_bytes(app1_data[12:16], "little")
+
+    # Calculate new checksum: old_checksum ^ old_size ^ new_size
+    new_checksum = old_checksum ^ old_size ^ pad_len
+
+    # Update size and checksum in the header
+    app1_data[4:8] = pad_len.to_bytes(4, "little")
+    app1_data[12:16] = new_checksum.to_bytes(4, "little")
+
+    # Pad to pad_len
+    app1_data.extend(b"\x00" * (pad_len - len(app1_data)))
+
+    with open(combined_tbf, "wb") as f:
+        f.write(app1_data)
+        with open(app2_tbf, "rb") as f2:
+            f.write(f2.read())
+
+    return combined_tbf
