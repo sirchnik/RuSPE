@@ -70,6 +70,7 @@ def _build_merged(
     elf_to_hex(ctx, secure_elf, secure_hex)
 
     from tools.build.mcuboot import patch_mcuboot_sig
+
     patch_mcuboot_sig(
         secure_hex,
         mcuboot_addr=0x100FFF00,
@@ -78,10 +79,13 @@ def _build_merged(
     )
 
     from intelhex import IntelHex
+
     ih = IntelHex(str(secure_hex))
     # Extract the MCUboot signature (76 bytes) for QEMU execution
     mcuboot_sig_data = ih.tobinarray(start=0x100FFF00, end=0x100FFF00 + 75)
-    mcuboot_sig_bin = secure_elf.with_name(f"{SECURE_BOARD.prefixed_platform}_mcuboot_sig.bin")
+    mcuboot_sig_bin = secure_elf.with_name(
+        f"{SECURE_BOARD.prefixed_platform}_mcuboot_sig.bin"
+    )
     with open(mcuboot_sig_bin, "wb") as f:
         f.write(mcuboot_sig_data)
 
@@ -89,6 +93,7 @@ def _build_merged(
         non_secure_elf = test_nspe_build.build(ctx, debug=debug)
         nspe_board = test_nspe_build.NON_SECURE_BOARD
     elif nspe == "tock":
+        print("TOCK on MUSCA with RuSPE is WIP state.")
         if app is None:
             app1_tbf = tock_psa_app_build.build(
                 ctx,
@@ -143,7 +148,9 @@ def build(ctx: Context, nspe: str | None = None, app=None, debug=False):
 
 
 def _run_qemu(secure_elf: Path, non_secure_elf: Path, gdb_listen: bool = False):
-    mcuboot_sig_bin = secure_elf.with_name(f"{SECURE_BOARD.prefixed_platform}_mcuboot_sig.bin")
+    mcuboot_sig_bin = secure_elf.with_name(
+        f"{SECURE_BOARD.prefixed_platform}_mcuboot_sig.bin"
+    )
     cmd = [
         "qemu-system-arm",
         "-machine",
@@ -249,7 +256,7 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
         ),
         VscodeLaunchTarget(
             **base_conf.to_dict(),
-            name=f"Musca-B1 Tock {profile_short}",
+            name=f"[WIP] Musca-B1 Tock {profile_short}",
             executable=f"target/thumbv8m.main-none-eabi/{profile}/musca_b1_secure",
             serverArgs=[
                 "-monitor",
