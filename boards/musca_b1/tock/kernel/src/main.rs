@@ -6,7 +6,6 @@
 
 #![no_std]
 #![no_main]
-#![deny(missing_docs)]
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::component::Component;
@@ -17,7 +16,6 @@ use kernel::syscall::SyscallDriver;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{Kernel, capabilities, create_capability, static_init};
 
-#[allow(unused)]
 use musca_b1::BASE_VECTORS;
 use musca_b1::chip::{MuscaB1, MuscaB1DefaultPeripherals};
 use musca_b1::timer::CMSDKTimer;
@@ -33,8 +31,7 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
 // Number of concurrent processes this platform supports.
-const NUM_PROCS: usize = 2;
-
+const NUM_PROCS: usize = 4;
 #[unsafe(link_section = ".apps")]
 #[used]
 static DUMMY_APPS: [u8; 24576] = [0; 24576];
@@ -124,9 +121,12 @@ unsafe extern "C" {
     static _sstack: u8;
 }
 
-/// Main function called after RAM initialized.
-#[unsafe(no_mangle)]
-pub unsafe fn main() {
+#[inline(never)]
+pub unsafe fn start() -> (
+    &'static kernel::Kernel,
+    MuscaB1Plattform,
+    &'static MuscaB1<'static, MuscaB1DefaultPeripherals<'static>>,
+) {
     // set vector-table when coming from secure world
     unsafe {
         cortexm33::scb::set_vector_table_offset(BASE_VECTORS.as_ptr().cast::<()>());
@@ -147,10 +147,12 @@ pub unsafe fn main() {
             PanicResources::new(),
         );
 
-    let peripherals = static_init!(
-        MuscaB1DefaultPeripherals,
-        MuscaB1DefaultPeripherals::new_uart1_non_secure()
-    );
+    let peripherals = unsafe {
+        static_init!(
+            MuscaB1DefaultPeripherals,
+            MuscaB1DefaultPeripherals::new_uart1_non_secure()
+        )
+    };
     peripherals.init();
 
     // Set the UART used for panic
@@ -229,12 +231,15 @@ pub unsafe fn main() {
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     #[cfg(feature = "non_secure_tz")]
-    let spe_client = static_init!(
-        tock_spe_adapter::SpeAdapter,
-        tock_spe_adapter::SpeAdapter::new(
-            board_kernel.create_grant(tock_spe_adapter::DRIVER_NUM, &memory_allocation_capability,),
+    let spe_client = unsafe {
+        static_init!(
+            tock_spe_adapter::SpeAdapter,
+            tock_spe_adapter::SpeAdapter::new(
+                board_kernel
+                    .create_grant(tock_spe_adapter::DRIVER_NUM, &memory_allocation_capability,),
+            )
         )
-    );
+    };
 
     let musca_b1_platform = MuscaB1Plattform {
         ipc: kernel::ipc::IPC::new(
@@ -275,12 +280,14 @@ pub unsafe fn main() {
         kernel::debug!("{:?}", err);
     });
 
+    (board_kernel, musca_b1_platform, chip)
+}
+
+/// Main function called after RAM initialized.
+#[unsafe(no_mangle)]
+pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
-    board_kernel.kernel_loop(
-        &musca_b1_platform,
-        chip,
-        Some(&musca_b1_platform.ipc),
-        &main_loop_capability,
-    );
+    let (board_kernel, platform, chip) = unsafe { start() };
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }
