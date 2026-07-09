@@ -4,11 +4,22 @@
 
 import binascii
 import io
+import os
 import re
 import socket
 import subprocess
 import threading
+import traceback
 from pathlib import Path
+import cbor2
+
+
+def _verbose() -> bool:
+    v = os.getenv("VERBOSE", "0").lower()
+    return v in ("1", "true", "yes", "on")
+
+
+VERBOSE = _verbose()
 
 
 class QemuRunner:
@@ -27,14 +38,20 @@ class QemuRunner:
             stderr=subprocess.STDOUT,
             text=True,
         )
+        if VERBOSE:
+            print(f"Starting QEMU: {' '.join(self.cmd)} (cwd={self.cwd})")
 
         def read_qemu_stdout() -> None:
             if self.qemu is None or self.qemu.stdout is None:
                 return
             for line in self.qemu.stdout:
+                if VERBOSE:
+                    # Echo QEMU output for debugging
+                    print("QEMU:", line.rstrip())
                 if "Init SPE done, jumping to non-secure" in line:
                     self.spe_done = True
-                    print("Found: Init SPE done, jumping to non-secure")
+                    # Keep this short and always print so tests can detect progress
+                    print("Init SPE done, jumping to non-secure")
 
         self._thread = threading.Thread(target=read_qemu_stdout, daemon=True)
         self._thread.start()
@@ -46,10 +63,10 @@ class QemuRunner:
 
 
 def collect_token_from_telnet(port: int, timeout: int = 5) -> str | None:
-    print(f"Connecting to telnet on port {port}...")
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect(("127.0.0.1", port))
+        print(f"Connected to telnet on 127.0.0.1:{port}")
     except Exception as e:
         print(f"Failed to connect to telnet: {e}")
         return None
@@ -60,7 +77,12 @@ def collect_token_from_telnet(port: int, timeout: int = 5) -> str | None:
 
     try:
         while True:
-            data = s.recv(4096)
+            try:
+                data = s.recv(4096)
+            except Exception as e:
+                print(f"Exception while receiving from telnet: {e}")
+                traceback.print_exc()
+                break
             if not data:
                 break
             text = data.decode("utf-8", errors="ignore")
@@ -69,32 +91,29 @@ def collect_token_from_telnet(port: int, timeout: int = 5) -> str | None:
             match = re.search(r"token_buf:\s*([a-fA-F0-9]+)\r?\n", nspe_output)
             if match:
                 try:
-                    import cbor2
-
                     token_bytes = binascii.unhexlify(match.group(1))
                     with io.BytesIO(token_bytes) as fp:
                         cbor2.load(fp)
                         exact_len = fp.tell()
                     token_hex = token_bytes[:exact_len].hex()
-                    print(
-                        f"Extracted token from NSPE output, exact len = {exact_len} bytes."
-                    )
-                    break
-                except ImportError:
-                    print("cbor2 module not found, using raw token buffer")
-                    token_hex = match.group(1)
+                    if VERBOSE:
+                        print(
+                            f"Extracted token from NSPE output, exact len = {exact_len} bytes."
+                        )
                     break
                 except Exception as e:
                     print(f"Failed to parse CBOR token: {e}")
+                    traceback.print_exc()
                     token_hex = match.group(1)
                     break
     except socket.timeout:
         print("Timeout waiting for token.")
+        print("NSPE output so far:\n" + nspe_output)
 
     s.close()
     if token_hex is None:
         print(
-            f"Error: Did not find token_buf in NSPE output.\nNSPE Output:\n{nspe_output}"
+            f"Error: Did not find token_buf in NSPE output. NSPE Output:\n{nspe_output}..."
         )
 
     return token_hex

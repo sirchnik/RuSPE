@@ -91,8 +91,22 @@ jobs:
         with:
           submodules: recursive
       - uses: ./.github/actions/setup-env
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y qemu-system-arm
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-arm qemu-system-aarch64 golang-go
+      - name: Verify QEMU support for musca-b1
+        run: |
+          echo "QEMU version: $(qemu-system-arm --version)"
+          echo "Checking for musca-b1 machine support..."
+          qemu-system-arm -machine help
+          qemu-system-arm -machine help | grep musca-b1 || echo "musca-b1 not found in qemu-machine list"
+      - name: Prebuild Go test client
+        run: |
+          echo "Prebuilding Go test-client to warm module cache and reduce CI noise"
+          cd tools/test-client
+          go env GOPATH || true
+          go build ./...
       - name: Run tests
         run: inv test --mode integration
 

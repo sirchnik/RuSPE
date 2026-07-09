@@ -13,9 +13,10 @@ dependencies = [
     "invoke==3.0.3",           # command support
     "intelhex==2.3.0",         # merging hex files like SPE and NSPE
     "edgeprotecttools==1.6.1", # tool for provisioning Infineon devices (currently only psc3m5 here)
-    "reuse>=6.2.0",
-    "ty>=0.0.53",
-    "ruff>=0.15.19",
+    "reuse>=6.2.0",            # SPDX license compliance
+    "ty>=0.0.53",              # type checking
+    "ruff>=0.15.19",           # linting
+    "cbor2>=5.5.1",            # CBOR serialization
 ]
 
 [tool.ruff]

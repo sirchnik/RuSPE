@@ -179,10 +179,18 @@ def get_qemu_cmd(
         cmd.extend(["-device", f"loader,file={non_secure_elf}"])
 
     if telnet_port is not None:
-        cmd.extend([
-            "-monitor", "none",
-            "-serial", "stdio",
-        ])
+        # Run QEMU headless when exposing a telnet serial port to avoid
+        # gtk/SDL display initialization on CI runners.
+        cmd.extend(
+            [
+                "-display",
+                "none",
+                "-monitor",
+                "none",
+                "-serial",
+                "stdio",
+            ]
+        )
         if telnet_wait:
             cmd.extend(["-serial", f"telnet:127.0.0.1:{telnet_port},server"])
         else:
