@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: Infineon Technologies AG
+#
+# SPDX-License-Identifier: MIT
+
 import sys
 import hashlib
 from pathlib import Path

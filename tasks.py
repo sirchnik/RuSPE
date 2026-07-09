@@ -231,7 +231,9 @@ def fmt(ctx: Context, check=False):
     tracked_files = result.stdout.splitlines()
 
     rust_files = [
-        f for f in tracked_files if f.endswith(".rs") and not f.startswith("integrations/tock/tock-sub/")
+        f
+        for f in tracked_files
+        if f.endswith(".rs") and not f.startswith("integrations/tock/tock-sub/")
     ]
 
     if not rust_files:

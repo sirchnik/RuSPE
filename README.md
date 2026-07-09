@@ -15,8 +15,15 @@ SPDX-License-Identifier: MIT
 </div>
 
 
-Current status
+### Current status
 - Initial attestation: basic support (initial_attestation) is implemented.
+- Isolation: MPU-based isolation is implemented
+
+<center>
+  <img src="docs/spe-arch.svg" alt="RuSPE Architecture" width="300"/>
+</center>
+
+
 
 **Everything is a work in progress.**
 

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: Infineon Technologies AG
+//
+// SPDX-License-Identifier: MIT
+
 use super::StatusCode;
 use super::{AttestClaim, AttestClaimValue, IatClaim, SwComponent, encode_payload, map_cose_error};
 use cose::cose_sign1::CoseSign1Error;
