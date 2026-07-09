@@ -122,7 +122,12 @@ impl ServiceProcess {
             "staged message mailbox must remain within service RAM"
         );
 
-        let mailbox = mailbox_addr as *mut PsaMsg;
+        let offset = stack_top - mailbox_addr;
+        let mailbox = vectors
+            .stack_top
+            .wrapping_sub(offset)
+            .cast_mut()
+            .cast::<PsaMsg>();
         unsafe {
             mailbox.write(msg);
         }
@@ -267,8 +272,8 @@ mod tests {
     #[test]
     fn test_stage_msg_mailbox() {
         // Create a dummy RAM buffer
-        let ram = [0u8; 1024];
-        let ram_start = ram.as_ptr();
+        let mut ram = [0u8; 1024];
+        let ram_start = ram.as_mut_ptr();
         let ram_limit = unsafe { ram_start.add(ram.len()) };
 
         let stack_top = unsafe { ram_limit.sub(16) }; // 16 bytes for padding

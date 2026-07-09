@@ -199,7 +199,7 @@ def clippy(ctx):
 
 @build_task(
     help={
-        "mode": "Mode of tests to run: 'unit', 'system', or 'all'.",
+        "mode": "Mode of tests to run: 'unit', 'integration', or 'all'.",
         "debug": "Build and use debug profile for system tests.",
     }
 )
@@ -209,18 +209,12 @@ def test(ctx: Context, mode: str = "all", debug: bool = False):
         print("Running unit tests...")
         run_command(f"cargo test --workspace {_build_exclude_args(_BIN_CRATES)}")
 
-    if mode in ["system", "all"]:
-        print("Running system tests...")
-        test_musca(ctx, debug=debug)
-
-
-@build_task(help={"debug": "Build and use debug profile for the test."})
-def test_musca(ctx: Context, debug: bool = False):
-    """Run the Musca-B1 integration test."""
-    cmd = [sys.executable, "tests/test_musca.py"]
-    if debug:
-        cmd.append("--debug")
-    run_command(cmd)
+    if mode in ["integration", "all"]:
+        print("Running integration tests...")
+        cmd = [sys.executable, "tests/test_musca.py"]
+        if debug:
+            cmd.append("--debug")
+        run_command(cmd)
 
 
 @build_task

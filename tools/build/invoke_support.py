@@ -12,7 +12,7 @@ from pathlib import Path
 from shutil import which
 
 from typing import Any
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, asdict
 
 from invoke.context import Context
 from invoke.exceptions import Exit
