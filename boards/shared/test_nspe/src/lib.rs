@@ -36,6 +36,7 @@ fn print_version(writer: &mut dyn Write) {
 }
 fn run_attest(writer: &mut dyn Write) {
     let challenge = Aligned32([0u8; 32]);
+
     let mut token_buf = Aligned32([0u8; 512]);
 
     psa_api::psa_initial_attest_get_token::<PsaVeneerClient>(&challenge.0, &mut token_buf.0)

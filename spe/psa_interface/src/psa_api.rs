@@ -22,7 +22,7 @@ pub fn psa_version<T: PsaApiCallInterface>(service_handle: types::ServiceHandle)
 pub fn psa_initial_attest_get_token<T: PsaApiCallInterface>(
     challenge: &[u8],
     token_buf: &mut [u8],
-) -> Result<(), StatusCode> {
+) -> Result<usize, StatusCode> {
     let in_vec = [types::FFInVec {
         base: challenge.as_ptr(),
         len: challenge.len(),
@@ -46,7 +46,40 @@ pub fn psa_initial_attest_get_token<T: PsaApiCallInterface>(
         &mut out_vec,
     );
 
-    status_from_raw(status)
+    status_from_raw(status)?;
+    Ok(out_vec[0].len)
+}
+
+pub fn psa_initial_attest_get_token_size<T: PsaApiCallInterface>(
+    challenge_size: usize,
+) -> Result<usize, StatusCode> {
+    let challenge_size_bytes = challenge_size.to_ne_bytes();
+    let in_vec = [types::FFInVec {
+        base: challenge_size_bytes.as_ptr(),
+        len: challenge_size_bytes.len(),
+    }];
+
+    let mut token_size_bytes = [0u8; core::mem::size_of::<usize>()];
+    let mut out_vec = [types::FFOutVec {
+        base: token_size_bytes.as_mut_ptr(),
+        len: token_size_bytes.len(),
+    }];
+
+    let status = T::psa_call(
+        types::ServiceHandle::AttestationService,
+        types::CtrlParam::new(
+            types::AttestationServiceType::GetTokenSize as i16,
+            1,
+            true,
+            1,
+            true,
+        ),
+        &in_vec,
+        &mut out_vec,
+    );
+
+    status_from_raw(status)?;
+    Ok(usize::from_ne_bytes(token_size_bytes))
 }
 
 /// PSA Crypto `psa_sign_hash` - sign a pre-computed hash.

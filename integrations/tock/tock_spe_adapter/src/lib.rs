@@ -182,7 +182,7 @@ impl SpeAdapter {
                 );
 
                 match status {
-                    Ok(()) => {
+                    Ok(_) => {
                         let copied = Self::write_token_to_process(kernel_data, &token, token_len);
                         if copied == 0 {
                             CommandReturn::failure(ErrorCode::FAIL)

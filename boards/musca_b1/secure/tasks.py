@@ -148,7 +148,13 @@ def build(ctx: Context, nspe: str | None = None, app=None, debug=False):
     return merged_hex
 
 
-def _run_qemu(secure_elf: Path, non_secure_elf: Path, gdb_listen: bool = False):
+def get_qemu_cmd(
+    secure_elf: Path,
+    non_secure_elf: Path,
+    gdb_listen: bool = False,
+    telnet_port: int | None = None,
+    telnet_wait: bool = False,
+) -> list[str]:
     mcuboot_sig_bin = secure_elf.with_name(
         f"{SECURE_BOARD.prefixed_platform}_mcuboot_sig.bin"
     )
@@ -158,25 +164,42 @@ def _run_qemu(secure_elf: Path, non_secure_elf: Path, gdb_listen: bool = False):
         QEMU_MACHINE,
         "-cpu",
         QEMU_CPU,
-        "-nographic",
         "-semihosting",
         "-kernel",
         str(secure_elf),
-        "-device",
-        f"loader,file={non_secure_elf}",
     ]
+
     if "musca_b1_kernel-app.elf" in non_secure_elf.name:
         noapps_bin = non_secure_elf.with_name("musca_b1_kernel-noapps.bin")
         app_tbf = non_secure_elf.parent / "combined_apps.tbf"
-        cmd[-1] = f"loader,file={noapps_bin},addr=0x00102000"
+        cmd.extend(["-device", f"loader,file={noapps_bin},addr=0x00102000"])
         if app_tbf.exists():
             cmd.extend(["-device", f"loader,file={app_tbf},addr=0x00182000"])
+    else:
+        cmd.extend(["-device", f"loader,file={non_secure_elf}"])
+
+    if telnet_port is not None:
+        cmd.extend([
+            "-monitor", "none",
+            "-serial", "stdio",
+        ])
+        if telnet_wait:
+            cmd.extend(["-serial", f"telnet:127.0.0.1:{telnet_port},server"])
+        else:
+            cmd.extend(["-serial", f"telnet:127.0.0.1:{telnet_port},server,nowait"])
+    else:
+        cmd.append("-nographic")
 
     if mcuboot_sig_bin.exists():
         cmd.extend(["-device", f"loader,file={mcuboot_sig_bin},addr=0x100FFF00"])
     if gdb_listen:
         cmd.extend(["-S", "-gdb", "tcp::1234"])
 
+    return cmd
+
+
+def _run_qemu(secure_elf: Path, non_secure_elf: Path, gdb_listen: bool = False):
+    cmd = get_qemu_cmd(secure_elf, non_secure_elf, gdb_listen=gdb_listen)
     run_command(cmd, cwd=SECURE_BOARD.board_dir)
 
 
