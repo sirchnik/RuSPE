@@ -49,7 +49,7 @@ const SHARED_DATA_TLV_INFO_MAGIC: u16 = 0x2016;
 const IAS_MEASURE_VALUE_TYPE: u16 = (0x1 << 12) | (0x00 << 6) | 0x08;
 const IAS_SIGNER_ID_TYPE: u16 = (0x1 << 12) | (0x00 << 6) | 0x01;
 
-fn parse_boot_data<'a>(data: &'a [u8]) -> Option<SwComponent<'a>> {
+fn parse_boot_data(data: &[u8]) -> Option<SwComponent<'_>> {
     if data.len() < 4 {
         return None;
     }

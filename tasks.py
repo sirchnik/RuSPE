@@ -75,6 +75,7 @@ _BIN_CRATES = [
     "musca_b1_secure",
     "musca_b1_test_nspe",
     "shared_test_nspe",
+    "tock_interrupt_test_app",
 ]
 
 

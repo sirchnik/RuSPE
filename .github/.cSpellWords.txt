@@ -393,3 +393,10 @@ QSPI
 VTOR
 regs
 Spcb
+mcuboot
+Uboot
+tobinarray
+noapps
+ecparam
+noout
+noreturn
