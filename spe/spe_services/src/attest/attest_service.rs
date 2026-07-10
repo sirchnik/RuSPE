@@ -2,13 +2,16 @@
 //
 // SPDX-License-Identifier: MIT
 
+use core::mem::size_of;
+
+use psa_interface::status::StatusCode;
+use spe::service::Service;
+use spe::spm_api::{PsaMsg, SpmApi};
+
 use crate::attest::psa_token::{
     AttestClaim, AttestClaimValue, IatClaim, SwComponent, compute_initial_attestation_token_size,
     encode_initial_attestation_token,
 };
-use core::mem::size_of;
-use psa_interface::status::StatusCode;
-use spe::{service::Service, spm_api::PsaMsg, spm_api::SpmApi};
 
 /// Maximum token buffer size used by default TF-M builds.
 pub const PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE: usize = 0x250;
@@ -17,23 +20,27 @@ pub const PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE: usize = 0x250;
 ///
 /// Recommended to use the European Article Number format: EAN-13 + '-' + 5
 /// https://www.ietf.org/archive/id/draft-tschofenig-rats-psa-token-09.html#name-certification-reference
-///
 pub const CERTIFICATION_REF_MAX_SIZE: usize = 19;
 
 pub trait AttestPlatform {
     /// Get the security lifecycle of the device as a numeric lifecycle code.
     fn security_lifecycle(&self) -> Result<u32, StatusCode>;
-    /// Get the verification service indicator (UTF-8 text). Returns number of bytes written.
+    /// Get the verification service indicator (UTF-8 text). Returns number of
+    /// bytes written.
     fn verification_service(&self, buf: &mut [u8]) -> Result<usize, StatusCode>;
-    /// Get the name of the profile definition document (UTF-8 text). Returns number of bytes written.
+    /// Get the name of the profile definition document (UTF-8 text). Returns
+    /// number of bytes written.
     fn profile_definition(&self, buf: &mut [u8]) -> Result<usize, StatusCode>;
-    /// Generate or retrieve the 32-byte boot seed value used for initial attestation.
+    /// Generate or retrieve the 32-byte boot seed value used for initial
+    /// attestation.
     fn boot_seed(&self, seed: &mut [u8; 32]) -> Result<(), StatusCode>;
     /// Get the implementation ID of the device.
     fn implementation_id(&self, buf: &mut [u8; 32]) -> Result<(), StatusCode>;
-    /// Get the instance ID (UEID) of the device (33 bytes: 1-byte type + 32-byte ID).
+    /// Get the instance ID (UEID) of the device (33 bytes: 1-byte type +
+    /// 32-byte ID).
     fn instance_id(&self, buf: &mut [u8; 33]) -> Result<(), StatusCode>;
-    /// Get the hardware version (UTF-8 text, EAN-13 format). Returns number of bytes written.
+    /// Get the hardware version (UTF-8 text, EAN-13 format). Returns number of
+    /// bytes written.
     fn cert_ref(&self, buf: &mut [u8; CERTIFICATION_REF_MAX_SIZE]) -> Result<usize, StatusCode>;
     /// Get the raw boot record (TLV) shared by the bootloader.
     fn boot_record(&self) -> Option<&'static [u8]>;

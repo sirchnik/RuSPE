@@ -36,16 +36,23 @@ pub struct MPU<const N: usize> {
 }
 
 impl<const N: usize> MPU<N> {
-    const MPU_CTRL: isize = 1; // 0x04 / 4
-    const MPU_RNR: isize = 2; // 0x08 / 4
-    const MPU_RBAR: isize = 3; // 0x0C / 4
-    const MPU_RLAR: isize = 4; // 0x10 / 4
-    const MPU_MAIR0: isize = 12; // 0x30 / 4
+    const MPU_CTRL: isize = 1;
+    // 0x10 / 4
+    const MPU_MAIR0: isize = 12;
+    // 0x08 / 4
+    const MPU_RBAR: isize = 3;
+    // 0x0C / 4
+    const MPU_RLAR: isize = 4;
+    // 0x04 / 4
+    const MPU_RNR: isize = 2;
+
+    // 0x30 / 4
 
     /// Creates a new MPU handle.
     ///
     /// # Safety
-    /// This function must be used carefully to ensure only one entity manages the MPU.
+    /// This function must be used carefully to ensure only one entity manages
+    /// the MPU.
     pub const unsafe fn new() -> Self {
         Self {
             base: 0xE000ED90 as *mut u32,
@@ -55,7 +62,8 @@ impl<const N: usize> MPU<N> {
     /// Enables the MPU for applications.
     pub fn enable_app_mpu(&self) {
         unsafe {
-            // Enable MPU (bit 0), disable during HardFault/NMI (bit 1), enable background region for privileged (bit 2).
+            // Enable MPU (bit 0), disable during HardFault/NMI (bit 1), enable background
+            // region for privileged (bit 2).
             let ctrl = self.base.offset(Self::MPU_CTRL);
             core::ptr::write_volatile(ctrl, 0x05); // PRIVDEFENA=1, HFNMIENA=0, ENABLE=1
         }

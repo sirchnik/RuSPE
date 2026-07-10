@@ -5,8 +5,8 @@
 /// Call a function in unprivileged Thread mode via SVC, using PSP.
 ///
 /// Before issuing `SVC_START_PROCESS`, this function:
-/// 1. Writes a fabricated exception frame at `stack_top - 32` containing
-///    the target `fn_ptr`, `arg`, and `thunk` (return address).
+/// 1. Writes a fabricated exception frame at `stack_top - 32` containing the
+///    target `fn_ptr`, `arg`, and `thunk` (return address).
 /// 2. Sets PSP to that frame base.
 ///
 /// The SVC handler then:
@@ -31,8 +31,9 @@ pub(crate) unsafe fn svc_call_unpriv(
     stack_limit: usize,
     stack_top: usize,
 ) -> usize {
-    use crate::spm_api::SVC_START_PROCESS;
     use core::arch::asm;
+
+    use crate::spm_api::SVC_START_PROCESS;
 
     // Build a fake exception frame at (stack_top - 32).
     // Layout: [R0, R1, R2, R3, R12, LR, PC, xPSR]

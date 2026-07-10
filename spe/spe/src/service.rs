@@ -14,8 +14,8 @@ pub trait Service<A: SpmApi> {
 ///
 /// # Safety
 /// This function must be called as the naked entry point of the service binary
-/// before any Rust code is executed. It sets up the stack pointer and clears/copies
-/// the BSS and DATA sections respectively.
+/// before any Rust code is executed. It sets up the stack pointer and
+/// clears/copies the BSS and DATA sections respectively.
 #[cfg(target_arch = "arm")]
 #[unsafe(naked)]
 pub unsafe extern "C" fn init() {

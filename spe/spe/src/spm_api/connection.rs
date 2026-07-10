@@ -2,13 +2,12 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::spm::spm::{Connection, PSA_MAX_IOVEC, SpmCall, SpmError};
 use core::{panic, ptr, slice};
-use psa_interface::{
-    status::StatusCode,
-    types::{CtrlParam, FFInVec, FFOutVec, ServiceHandle},
-};
 
+use psa_interface::status::StatusCode;
+use psa_interface::types::{CtrlParam, FFInVec, FFOutVec, ServiceHandle};
+
+use crate::spm::spm::{Connection, PSA_MAX_IOVEC, SpmCall, SpmError};
 use crate::spm_api::{CallerAttributes, PsaMsg};
 pub fn validate_call_params(ctrl_param: CtrlParam) -> Result<(i32, usize, usize), StatusCode> {
     let msg_type = ctrl_param.unpack_type();
@@ -23,7 +22,8 @@ pub fn validate_call_params(ctrl_param: CtrlParam) -> Result<(i32, usize, usize)
     }
 
     // C equivalent:
-    // if ((ivec_num > (SIZE_MAX - ovec_num)) || ((ivec_num + ovec_num) > PSA_MAX_IOVEC))
+    // if ((ivec_num > (SIZE_MAX - ovec_num)) || ((ivec_num + ovec_num) >
+    // PSA_MAX_IOVEC))
     let ivec_num = ctrl_param.in_len();
     let ovec_num = ctrl_param.out_len();
     match ivec_num.checked_add(ovec_num) {
@@ -447,10 +447,12 @@ pub fn finish_outvec_raw<S: SpmCall>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use core::ptr;
+
     use psa_interface::status::StatusCode;
     use psa_interface::types::{CtrlParam, FFInVec, FFOutVec};
+
+    use super::*;
 
     #[test]
     fn test_validate_call_params_invalid_msg_type() {

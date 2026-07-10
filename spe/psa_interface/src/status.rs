@@ -58,7 +58,8 @@ pub enum StatusCode {
     DataCorrupt = -152,
     /// Stored data is not valid for the implementation.
     DataInvalid = -153,
-    /// Interruptible operation still has work to do; call again with the same context.
+    /// Interruptible operation still has work to do; call again with the same
+    /// context.
     OperationIncomplete = -248,
 }
 

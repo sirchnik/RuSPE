@@ -2,10 +2,8 @@
 //
 // SPDX-License-Identifier: MIT
 
-use core::{
-    cell::UnsafeCell,
-    sync::atomic::{AtomicBool, Ordering},
-};
+use core::cell::UnsafeCell;
+use core::sync::atomic::{AtomicBool, Ordering};
 
 #[derive(Debug)]
 pub struct Mutex<T> {
@@ -47,8 +45,9 @@ impl<T> Mutex<T> {
 #[cfg(test)]
 mod tests {
     extern crate std;
-    use super::*;
     use std::sync::Arc;
+
+    use super::*;
 
     #[test]
     fn try_lock_provides_mutable_access() {

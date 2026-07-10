@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: MIT
 
 //! Security Attribution Unit
-//! For reference please check the section B8.3 of the Armv8-M Architecture Reference Manual.
+//! For reference please check the section B8.3 of the Armv8-M Architecture
+//! Reference Manual.
 
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
@@ -89,9 +90,11 @@ pub enum SauRegionAttribute {
 /// Description of a SAU region.
 #[derive(Debug)]
 pub struct SauRegion {
-    /// First address of the region, its 5 least significant bits must be set to zero.
+    /// First address of the region, its 5 least significant bits must be set to
+    /// zero.
     pub base_address: u32,
-    /// Last address of the region, its 5 least significant bits must be set to one.
+    /// Last address of the region, its 5 least significant bits must be set to
+    /// one.
     pub limit_address: u32,
     /// Attribute of the region.
     pub attribute: SauRegionAttribute,
@@ -136,11 +139,12 @@ impl SAU {
     }
 
     /// Set a SAU region to a region number.
-    /// SAU regions must be 32 bytes aligned and their sizes must be a multiple of 32 bytes. It
-    /// means that the 5 least significant bits of the base address of a SAU region must be set to
-    /// zero and the 5 least significant bits of the limit address must be set to one.
-    /// The region number must be valid.
-    /// This function should be executed under a critical section to prevent having inconsistent results.
+    /// SAU regions must be 32 bytes aligned and their sizes must be a multiple
+    /// of 32 bytes. It means that the 5 least significant bits of the base
+    /// address of a SAU region must be set to zero and the 5 least
+    /// significant bits of the limit address must be set to one. The region
+    /// number must be valid. This function should be executed under a
+    /// critical section to prevent having inconsistent results.
     pub fn set_region(&mut self, region_number: u8, region: SauRegion) -> Result<(), SauError> {
         let base_address = region.base_address;
         let limit_address = region.limit_address;
@@ -175,7 +179,8 @@ impl SAU {
 
     /// Get a region from the SAU.
     /// The region number must be valid.
-    /// This function should be executed under a critical section to prevent having inconsistent results.
+    /// This function should be executed under a critical section to prevent
+    /// having inconsistent results.
     pub fn get_region(&mut self, region_number: u8) -> Result<SauRegion, SauError> {
         if region_number >= self.region_numbers() {
             return Err(SauError::RegionNumberTooBig);

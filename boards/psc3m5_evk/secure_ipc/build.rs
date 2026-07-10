@@ -2,8 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use board_build_scripts::ipc;
-use board_build_scripts::linker;
+use board_build_scripts::{ipc, linker};
 
 fn main() {
     ipc::generate_service_config();

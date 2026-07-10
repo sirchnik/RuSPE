@@ -22,7 +22,8 @@ unsafe extern "C" {
 #[unsafe(no_mangle)]
 static mut STACK_MEMORY: [u8; 0x3400] = [0; 0x3400];
 
-/// Initializes RAM and jumps to main. This is the entry point of the secure firmware.
+/// Initializes RAM and jumps to main. This is the entry point of the secure
+/// firmware.
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn sec_initialize_ram_jump_to_main() {

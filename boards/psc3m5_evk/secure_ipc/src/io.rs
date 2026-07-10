@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: MIT
 
 use core::cell::Cell;
-use core::{fmt::Write, panic::PanicInfo};
+use core::fmt::Write;
+use core::panic::PanicInfo;
+
 use tock_psc3::scb;
 
 pub struct Writer {
@@ -29,8 +31,9 @@ pub static mut WRITER: Writer = Writer {
     serial: Cell::new(None),
 };
 
-/// This function is called on panic, and it will attempt to print the panic message to the serial port.
-/// It also blinks the LED to indicate a panic has occurred.
+/// This function is called on panic, and it will attempt to print the panic
+/// message to the serial port. It also blinks the LED to indicate a panic has
+/// occurred.
 #[panic_handler]
 pub fn panic_fmt(pi: &PanicInfo) -> ! {
     use core::ptr::addr_of_mut;

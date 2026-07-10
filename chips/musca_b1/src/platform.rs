@@ -2,15 +2,13 @@
 //
 // SPDX-License-Identifier: MIT
 
+use cortex_m::cmse;
 use psa_interface;
-use spe::{
-    service::Service,
-    spm::spm_fn::SfnPlatform,
-    spm_api::{CallerAttributes, PsaMsg},
-};
+use spe::service::Service;
+use spe::spm::spm_fn::SfnPlatform;
+use spe::spm_api::{CallerAttributes, PsaMsg};
 
 use crate::services;
-use cortex_m::cmse;
 
 pub struct MuscaB1SecPlatform<
     C: psa_interface::PsaApiCallInterface + Sync,

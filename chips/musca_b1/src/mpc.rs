@@ -2,11 +2,9 @@
 //
 // SPDX-License-Identifier: MIT
 
-use tock_registers::{
-    interfaces::{ReadWriteable, Readable, Writeable},
-    register_bitfields, register_structs,
-    registers::{ReadOnly, ReadWrite},
-};
+use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers::registers::{ReadOnly, ReadWrite};
+use tock_registers::{register_bitfields, register_structs};
 
 register_bitfields![u32,
     pub Ctrl [

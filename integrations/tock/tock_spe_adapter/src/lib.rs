@@ -8,15 +8,12 @@ use core::cmp;
 
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
-use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, GrantKernelData, UpcallCount};
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
-use kernel::{
-    ErrorCode, ProcessId,
-    grant::GrantKernelData,
-    syscall::{CommandReturn, SyscallDriver},
-};
-
-use psa_interface::{psa_api, status::StatusCode};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::{ErrorCode, ProcessId};
+use psa_interface::psa_api;
+use psa_interface::status::StatusCode;
 use psa_veneer_client::PsaVeneerClient;
 
 pub const DRIVER_NUM: usize = 0xa0000;

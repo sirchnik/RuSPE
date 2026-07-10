@@ -2,14 +2,11 @@
 //
 // SPDX-License-Identifier: MIT
 
-use psa_interface;
-use spe::{
-    service::Service,
-    spm::spm_fn::SfnPlatform,
-    spm_api::{CallerAttributes, PsaMsg},
-};
-
 use cortex_m::cmse;
+use psa_interface;
+use spe::service::Service;
+use spe::spm::spm_fn::SfnPlatform;
+use spe::spm_api::{CallerAttributes, PsaMsg};
 
 use crate::services;
 
@@ -51,10 +48,13 @@ impl<C: psa_interface::PsaApiCallInterface + Sync, A: spe::spm_api::SpmApi + Syn
         }
 
         // Determine the TT instruction variant based on caller attributes:
-        // - NS + unprivileged -> TTAT (NonSecureUnprivileged): checks NS MPU as unprivileged
+        // - NS + unprivileged -> TTAT (NonSecureUnprivileged): checks NS MPU as
+        //   unprivileged
         // - NS + privileged   -> TTA  (NonSecure): checks NS MPU as privileged
-        // - S  + unprivileged -> TTT  (Unprivileged): checks current-security MPU as unprivileged
-        // - S  + privileged   -> TT   (Current): checks current-security MPU as privileged
+        // - S  + unprivileged -> TTT  (Unprivileged): checks current-security MPU as
+        //   unprivileged
+        // - S  + privileged   -> TT   (Current): checks current-security MPU as
+        //   privileged
         let access_type = match (caller.ns, caller.privileged) {
             (true, false) => cmse::AccessType::NonSecureUnprivileged,
             (true, true) => cmse::AccessType::NonSecure,

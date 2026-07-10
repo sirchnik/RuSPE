@@ -52,6 +52,7 @@ impl<T> Copy for StaticRef<T> {}
 
 impl<T> Deref for StaticRef<T> {
     type Target = T;
+
     fn deref(&self) -> &T {
         // SAFETY: `ptr` is aligned and dereferenceable for the program duration
         // as promised by the caller of `StaticRef::new`.

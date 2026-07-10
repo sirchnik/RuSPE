@@ -15,7 +15,6 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::syscall::SyscallDriver;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{Kernel, capabilities, create_capability, static_init};
-
 use musca_b1::BASE_VECTORS;
 use musca_b1::chip::{MuscaB1, MuscaB1DefaultPeripherals};
 use musca_b1::timer::CMSDKTimer;
@@ -76,32 +75,38 @@ impl SyscallDriverLookup for MuscaB1Plattform {
 }
 
 impl KernelResources<MuscaB1<'static, MuscaB1DefaultPeripherals<'static>>> for MuscaB1Plattform {
-    type SyscallDriverLookup = Self;
-    type SyscallFilter = ();
+    type ContextSwitchCallback = ();
     type ProcessFault = ();
     type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm33::systick::SysTick;
+    type SyscallDriverLookup = Self;
+    type SyscallFilter = ();
     type WatchDog = ();
-    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
     }
+
     fn syscall_filter(&self) -> &Self::SyscallFilter {
         &()
     }
+
     fn process_fault(&self) -> &Self::ProcessFault {
         &()
     }
+
     fn scheduler(&self) -> &Self::Scheduler {
         self.scheduler
     }
+
     fn scheduler_timer(&self) -> &Self::SchedulerTimer {
         &self.systick
     }
+
     fn watchdog(&self) -> &Self::WatchDog {
         &()
     }
+
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }

@@ -373,11 +373,10 @@ macro_rules! define_spm_api {
     };
 }
 
+use psa_interface::status::StatusCode;
+use psa_interface::types::{CtrlParam, FFInVec, FFOutVec, ServiceHandle};
+
 use crate::spm::spm::PSA_MAX_IOVEC;
-use psa_interface::{
-    status::StatusCode,
-    types::{CtrlParam, FFInVec, FFOutVec, ServiceHandle},
-};
 
 pub trait SpmApi {
     fn map_invec<R>(
@@ -399,7 +398,8 @@ pub trait SpmApi {
         outvec_idx: u32,
         f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize),
     ) -> R;
-    // We also expose the call function for internal use. Services themselves may not need it.
+    // We also expose the call function for internal use. Services themselves may
+    // not need it.
     unsafe fn call(
         &self,
         handle: ServiceHandle,
@@ -418,21 +418,21 @@ pub struct CallerAttributes {
 }
 
 impl CallerAttributes {
-    pub const NS_UNPRIVILEGED: Self = Self {
-        ns: true,
-        privileged: false,
-    };
     pub const NS_PRIVILEGED: Self = Self {
         ns: true,
         privileged: true,
     };
-    pub const SECURE_UNPRIVILEGED: Self = Self {
-        ns: false,
+    pub const NS_UNPRIVILEGED: Self = Self {
+        ns: true,
         privileged: false,
     };
     pub const SECURE_PRIVILEGED: Self = Self {
         ns: false,
         privileged: true,
+    };
+    pub const SECURE_UNPRIVILEGED: Self = Self {
+        ns: false,
+        privileged: false,
     };
 }
 

@@ -6,7 +6,8 @@
 /// and which Memory Protection Unit (MPU) is used.
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum AccessType {
-    /// Access using current privilege level and reading from current security state MPU.
+    /// Access using current privilege level and reading from current security
+    /// state MPU.
     Current,
     /// Unprivileged access reading from current security state MPU.
     Unprivileged,
@@ -23,7 +24,8 @@ pub struct TestTarget {
 }
 
 impl TestTarget {
-    /// Creates a Test Target Response by executing the appropriate TT instruction variant.
+    /// Creates a Test Target Response by executing the appropriate TT
+    /// instruction variant.
     pub fn check(addr: *mut u32, access_type: AccessType) -> Self {
         let addr_val = addr as u32;
         let bits: u32 = {
@@ -62,7 +64,8 @@ impl TestTarget {
         TestTarget { bits, access_type }
     }
 
-    /// Checks a memory range. Returns None if boundaries are crossed or range is invalid.
+    /// Checks a memory range. Returns None if boundaries are crossed or range
+    /// is invalid.
     pub fn check_range(addr: *mut u32, size: usize, access_type: AccessType) -> Option<Self> {
         if size == 0 {
             return None;
@@ -93,15 +96,19 @@ impl TestTarget {
     pub fn readable(&self) -> bool {
         (self.bits >> 18) & 1 != 0
     }
+
     pub fn read_and_writable(&self) -> bool {
         (self.bits >> 19) & 1 != 0
     }
+
     pub fn secure(&self) -> bool {
         (self.bits >> 22) & 1 != 0
     }
+
     pub fn ns_readable(&self) -> bool {
         (self.bits >> 20) & 1 != 0
     }
+
     pub fn ns_read_and_writable(&self) -> bool {
         (self.bits >> 21) & 1 != 0
     }
@@ -132,6 +139,7 @@ impl TestTarget {
     pub fn as_u32(&self) -> u32 {
         self.bits
     }
+
     pub fn access_type(&self) -> AccessType {
         self.access_type
     }

@@ -5,9 +5,11 @@
 //! Board‑level I/O and panic infrastructure for the Musca B1.
 
 use core::panic::PanicInfo;
+
 use kernel::debug;
 
-/// This function is called on panic, and it will attempt to print the panic message to the serial port.
+/// This function is called on panic, and it will attempt to print the panic
+/// message to the serial port.
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     unsafe {

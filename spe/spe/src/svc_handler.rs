@@ -10,4 +10,5 @@
 //! symbol binding between the `spe` library crate and downstream board crates.
 //!
 //! Board crates should reference `global_spm_api::svc_handler` (or the module
-//! where `define_spm_api!` is invoked) instead of `spe::svc_handler::svc_handler`.
+//! where `define_spm_api!` is invoked) instead of
+//! `spe::svc_handler::svc_handler`.

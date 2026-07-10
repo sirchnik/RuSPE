@@ -6,13 +6,12 @@
 //!
 //! This module supports only ECDSA with SHA-256 (COSE alg `ES256`, `-7`).
 
-use minicbor::{
-    Decoder, Encoder,
-    data::Tag,
-    encode::Write,
-    encode::write::{Cursor, EndOfSlice},
-};
-use p256::ecdsa::{Signature, SigningKey, signature::hazmat::PrehashSigner};
+use minicbor::data::Tag;
+use minicbor::encode::Write;
+use minicbor::encode::write::{Cursor, EndOfSlice};
+use minicbor::{Decoder, Encoder};
+use p256::ecdsa::signature::hazmat::PrehashSigner;
+use p256::ecdsa::{Signature, SigningKey};
 use sha2::{Digest, Sha256};
 
 #[allow(dead_code)]
@@ -142,7 +141,8 @@ pub struct CoseSign1<'a, C: CoseCrypto> {
 }
 
 impl<'a, C: CoseCrypto> CoseSign1<'a, C> {
-    /// Creates a signer configured for ES256 using a raw 32-byte P-256 private key.
+    /// Creates a signer configured for ES256 using a raw 32-byte P-256 private
+    /// key.
     pub fn new(crypto: C, option_flags: Sign1Options) -> Self {
         Self {
             crypto,
@@ -166,7 +166,8 @@ impl<'a, C: CoseCrypto> CoseSign1<'a, C> {
         self
     }
 
-    /// Encodes a complete COSE_Sign1 using a caller-prepared encoded payload bstr.
+    /// Encodes a complete COSE_Sign1 using a caller-prepared encoded payload
+    /// bstr.
     ///
     /// `payload_bstr` must be one CBOR bstr item containing the payload.
     pub fn encode_from_payload_bstr(

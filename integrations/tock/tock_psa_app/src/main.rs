@@ -9,6 +9,7 @@
 #![allow(dead_code)]
 
 use core::fmt::Write;
+
 use libtock::console::Console;
 use libtock::runtime::{TockSyscalls, set_main, stack_size};
 

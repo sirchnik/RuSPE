@@ -21,7 +21,8 @@ use spe::faults;
 #[unsafe(no_mangle)]
 static mut STACK_MEMORY: [u8; 0x1C00] = [0; 0x1C00];
 
-/// Initializes RAM and jumps to main. This is the entry point of the secure firmware.
+/// Initializes RAM and jumps to main. This is the entry point of the secure
+/// firmware.
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn sec_initialize_ram_jump_to_main() {

@@ -2,11 +2,9 @@
 //
 // SPDX-License-Identifier: MIT
 
-use core::{
-    cell::UnsafeCell,
-    mem::MaybeUninit,
-    sync::atomic::{AtomicU8, Ordering},
-};
+use core::cell::UnsafeCell;
+use core::mem::MaybeUninit;
+use core::sync::atomic::{AtomicU8, Ordering};
 
 #[derive(Debug, PartialEq)]
 #[repr(u8)]
@@ -50,19 +48,20 @@ impl<T> OnceLock<T> {
 
         if state == OnceLockState::Initialized as u8 {
             // # Safety:
-            // 1. The state is INITIALIZED, which means a successful `set` call
-            //    has completed writing to the value.
-            // 2. We used Acquire ordering to load the state, synchronizing with
-            //    the Release store in `set`, making the initialized value visible.
-            // 3. We return a shared reference `&T` tied to the lifetime of `&self`.
-            //    The value is never mutated or dropped as long as the `OnceLock` exists.
+            // 1. The state is INITIALIZED, which means a successful `set` call has
+            //    completed writing to the value.
+            // 2. We used Acquire ordering to load the state, synchronizing with the Release
+            //    store in `set`, making the initialized value visible.
+            // 3. We return a shared reference `&T` tied to the lifetime of `&self`. The
+            //    value is never mutated or dropped as long as the `OnceLock` exists.
             unsafe { Ok((*self.value.get()).assume_init_ref()) }
         } else {
             Err(OnceLockState::Uninitialized)
         }
     }
 
-    /// Sets the value of the lock. Returns `Err(value)` if already initialized or initializing.
+    /// Sets the value of the lock. Returns `Err(value)` if already initialized
+    /// or initializing.
     pub fn try_set(&self, value: T) -> Result<(), T> {
         // We use compare_exchange to transition from UNINITIALIZED to INITIALIZING.
         // This acts as a mutual exclusion lock for the initialization phase.
@@ -110,9 +109,10 @@ impl<T> Drop for OnceLock<T> {
 #[cfg(test)]
 mod tests {
     extern crate std;
-    use super::*;
     use core::sync::atomic::{AtomicUsize, Ordering as StdOrdering};
     use std::sync::Arc;
+
+    use super::*;
 
     #[test]
     fn try_get_uninitialized_returns_err() {

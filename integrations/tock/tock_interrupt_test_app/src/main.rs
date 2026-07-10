@@ -7,11 +7,11 @@
 #![allow(dead_code)]
 
 use core::fmt::Write;
+
 use libtock::buttons::{ButtonListener, Buttons};
 use libtock::console::Console;
 use libtock::leds::Leds;
-use libtock::platform::Syscalls;
-use libtock::platform::share;
+use libtock::platform::{Syscalls, share};
 use libtock::runtime::{TockSyscalls, set_main, stack_size};
 
 set_main! {main}

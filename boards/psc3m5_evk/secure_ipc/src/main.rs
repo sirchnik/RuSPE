@@ -13,13 +13,12 @@ use core::ptr::addr_of_mut;
 
 use cortex_m::mpu::Permissions;
 use helpers::static_init;
+use ruspe_psc3::configure_security;
 use spe::spm;
 use spe::spm::spm_ipc::{
     CustomMpuRegion, IpcPlatform, IpcProcessPlatform, ServiceProcess, ServiceVectors,
 };
 use tock_psc3::{chip, chip_init, gpio, icache, peri_clk, scb};
-
-use ruspe_psc3::configure_security;
 
 unsafe extern "Rust" {
     static __veneer_base: ();
@@ -50,7 +49,8 @@ const NONSECURE_RAM_START: u32 = 0x2400_5100;
 const NONSECURE_RAM_LIMIT: u32 = 0x2400_EFFF;
 
 /// Minimal platform for the IPC model - only provides memory permission checks.
-/// Service dispatch is handled by the SpmIpc process table, not by this platform.
+/// Service dispatch is handled by the SpmIpc process table, not by this
+/// platform.
 pub struct Psc3IpcPlatform;
 
 impl IpcPlatform for Psc3IpcPlatform {
@@ -63,43 +63,42 @@ impl IpcPlatform for Psc3IpcPlatform {
     ) -> bool {
         // TODO find something better
         return true;
-        /*
-        use cortex_m::cmse;
-
-        if _len == 0 {
-            return true;
-        }
-
-        if _base.is_null() {
-            return false;
-        }
-
-        let access_type = match (_caller.ns, _caller.privileged) {
-            (true, false) => cmse::AccessType::NonSecureUnprivileged,
-            (true, true) => cmse::AccessType::NonSecure,
-            (false, false) => cmse::AccessType::Unprivileged,
-            (false, true) => cmse::AccessType::Current,
-        };
-
-        if let Some(target) = cmse::TestTarget::check_range(_base as *mut u32, _len, access_type) {
-            if _caller.ns {
-                if _is_write {
-                    target.ns_read_and_writable()
-                } else {
-                    target.ns_readable()
-                }
-            } else {
-                if _is_write {
-                    target.read_and_writable()
-                } else {
-                    target.readable()
-                }
-            }
-        } else {
-            false
-        }
-        */
+        // use cortex_m::cmse;
+        //
+        // if _len == 0 {
+        // return true;
+        // }
+        //
+        // if _base.is_null() {
+        // return false;
+        // }
+        //
+        // let access_type = match (_caller.ns, _caller.privileged) {
+        // (true, false) => cmse::AccessType::NonSecureUnprivileged,
+        // (true, true) => cmse::AccessType::NonSecure,
+        // (false, false) => cmse::AccessType::Unprivileged,
+        // (false, true) => cmse::AccessType::Current,
+        // };
+        //
+        // if let Some(target) = cmse::TestTarget::check_range(_base as *mut
+        // u32, _len, access_type) { if _caller.ns {
+        // if _is_write {
+        // target.ns_read_and_writable()
+        // } else {
+        // target.ns_readable()
+        // }
+        // } else {
+        // if _is_write {
+        // target.read_and_writable()
+        // } else {
+        // target.readable()
+        // }
+        // }
+        // } else {
+        // false
+        // }
     }
+
     fn custom_mpu_regions(
         &self,
         handle: psa_interface::types::ServiceHandle,
@@ -161,7 +160,8 @@ unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
         cortex_m::nvic::enable_all();
     }
 
-    // set msplim. There was one incident where then non-secure handled stack overflow.
+    // set msplim. There was one incident where then non-secure handled stack
+    // overflow.
     unsafe { cortex_m::register::set_msplim(core::ptr::addr_of!(_sstack) as u32) };
 
     unsafe {
@@ -211,7 +211,8 @@ unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
     // Vector tables (ServiceVectors) are at the start of each service's ROM region.
     // Addresses and handles are generated at build time from board task settings.
 
-    // Load service configuration generated at build time and build the exact process table.
+    // Load service configuration generated at build time and build the exact
+    // process table.
     let processes: [ServiceProcess; service_config::SERVICE_COUNT] = core::array::from_fn(|i| {
         ServiceProcess::new(service_config::SERVICE_HANDLES[i], unsafe {
             &*(service_config::SERVICE_ADDRS[i] as *const ServiceVectors)

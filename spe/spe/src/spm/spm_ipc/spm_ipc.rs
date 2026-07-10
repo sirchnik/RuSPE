@@ -2,18 +2,13 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::{
-    libs::mutex::Mutex,
-    spm::{
-        spm::{Connection, ConnectionArray, SpmCall, SpmError},
-        spm_ipc::{
-            ipc_platform::IpcProcessPlatform,
-            process::{IpcProcess, ServiceProcess},
-        },
-    },
-    spm_api::CallerAttributes,
-};
 use psa_interface::types::ServiceHandle;
+
+use crate::libs::mutex::Mutex;
+use crate::spm::spm::{Connection, ConnectionArray, SpmCall, SpmError};
+use crate::spm::spm_ipc::ipc_platform::IpcProcessPlatform;
+use crate::spm::spm_ipc::process::{IpcProcess, ServiceProcess};
+use crate::spm_api::CallerAttributes;
 
 // ---------------------------------------------------------------------------
 // SpmIpc - IPC-style SPM dispatcher
@@ -336,9 +331,10 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmCall
 
 #[cfg(test)]
 mod tests {
+    use psa_interface::types::ServiceHandle;
+
     use super::*;
     use crate::spm_api::{CallerAttributes, PsaMsg};
-    use psa_interface::types::ServiceHandle;
 
     #[test]
     fn test_spm_ipc_state_init() {
@@ -382,18 +378,22 @@ mod tests {
         fn handle(&self) -> ServiceHandle {
             self.handle
         }
+
         fn get_vectors(&self) -> Option<&'static ServiceVectors> {
             None
         }
+
         fn version(&self) -> u32 {
             1
         }
+
         unsafe fn init_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
             &self,
             _platform: &P,
             _spm: &S,
         ) {
         }
+
         unsafe fn call_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
             &self,
             _platform: &P,

@@ -5,7 +5,9 @@
 #![no_std]
 
 use core::fmt::Write;
-use psa_interface::{psa_api, types::ServiceHandle};
+
+use psa_interface::psa_api;
+use psa_interface::types::ServiceHandle;
 use psa_veneer_client::PsaVeneerClient;
 
 #[repr(align(32))]

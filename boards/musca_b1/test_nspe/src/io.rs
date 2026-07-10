@@ -38,7 +38,8 @@ impl Write for Writer {
     }
 }
 
-/// This function is called on panic, and it will attempt to print the panic message to the serial port.
+/// This function is called on panic, and it will attempt to print the panic
+/// message to the serial port.
 #[panic_handler]
 pub fn panic_fmt(pi: &PanicInfo) -> ! {
     use core::ptr::addr_of_mut;

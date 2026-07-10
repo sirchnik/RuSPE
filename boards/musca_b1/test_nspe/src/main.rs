@@ -48,7 +48,6 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
 pub static IRQS: [unsafe extern "C" fn(); 97] = [unhandled_interrupt; 97];
 
 use helpers::static_init;
-
 use ruspe_musca_b1::uart;
 
 mod io;

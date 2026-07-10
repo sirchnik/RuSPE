@@ -12,11 +12,12 @@
 use core::ptr::addr_of_mut;
 
 use helpers::static_init;
+use ruspe_psc3::services::attest::Psc3AttestPlatform;
+use ruspe_psc3::{Psc3SecPlatform, configure_security};
 use spe::spm;
-use spe_services::{attest::attest_service, crypto::crypto_service};
+use spe_services::attest::attest_service;
+use spe_services::crypto::crypto_service;
 use tock_psc3::{chip, chip_init, gpio, icache, peri_clk, scb};
-
-use ruspe_psc3::{Psc3SecPlatform, configure_security, services::attest::Psc3AttestPlatform};
 
 const NONSECURE_FLASH_START: u32 = 0x2202_0000;
 const NONSECURE_FLASH_LIMIT: u32 = 0x2203_FFFF;
@@ -77,7 +78,8 @@ unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
     // useless. strangely only setting vector table in scb from ns works
     // mxcm33::set_ns_vector_table_base(security::NONSECURE_START_FLASH as u32);
 
-    // set msplim. There was one incident where then non-secure handled stack overflow.
+    // set msplim. There was one incident where then non-secure handled stack
+    // overflow.
     unsafe { cortex_m::register::set_msplim(core::ptr::addr_of!(_sstack) as u32) };
 
     unsafe {

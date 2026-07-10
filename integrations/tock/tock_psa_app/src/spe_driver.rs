@@ -3,10 +3,8 @@
 // SPDX-License-Identifier: MIT
 
 use libtock::platform;
-use libtock::platform::AllowRo;
 use libtock::platform::allow_rw::AllowRw;
-use libtock::platform::share;
-use libtock::platform::{DefaultConfig, ErrorCode, Syscalls};
+use libtock::platform::{AllowRo, DefaultConfig, ErrorCode, Syscalls, share};
 
 pub struct SpeDriver<S: Syscalls, C: Config = DefaultConfig>(S, C);
 

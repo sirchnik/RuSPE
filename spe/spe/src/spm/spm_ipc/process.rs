@@ -2,13 +2,15 @@
 //
 // SPDX-License-Identifier: MIT
 
+use core::mem::{align_of, size_of};
+
+use psa_interface::types::{PsaStatus, ServiceHandle};
+
 use super::ipc_platform::IpcProcessPlatform;
 use super::svc_call::{EXCEPTION_FRAME_WORDS, svc_call_unpriv};
 use crate::service::Service;
 use crate::spm::spm::SpmCall;
 use crate::spm_api::PsaMsg;
-use core::mem::{align_of, size_of};
-use psa_interface::types::{PsaStatus, ServiceHandle};
 
 // ---------------------------------------------------------------------------
 // ServiceProcess - service loaded as a separate binary in flash
@@ -43,8 +45,9 @@ unsafe impl Sync for ServiceVectors {}
 
 /// A process that can be managed and dispatched by the SPM IPC mechanism.
 ///
-/// Implementors represent either a flash-resident service binary (`ServiceProcess`)
-/// or a service compiled directly into the SPM binary (`EmbeddedProcess`).
+/// Implementors represent either a flash-resident service binary
+/// (`ServiceProcess`) or a service compiled directly into the SPM binary
+/// (`EmbeddedProcess`).
 ///
 /// # Safety
 ///
@@ -137,8 +140,8 @@ impl ServiceProcess {
 }
 
 // # Safety
-// ServiceProcess vectors are assumed valid and immutable in flash for the lifetime
-// of the program. The caller of SpmIpc ensures correct flash layout.
+// ServiceProcess vectors are assumed valid and immutable in flash for the
+// lifetime of the program. The caller of SpmIpc ensures correct flash layout.
 unsafe impl IpcProcess for ServiceProcess {
     fn handle(&self) -> ServiceHandle {
         self.handle
@@ -257,8 +260,9 @@ unsafe impl<A: crate::spm_api::SpmApi + Sync + 'static> IpcProcess for EmbeddedP
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use core::mem::size_of;
+
+    use super::*;
 
     #[test]
     fn test_align_down() {

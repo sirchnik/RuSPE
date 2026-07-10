@@ -34,8 +34,9 @@ pub static mut WRITER: Writer = Writer {
     scb: Cell::new(None),
 };
 
-/// This function is called on panic, and it will attempt to print the panic message to the serial port.
-/// It also blinks the LED to indicate a panic has occurred.
+/// This function is called on panic, and it will attempt to print the panic
+/// message to the serial port. It also blinks the LED to indicate a panic has
+/// occurred.
 #[panic_handler]
 pub fn panic_fmt(pi: &PanicInfo) -> ! {
     use core::ptr::addr_of_mut;

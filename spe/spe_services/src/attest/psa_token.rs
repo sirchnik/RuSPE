@@ -6,10 +6,12 @@ use cose::cose_sign1::{
     CoseCrypto, CoseSign1, CoseSign1Error, RustCryptoHasher, Sign1Options,
     encode_payload_bstr_in_place,
 };
-use minicbor::{Encoder, encode::write::Cursor};
+use minicbor::Encoder;
+use minicbor::encode::write::Cursor;
 use psa_interface::PsaApiCallInterface;
+use psa_interface::psa_api::psa_sign_hash;
 use psa_interface::status::StatusCode;
-use psa_interface::{psa_api::psa_sign_hash, types::PSA_ALG_ECDSA_SHA256};
+use psa_interface::types::PSA_ALG_ECDSA_SHA256;
 use sha2::{Digest, Sha256};
 
 /// PSA / EAT claim labels per RFC 9783 Section 6.
@@ -169,7 +171,8 @@ pub fn encode_initial_attestation_token<C: PsaApiCallInterface>(
     token: &mut [u8],
     key_id: u32,
 ) -> Result<usize, StatusCode> {
-    // payload in attest stack as io_vecs cannot be passed to other services (crypto)
+    // payload in attest stack as io_vecs cannot be passed to other services
+    // (crypto)
     let mut payload_buf = [0u8; 512];
     let payload_len = encode_payload(claims, &mut payload_buf)?;
     let payload_bstr_len =
@@ -225,7 +228,8 @@ pub fn compute_initial_attestation_token_size(
         .checked_add(bstr_header_len)
         .ok_or(StatusCode::BufferTooSmall)?;
 
-    // COSE_Sign1 overhead without kid (tag 18 + array + protected + unprotected + signature + sig bstr header) = 73 bytes
+    // COSE_Sign1 overhead without kid (tag 18 + array + protected + unprotected +
+    // signature + sig bstr header) = 73 bytes
     let total_len = payload_bstr_len
         .checked_add(73)
         .ok_or(StatusCode::BufferTooSmall)?;

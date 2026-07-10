@@ -5,14 +5,13 @@
 //! Board-level I/O and panic infrastructure for the PSC3M5-EVK.
 
 use core::panic::PanicInfo;
-use kernel::utilities::cells::OptionalCell;
-
-use psc3::gpio;
-use psc3::gpio::GpioPin;
-use psc3::scb::Scb;
 
 use kernel::debug::{self, IoWrite};
 use kernel::hil::led::LedHigh;
+use kernel::utilities::cells::OptionalCell;
+use psc3::gpio;
+use psc3::gpio::GpioPin;
+use psc3::scb::Scb;
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {
@@ -43,8 +42,9 @@ pub static mut WRITER: Writer = Writer {
     scb: OptionalCell::empty(),
 };
 
-/// This function is called on panic, and it will attempt to print the panic message to the serial port.
-/// It also blinks the LED to indicate a panic has occurred.
+/// This function is called on panic, and it will attempt to print the panic
+/// message to the serial port. It also blinks the LED to indicate a panic has
+/// occurred.
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     use core::ptr::addr_of_mut;

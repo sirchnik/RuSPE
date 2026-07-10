@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: MIT
 
 use core::cell::Cell;
-use core::{fmt::Write, panic::PanicInfo};
+use core::fmt::Write;
+use core::panic::PanicInfo;
+
 use ruspe_musca_b1::uart;
 
 pub struct Writer {

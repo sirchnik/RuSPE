@@ -7,7 +7,8 @@
 
 //! Tock kernel for the PSC3M5-EVK evaluation board.
 
-use core::{fmt::Write, ptr::addr_of_mut};
+use core::fmt::Write;
+use core::ptr::addr_of_mut;
 
 use psc3::chip::Psc3DefaultPeripherals;
 use psc3::chip_init;
@@ -79,7 +80,8 @@ pub unsafe fn main() {
 
     unsafe { cortex_m::register::set_msplim(core::ptr::addr_of!(_sstack) as u32) };
 
-    /* !Only after chip_init::preinit_peripherals() was called peripheral view for debugging works! */
+    // !Only after chip_init::preinit_peripherals() was called peripheral view for
+    // debugging works!
     chip_init::preinit_peripherals();
 
     let peripherals =

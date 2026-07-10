@@ -3,10 +3,8 @@
 // SPDX-License-Identifier: MIT
 
 use super::spm::{Connection, ConnectionArray, SpmCall, SpmError};
-use crate::{
-    libs::mutex::Mutex,
-    spm_api::{CallerAttributes, PsaMsg},
-};
+use crate::libs::mutex::Mutex;
+use crate::spm_api::{CallerAttributes, PsaMsg};
 
 pub trait SfnPlatform: Sync {
     fn call(&self, msg: PsaMsg) -> Result<(), crate::StatusCode>;
@@ -26,7 +24,8 @@ pub struct SpmFn<P: SfnPlatform + 'static> {
     platform: &'static P,
 }
 
-// call_unprivileged is provided by the spm module to keep the policy in one place.
+// call_unprivileged is provided by the spm module to keep the policy in one
+// place.
 
 impl<P: SfnPlatform + 'static> SpmFn<P> {
     pub const fn new(platform: &'static P) -> Self {
@@ -58,7 +57,8 @@ impl<P: SfnPlatform + 'static> SpmFn<P> {
         result
     }
 
-    // Can be called by multiple threads. Multiple threads need access to different connections.
+    // Can be called by multiple threads. Multiple threads need access to different
+    // connections.
     fn with_active_connection<R>(
         &self,
         f: impl FnOnce(&mut Connection) -> R,
@@ -87,7 +87,8 @@ impl<P: SfnPlatform + 'static> SpmFn<P> {
 }
 
 impl<P: SfnPlatform + 'static> SpmCall for SpmFn<P> {
-    /// Forwards the call to the platform's call method, while managing the connection stack.
+    /// Forwards the call to the platform's call method, while managing the
+    /// connection stack.
     fn call(&self, connection: Connection) -> Result<(), crate::StatusCode> {
         SpmFn::call(self, connection)
     }
@@ -96,7 +97,8 @@ impl<P: SfnPlatform + 'static> SpmCall for SpmFn<P> {
         self.with_active_connection(|conn| f(conn))
     }
 
-    /// Checks if the platform's memory permissions allow access to the specified range.
+    /// Checks if the platform's memory permissions allow access to the
+    /// specified range.
     fn has_real_permission(
         &self,
         base: *const u8,
@@ -109,6 +111,7 @@ impl<P: SfnPlatform + 'static> SpmCall for SpmFn<P> {
     }
 
     fn map_vec(&self, _is_outvec: bool, _vec_idx: u32, _base: *const u8, _size: usize) {}
+
     fn unmap_vec(&self, _is_outvec: bool, _vec_idx: u32) {}
 
     fn version(&self, handle: psa_interface::types::ServiceHandle) -> Option<u32> {
@@ -118,15 +121,18 @@ impl<P: SfnPlatform + 'static> SpmCall for SpmFn<P> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use core::ptr;
+
     use psa_interface::types::ServiceHandle;
+
+    use super::*;
 
     struct MockPlatform;
     impl SfnPlatform for MockPlatform {
         fn call(&self, _msg: PsaMsg) -> Result<(), crate::StatusCode> {
             Ok(())
         }
+
         fn has_permission_on_memory(
             &self,
             _base: *const u8,
@@ -136,6 +142,7 @@ mod tests {
         ) -> bool {
             true
         }
+
         fn version(&self, _handle: ServiceHandle) -> Option<u32> {
             Some(1)
         }

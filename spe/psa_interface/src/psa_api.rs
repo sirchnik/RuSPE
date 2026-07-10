@@ -2,10 +2,8 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::types;
-
-use crate::PsaApiCallInterface;
 use crate::status::StatusCode;
+use crate::{PsaApiCallInterface, types};
 
 fn status_from_raw(status: types::PsaStatus) -> Result<(), StatusCode> {
     match StatusCode::try_from(status) {
@@ -129,9 +127,10 @@ pub fn psa_sign_hash<T: PsaApiCallInterface>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use core::hint::spin_loop;
     use core::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
+
+    use super::*;
 
     static TEST_LOCK: AtomicBool = AtomicBool::new(false);
     static MOCK_RETURN_STATUS: AtomicIsize = AtomicIsize::new(0);

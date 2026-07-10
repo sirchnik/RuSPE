@@ -68,7 +68,6 @@ pub struct FFOutVec {
 /// +------------+-----+------+-------+-----+-------+-------+------+
 ///
 /// Res: Reserved.
-///
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub struct CtrlParam(u32);
@@ -76,7 +75,8 @@ pub struct CtrlParam(u32);
 impl CtrlParam {
     pub const NS_VEC_DESC_BIT: u32 = 0x8000_0000;
 
-    /// Creates a new descriptor from components, handling the masks and offsets.
+    /// Creates a new descriptor from components, handling the masks and
+    /// offsets.
     pub fn new(r#type: i16, in_len: u8, in_ns: bool, out_len: u8, out_ns: bool) -> Self {
         let mut val = (r#type as u16 as u32) & 0xFFFF;
         val |= ((in_len as u32) << 24) & 0x0700_0000; // IN_LEN_MASK
@@ -130,7 +130,8 @@ impl CtrlParam {
 /// PSA key identifier type (matches `psa_key_id_t` / `uint32_t` in TF-M).
 pub type PsaKeyId = u32;
 
-/// PSA algorithm identifier type (matches `psa_algorithm_t` / `uint32_t` in TF-M).
+/// PSA algorithm identifier type (matches `psa_algorithm_t` / `uint32_t` in
+/// TF-M).
 pub type PsaAlgorithm = u32;
 
 /// PSA_ALG_ECDSA(PSA_ALG_SHA_256) - the algorithm value TF-M uses for ES256.

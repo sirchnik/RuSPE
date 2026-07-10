@@ -2,11 +2,11 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::spm_api::CallerAttributes;
 use cortex_m::mpu::Permissions;
 use psa_interface::types::ServiceHandle;
 
 use super::process::ServiceVectors;
+use crate::spm_api::CallerAttributes;
 
 #[derive(Clone, Copy)]
 pub struct CustomMpuRegion {

@@ -2,10 +2,13 @@
 //
 // SPDX-License-Identifier: MIT
 
-use super::StatusCode;
-use super::{AttestClaim, AttestClaimValue, IatClaim, SwComponent, encode_payload, map_cose_error};
 use cose::cose_sign1::CoseSign1Error;
 use minicbor::Decoder;
+
+use super::{
+    AttestClaim, AttestClaimValue, IatClaim, StatusCode, SwComponent, encode_payload,
+    map_cose_error,
+};
 
 // -- encode_payload: single-claim cases ------------------------------
 
@@ -401,9 +404,11 @@ impl PsaApiCallInterface for MockPsaClient {
     fn psa_framework_version() -> u32 {
         1
     }
+
     fn psa_version(_service_id: u32) -> u32 {
         1
     }
+
     fn psa_call(
         _handle: psa_interface::types::ServiceHandle,
         _ctrl_param: psa_interface::types::CtrlParam,

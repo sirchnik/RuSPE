@@ -69,7 +69,8 @@ pub fn include_service_layout() {
     );
 }
 
-/// Pass the given linker script to cargo, and track it and all of its `INCLUDE`s
+/// Pass the given linker script to cargo, and track it and all of its
+/// `INCLUDE`s
 pub fn set_and_track_linker_script<P: AsRef<Path> + ToString>(path: P) {
     // Use the passed linker script
     println!("cargo:rustc-link-arg=-T{}", path.to_string());

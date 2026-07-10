@@ -2,9 +2,8 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::env;
-use std::fs;
 use std::path::Path;
+use std::{env, fs};
 
 struct ServiceConfig {
     flash_origin: String,

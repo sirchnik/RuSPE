@@ -2,43 +2,51 @@
 //
 // SPDX-License-Identifier: MIT
 
-use super::*;
 use psa_interface::status::StatusCode;
 use psa_interface::types;
+
+use super::*;
 
 struct MockPlatform;
 impl AttestPlatform for MockPlatform {
     fn security_lifecycle(&self) -> Result<u32, StatusCode> {
         Ok(12288)
     }
+
     fn verification_service(&self, buf: &mut [u8]) -> Result<usize, StatusCode> {
         let s = b"https://psa-verifier.org";
         buf[..s.len()].copy_from_slice(s);
         Ok(s.len())
     }
+
     fn profile_definition(&self, buf: &mut [u8]) -> Result<usize, StatusCode> {
         let s = b"tag:psacertified.org,2023:psa#tfm";
         buf[..s.len()].copy_from_slice(s);
         Ok(s.len())
     }
+
     fn boot_seed(&self, seed: &mut [u8; 32]) -> Result<(), StatusCode> {
         seed.fill(0x22);
         Ok(())
     }
+
     fn implementation_id(&self, buf: &mut [u8; 32]) -> Result<(), StatusCode> {
         let s = b"acme-implementation-id-00000001\x00";
         buf.copy_from_slice(s);
         Ok(())
     }
+
     fn instance_id(&self, buf: &mut [u8; 33]) -> Result<(), StatusCode> {
         buf.fill(0x33);
         Ok(())
     }
+
     fn cert_ref(&self, buf: &mut [u8; CERTIFICATION_REF_MAX_SIZE]) -> Result<usize, StatusCode> {
         let s = b"1234567890123-12345";
         buf[..s.len()].copy_from_slice(s);
         Ok(s.len())
     }
+
     fn boot_record(&self) -> Option<&'static [u8]> {
         None
     }
@@ -49,9 +57,11 @@ impl psa_interface::PsaApiCallInterface for MockPsaClient {
     fn psa_framework_version() -> u32 {
         1
     }
+
     fn psa_version(_service_id: u32) -> u32 {
         1
     }
+
     fn psa_call(
         _handle: types::ServiceHandle,
         _ctrl_param: types::CtrlParam,

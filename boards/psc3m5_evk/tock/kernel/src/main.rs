@@ -19,7 +19,6 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::syscall::SyscallDriver;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{Kernel, capabilities, create_capability, static_init};
-
 use psc3::chip::{Psc3, Psc3DefaultPeripherals};
 use psc3::tcpwm::Tcpwm0;
 #[allow(unused)]
@@ -89,32 +88,38 @@ impl SyscallDriverLookup for Psc3Plattform {
 }
 
 impl KernelResources<Psc3<'static, Psc3DefaultPeripherals<'static>>> for Psc3Plattform {
-    type SyscallDriverLookup = Self;
-    type SyscallFilter = ();
+    type ContextSwitchCallback = ();
     type ProcessFault = ();
     type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm33::systick::SysTick;
+    type SyscallDriverLookup = Self;
+    type SyscallFilter = ();
     type WatchDog = ();
-    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
     }
+
     fn syscall_filter(&self) -> &Self::SyscallFilter {
         &()
     }
+
     fn process_fault(&self) -> &Self::ProcessFault {
         &()
     }
+
     fn scheduler(&self) -> &Self::Scheduler {
         self.scheduler
     }
+
     fn scheduler_timer(&self) -> &Self::SchedulerTimer {
         &self.systick
     }
+
     fn watchdog(&self) -> &Self::WatchDog {
         &()
     }
+
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
@@ -145,7 +150,8 @@ pub unsafe fn main() {
 
     unsafe { cortex_m::register::set_msplim(core::ptr::addr_of!(_sstack) as u32) };
 
-    /* !Only after chip_init::preinit_peripherals() was called peripheral view for debugging works! */
+    // !Only after chip_init::preinit_peripherals() was called peripheral view for
+    // debugging works!
     chip_init::preinit_peripherals();
 
     // Initialize deferred calls very early.
@@ -241,7 +247,8 @@ pub unsafe fn main() {
         resources.printer.put(process_printer);
     });
 
-    // let process_console = components::process_console::ProcessConsoleComponent::new(
+    // let process_console =
+    // components::process_console::ProcessConsoleComponent::new(
     //     board_kernel,
     //     uart_mux,
     //     mux_alarm,

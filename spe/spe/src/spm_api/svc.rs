@@ -2,13 +2,12 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::spm::spm::SpmCall;
 use core::{mem, panic, slice};
-use psa_interface::{
-    status::StatusCode,
-    types::{CtrlParam, FFInVec, FFOutVec, PsaStatus, ServiceHandle},
-};
 
+use psa_interface::status::StatusCode;
+use psa_interface::types::{CtrlParam, FFInVec, FFOutVec, PsaStatus, ServiceHandle};
+
+use crate::spm::spm::SpmCall;
 use crate::spm_api::{
     RawVec, SpmApi, finish_invec_raw, finish_outvec_raw, prepare_invec_raw, prepare_outvec_raw,
 };

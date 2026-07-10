@@ -2,9 +2,12 @@
 //
 // SPDX-License-Identifier: MIT
 
-use p256::ecdsa::{Signature, SigningKey, signature::hazmat::PrehashSigner};
+use p256::ecdsa::signature::hazmat::PrehashSigner;
+use p256::ecdsa::{Signature, SigningKey};
 use psa_interface::types::{TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID, TfmCryptoPackIovec};
-use spe::{StatusCode, service::Service, spm_api::PsaMsg, spm_api::SpmApi};
+use spe::StatusCode;
+use spe::service::Service;
+use spe::spm_api::{PsaMsg, SpmApi};
 
 /// P-256 ECDSA signature size in bytes (r || s, 32 + 32).
 const P256_SIGNATURE_SIZE: usize = 64;
@@ -84,8 +87,9 @@ impl<A: SpmApi> Service<A> for CryptoService {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use psa_interface::status::StatusCode;
+
+    use super::*;
 
     #[test]
     fn test_sign_hash_success() {

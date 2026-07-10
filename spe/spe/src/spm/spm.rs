@@ -22,9 +22,9 @@ pub struct Connection {
 
 // # Safety
 // Connection is not Send because it contains raw pointers.
-// Rust did declare raw pointers as !Send as it cannot guarantee ownership and lifetimes.
-// As raw pointers can only be dereferenced in unsafe code, we circumvent the language design and
-// mark Connection Send.
+// Rust did declare raw pointers as !Send as it cannot guarantee ownership and
+// lifetimes. As raw pointers can only be dereferenced in unsafe code, we
+// circumvent the language design and mark Connection Send.
 // There was once a discussion about this in the Rust community https://internals.rust-lang.org/t/shouldnt-pointers-be-send-sync-or/8818
 unsafe impl Send for Connection {}
 
@@ -107,7 +107,8 @@ impl ConnectionArray {
     }
 }
 
-/// Object-safe trait for SPM operations, used for type-erased storage in statics.
+/// Object-safe trait for SPM operations, used for type-erased storage in
+/// statics.
 pub trait SpmCall: Sync {
     fn call(&self, connection: Connection) -> Result<(), crate::StatusCode>;
     fn with_active_connection<F: FnMut(&mut Connection)>(&self, f: F) -> Result<(), SpmError>;
