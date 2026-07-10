@@ -204,6 +204,7 @@ unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
         NONSECURE_FLASH_LIMIT,
         NONSECURE_RAM_START,
         NONSECURE_RAM_LIMIT,
+        true,
     );
 
     // Service binaries are placed in dedicated secure flash slots.
@@ -222,7 +223,15 @@ unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
     let spm = unsafe {
         static_init!(
             spm::spm_ipc::SpmIpc<Psc3IpcPlatform, { service_config::SERVICE_COUNT }, ServiceProcess>,
-            spm::spm_ipc::SpmIpc::new(platform, processes)
+            spm::spm_ipc::SpmIpc::new(
+                platform,
+                processes,
+                &[CustomMpuRegion {
+                    base: 0x3201FF00 as *const u8,
+                    size: 0x100,
+                    permissions: Permissions::ReadOnly,
+                }]
+            )
         )
     };
 

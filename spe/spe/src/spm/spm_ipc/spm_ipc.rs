@@ -54,14 +54,20 @@ pub struct SpmIpc<
     state: Mutex<SpmIpcState<N>>,
     platform: &'static P,
     processes: [Proc; N],
+    default_regions: &'static [crate::spm::spm_ipc::CustomMpuRegion],
 }
 
 impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P, N, Proc> {
-    pub const fn new(platform: &'static P, processes: [Proc; N]) -> Self {
+    pub const fn new(
+        platform: &'static P,
+        processes: [Proc; N],
+        default_regions: &'static [crate::spm::spm_ipc::CustomMpuRegion],
+    ) -> Self {
         Self {
             state: Mutex::new(SpmIpcState::new()),
             platform,
             processes,
+            default_regions,
         }
     }
 
@@ -135,6 +141,11 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
 
         let handle = self.processes[process_index].handle();
         for region in self.platform.custom_mpu_regions(handle) {
+            mpu.allocate_region(region.base, region.size, region.permissions, &mut config)
+                .unwrap();
+        }
+
+        for region in self.default_regions {
             mpu.allocate_region(region.base, region.size, region.permissions, &mut config)
                 .unwrap();
         }
@@ -404,7 +415,7 @@ mod tests {
                 handle: ServiceHandle::AttestationService,
             },
         ];
-        let spm = SpmIpc::new(&PLATFORM, processes);
+        let spm = SpmIpc::new(&PLATFORM, processes, &[]);
 
         assert_eq!(spm.find_process_index(ServiceHandle::Crypto), Some(0));
         assert_eq!(
@@ -423,7 +434,7 @@ mod tests {
         let processes = [MockProcess {
             handle: ServiceHandle::Crypto,
         }];
-        let spm = SpmIpc::new(&PLATFORM, processes);
+        let spm = SpmIpc::new(&PLATFORM, processes, &[]);
 
         assert_eq!(spm.version(ServiceHandle::Crypto), Some(1));
         assert_eq!(spm.version(ServiceHandle::AttestationService), None);

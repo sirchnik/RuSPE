@@ -15,6 +15,8 @@ pub struct CustomMpuRegion {
     pub permissions: Permissions,
 }
 
+unsafe impl Sync for CustomMpuRegion {}
+
 pub trait IpcPlatform: Sync {
     fn has_permission_on_memory(
         &self,
