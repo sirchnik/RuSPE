@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: Infineon Technologies AG
+#
+# SPDX-License-Identifier: MIT
+
 import sys
 import termios
 import tty
@@ -85,23 +89,23 @@ try:
         ch = sys.stdin.read(1)
         if ch == "":
             continue
-            
+
         if escape_mode:
             escape_mode = False
-            if ch == '\x01':
+            if ch == "\x01":
                 # Send actual C-a
                 pass
-            elif ch == '\x08' or ch == 'h': # C-a C-h or C-a h
-                print("\r\n\r\n*** Picocom commands (all prefixed by [C-a])\r\n")
-                print("*** [C-x] : Exit picocom\r")
+            elif ch == "\x08" or ch == "h":  # C-a C-h or C-a h
+                print("\r\n\r\n*** Commands (all prefixed by [C-a])\r\n")
+                print("*** [C-x] : Exit\r")
                 print("*** [C-h] : Show this help\r")
                 print("*** [C-r] : Restart connection\r")
                 print("*** [C-a] : Send C-a\r\n")
                 continue
-            elif ch == '\x18' or ch == 'x': # C-a C-x or C-a x
+            elif ch == "\x18" or ch == "x":  # C-a C-x or C-a x
                 print("\r\n*** Exiting ***\r\n")
                 break
-            elif ch == '\x12' or ch == 'r': # C-a C-r or C-a r
+            elif ch == "\x12" or ch == "r":  # C-a C-r or C-a r
                 print("\r\n*** Restarting connection ***\r\n")
                 dev.close()
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_term_attrs)
@@ -110,7 +114,7 @@ try:
                 print(f"\r\n*** Unknown command: {repr(ch)} ***\r\n")
                 continue
         else:
-            if ch == '\x01':
+            if ch == "\x01":
                 escape_mode = True
                 continue
 
