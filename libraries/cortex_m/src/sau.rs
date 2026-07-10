@@ -7,26 +7,28 @@
 //! Reference Manual.
 
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
-use tock_registers::register_bitfields;
+use tock_registers::{register_bitfields, register_structs};
 use tock_registers::registers::{ReadOnly, ReadWrite};
 
-/// Register block
-#[repr(C)]
-pub struct SauRegisters {
-    /// Control Register
-    pub ctrl: ReadWrite<u32, CTRL::Register>,
-    /// Type Register
-    pub type_reg: ReadOnly<u32, TYPE::Register>,
-    /// Region Number Register
-    pub rnr: ReadWrite<u32, RNR::Register>,
-    /// Region Base Address Register
-    pub rbar: ReadWrite<u32, RBAR::Register>,
-    /// Region Limit Address Register
-    pub rlar: ReadWrite<u32, RLAR::Register>,
-    /// Secure Fault Status Register
-    pub sfsr: ReadOnly<u32, SFSR::Register>,
-    /// Secure Fault Address Register
-    pub sfar: ReadOnly<u32, SFAR::Register>,
+register_structs! {
+    /// Register block
+    pub SauRegisters {
+        /// Control Register
+        (0x00 => pub ctrl: ReadWrite<u32, CTRL::Register>),
+        /// Type Register
+        (0x04 => pub type_reg: ReadOnly<u32, TYPE::Register>),
+        /// Region Number Register
+        (0x08 => pub rnr: ReadWrite<u32, RNR::Register>),
+        /// Region Base Address Register
+        (0x0C => pub rbar: ReadWrite<u32, RBAR::Register>),
+        /// Region Limit Address Register
+        (0x10 => pub rlar: ReadWrite<u32, RLAR::Register>),
+        /// Secure Fault Status Register
+        (0x14 => pub sfsr: ReadOnly<u32, SFSR::Register>),
+        /// Secure Fault Address Register
+        (0x18 => pub sfar: ReadOnly<u32, SFAR::Register>),
+        (0x1C => @END),
+    }
 }
 
 register_bitfields![u32,

@@ -195,7 +195,7 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
         unsafe {
             mpu.configure_mpu(&config);
         }
-        mpu.enable_app_mpu();
+        mpu.enable_mpu();
     }
 }
 

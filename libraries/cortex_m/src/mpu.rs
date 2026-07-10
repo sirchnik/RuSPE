@@ -4,6 +4,10 @@
 
 //! Cortex-M33 Memory Protection Unit (MPU)
 
+use tock_registers::interfaces::{ReadWriteable, Writeable};
+use tock_registers::registers::{ReadOnly, ReadWrite};
+use tock_registers::{register_bitfields, register_structs};
+
 /// User mode access permissions.
 #[derive(Copy, Clone, Debug)]
 pub enum Permissions {
@@ -13,6 +17,123 @@ pub enum Permissions {
     ReadOnly,
     ExecuteOnly,
 }
+
+register_structs! {
+    /// MPU Registers for the Armv8-M architecture
+    pub MpuRegisters {
+        /// MPU Type Register
+        (0x0000 => mpu_type: ReadOnly<u32, MPU_TYPE::Register>),
+        /// MPU Control Register
+        (0x0004 => ctrl: ReadWrite<u32, MPU_CTRL::Register>),
+        /// MPU Region Number Register
+        (0x0008 => rnr: ReadWrite<u32, MPU_RNR::Register>),
+        /// MPU Region Base Address Register
+        (0x000C => rbar: ReadWrite<u32, MPU_RBAR::Register>),
+        /// MPU Region Limit Address Register
+        (0x0010 => rlar: ReadWrite<u32, MPU_RLAR::Register>),
+        /// MPU Region Base Address Register Alias 1
+        (0x0014 => rbar_a1: ReadWrite<u32, MPU_RBAR_A1::Register>),
+        /// MPU Region Limit Address Register Alias 1
+        (0x0018 => rlar_a1: ReadWrite<u32, MPU_RLAR_A1::Register>),
+        /// MPU Region Base Address Register Alias 2
+        (0x001C => rbar_a2: ReadWrite<u32, MPU_RBAR_A2::Register>),
+        /// MPU Region Limit Address Register Alias 2
+        (0x0020 => rlar_a2: ReadWrite<u32, MPU_RLAR_A2::Register>),
+        /// MPU Region Base Address Register Alias 3
+        (0x0024 => rbar_a3: ReadWrite<u32, MPU_RBAR_A3::Register>),
+        /// MPU Region Limit Address Register Alias 3
+        (0x0028 => rlar_a3: ReadWrite<u32, MPU_RLAR_A3::Register>),
+        (0x002c => _reserved0),
+        /// MPU Memory Attribute Indirection Register 0
+        (0x0030 => mair0: ReadWrite<u32, MPU_MAIR0::Register>),
+        /// MPU Memory Attribute Indirection Register 1
+        (0x0034 => mair1: ReadWrite<u32, MPU_MAIR1::Register>),
+        (0x0038 => @END),
+    }
+}
+
+register_bitfields![u32,
+    MPU_TYPE [
+        DREGION OFFSET(8) NUMBITS(8) [],
+        SEPARATE OFFSET(0) NUMBITS(1) []
+    ],
+    MPU_CTRL [
+        PRIVDEFENA OFFSET(2) NUMBITS(1) [],
+        HFNMIENA OFFSET(1) NUMBITS(1) [],
+        ENABLE OFFSET(0) NUMBITS(1) []
+    ],
+    MPU_RNR [
+        REGION OFFSET(0) NUMBITS(8) []
+    ],
+    MPU_RBAR [
+        BASE OFFSET(5) NUMBITS(27) [],
+        SH OFFSET(3) NUMBITS(2) [],
+        AP OFFSET(1) NUMBITS(2) [
+            ReadWritePrivilegedOnly = 0b00,
+            ReadWrite = 0b01,
+            ReadOnlyPrivilegedOnly = 0b10,
+            ReadOnly = 0b11
+        ],
+        XN OFFSET(0) NUMBITS(1) [
+            Enable = 0,
+            Disable = 1
+        ]
+    ],
+    MPU_RLAR [
+        LIMIT OFFSET(5) NUMBITS(27) [],
+        PXN OFFSET(4) NUMBITS(1) [
+            Enable = 0,
+            Disable = 1
+        ],
+        ATTRINDX OFFSET(1) NUMBITS(3) [],
+        ENABLE OFFSET(0) NUMBITS(1) []
+    ],
+    MPU_RBAR_A1 [
+        BASE OFFSET(5) NUMBITS(27) [],
+        SH OFFSET(3) NUMBITS(2) [],
+        AP OFFSET(1) NUMBITS(2) [],
+        XN OFFSET(0) NUMBITS(1) []
+    ],
+    MPU_RLAR_A1 [
+        LIMIT OFFSET(5) NUMBITS(27) [],
+        ATTRINDX OFFSET(1) NUMBITS(3) [],
+        EN OFFSET(0) NUMBITS(1) []
+    ],
+    MPU_RBAR_A2 [
+        BASE OFFSET(5) NUMBITS(27) [],
+        SH OFFSET(3) NUMBITS(2) [],
+        AP OFFSET(1) NUMBITS(2) [],
+        XN OFFSET(0) NUMBITS(1) []
+    ],
+    MPU_RLAR_A2 [
+        LIMIT OFFSET(5) NUMBITS(27) [],
+        ATTRINDX OFFSET(1) NUMBITS(3) [],
+        EN OFFSET(0) NUMBITS(1) []
+    ],
+    MPU_RBAR_A3 [
+        BASE OFFSET(5) NUMBITS(27) [],
+        SH OFFSET(3) NUMBITS(2) [],
+        AP OFFSET(1) NUMBITS(2) [],
+        XN OFFSET(0) NUMBITS(1) []
+    ],
+    MPU_RLAR_A3 [
+        LIMIT OFFSET(5) NUMBITS(27) [],
+        ATTRINDX OFFSET(1) NUMBITS(3) [],
+        EN OFFSET(0) NUMBITS(1) []
+    ],
+    MPU_MAIR0 [
+        ATTR3 OFFSET(24) NUMBITS(8) [],
+        ATTR2 OFFSET(16) NUMBITS(8) [],
+        ATTR1 OFFSET(8) NUMBITS(8) [],
+        ATTR0 OFFSET(0) NUMBITS(8) []
+    ],
+    MPU_MAIR1 [
+        ATTR7 OFFSET(24) NUMBITS(8) [],
+        ATTR6 OFFSET(16) NUMBITS(8) [],
+        ATTR5 OFFSET(8) NUMBITS(8) [],
+        ATTR4 OFFSET(0) NUMBITS(8) []
+    ]
+];
 
 #[derive(Copy, Clone, Default)]
 struct RegionConfig {
@@ -31,23 +152,10 @@ impl<const N: usize> Default for MpuConfig<N> {
 }
 
 pub struct MPU<const N: usize> {
-    // MPU base address for ARMv8-M
-    base: *mut u32,
+    registers: *const MpuRegisters,
 }
 
 impl<const N: usize> MPU<N> {
-    const MPU_CTRL: isize = 1;
-    // 0x10 / 4
-    const MPU_MAIR0: isize = 12;
-    // 0x08 / 4
-    const MPU_RBAR: isize = 3;
-    // 0x0C / 4
-    const MPU_RLAR: isize = 4;
-    // 0x04 / 4
-    const MPU_RNR: isize = 2;
-
-    // 0x30 / 4
-
     /// Creates a new MPU handle.
     ///
     /// # Safety
@@ -55,18 +163,19 @@ impl<const N: usize> MPU<N> {
     /// the MPU.
     pub const unsafe fn new() -> Self {
         Self {
-            base: 0xE000ED90 as *mut u32,
+            registers: 0xE000ED90 as *const MpuRegisters,
         }
     }
 
-    /// Enables the MPU for applications.
-    pub fn enable_app_mpu(&self) {
-        unsafe {
-            // Enable MPU (bit 0), disable during HardFault/NMI (bit 1), enable background
-            // region for privileged (bit 2).
-            let ctrl = self.base.offset(Self::MPU_CTRL);
-            core::ptr::write_volatile(ctrl, 0x05); // PRIVDEFENA=1, HFNMIENA=0, ENABLE=1
-        }
+    fn registers(&self) -> &MpuRegisters {
+        unsafe { &*self.registers }
+    }
+
+    /// Enables the MPU
+    pub fn enable_mpu(&self) {
+        self.registers()
+            .ctrl
+            .write(MPU_CTRL::ENABLE::SET + MPU_CTRL::HFNMIENA::CLEAR + MPU_CTRL::PRIVDEFENA::SET);
     }
 
     /// Creates a new empty MPU configuration.
@@ -83,11 +192,13 @@ impl<const N: usize> MPU<N> {
         config: &mut MpuConfig<N>,
     ) -> Result<(), ()> {
         let (access, execute) = match permissions {
-            Permissions::ReadWriteExecute => (0b01, 0),
-            Permissions::ReadWriteOnly => (0b01, 1),
-            Permissions::ReadExecuteOnly => (0b11, 0),
-            Permissions::ReadOnly => (0b11, 1),
-            Permissions::ExecuteOnly => (0b10, 0),
+            Permissions::ReadWriteExecute => (MPU_RBAR::AP::ReadWrite, MPU_RBAR::XN::Enable),
+            Permissions::ReadWriteOnly => (MPU_RBAR::AP::ReadWrite, MPU_RBAR::XN::Disable),
+            Permissions::ReadExecuteOnly => (MPU_RBAR::AP::ReadOnly, MPU_RBAR::XN::Enable),
+            Permissions::ReadOnly => (MPU_RBAR::AP::ReadOnly, MPU_RBAR::XN::Disable),
+            Permissions::ExecuteOnly => {
+                (MPU_RBAR::AP::ReadOnlyPrivilegedOnly, MPU_RBAR::XN::Enable)
+            }
         };
 
         // Align start address to 32 bytes
@@ -96,7 +207,8 @@ impl<const N: usize> MPU<N> {
             return Err(());
         }
 
-        let rbar = (base_addr & !0x1F) | (access << 1) | execute;
+        let rbar =
+            (MPU_RBAR::BASE.val(base_addr >> 5) + MPU_RBAR::SH.val(0) + access + execute).value;
 
         // End address aligned to 32 bytes
         let end_addr = base_addr + size as u32;
@@ -105,7 +217,11 @@ impl<const N: usize> MPU<N> {
         }
 
         // ARMv8-M RLAR LIMIT field uses bits [31:5] of the upper inclusive limit.
-        let rlar = ((end_addr - 1) & !0x1F) | 1; // EN=1, ATTRINDX=0, PXN=0
+        let rlar = (MPU_RLAR::ENABLE::SET
+            + MPU_RLAR::LIMIT.val((end_addr - 1) >> 5)
+            + MPU_RLAR::PXN::Disable
+            + MPU_RLAR::ATTRINDX.val(0))
+        .value;
 
         for i in 0..N {
             if config.regions[i].is_none() {
@@ -122,19 +238,19 @@ impl<const N: usize> MPU<N> {
     /// # Safety
     /// Incorrect use can endanger isolation properties.
     pub unsafe fn configure_mpu(&self, config: &MpuConfig<N>) {
-        unsafe {
-            // Set ATTR0 to Normal Memory, Outer and Inner Non-cacheable (0x44).
-            core::ptr::write_volatile(self.base.offset(Self::MPU_MAIR0), 0x44);
+        // Set ATTR0 to Normal Memory, Outer and Inner Non-cacheable (0x44).
+        self.registers()
+            .mair0
+            .modify(MPU_MAIR0::ATTR0.val(0b0100_0100));
 
-            for (i, region_opt) in config.regions.iter().enumerate() {
-                core::ptr::write_volatile(self.base.offset(Self::MPU_RNR), i as u32);
-                if let Some(region) = region_opt {
-                    core::ptr::write_volatile(self.base.offset(Self::MPU_RBAR), region.rbar);
-                    core::ptr::write_volatile(self.base.offset(Self::MPU_RLAR), region.rlar);
-                } else {
-                    core::ptr::write_volatile(self.base.offset(Self::MPU_RBAR), 0);
-                    core::ptr::write_volatile(self.base.offset(Self::MPU_RLAR), 0);
-                }
+        for (i, region_opt) in config.regions.iter().enumerate() {
+            self.registers().rnr.write(MPU_RNR::REGION.val(i as u32));
+            if let Some(region) = region_opt {
+                self.registers().rbar.set(region.rbar);
+                self.registers().rlar.set(region.rlar);
+            } else {
+                self.registers().rbar.set(0);
+                self.registers().rlar.set(0);
             }
         }
     }

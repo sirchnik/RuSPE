@@ -345,6 +345,6 @@ pub fn configure_security(
         .unwrap();
 
         unsafe { mpu.configure_mpu(&config) };
-        mpu.enable_app_mpu();
+        mpu.enable_mpu();
     }
 }
