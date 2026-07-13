@@ -309,7 +309,7 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
             sw_components_slice,
         );
 
-        api.map_invec_outvec(msg.handle, 0, 0, |challenge, outvec| {
+        api.access_invec_outvec(msg.handle, 0, 0, |challenge, outvec| {
             match self.initial_attest_get_token(challenge, &additional_claims, outvec) {
                 Ok(written_len) => (Ok(()), written_len),
                 Err(e) => {
@@ -322,7 +322,7 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
     }
 
     fn handle_get_token_size(&self, msg: &PsaMsg, api: &impl SpmApi) -> Result<(), StatusCode> {
-        let challenge_size = api.map_invec(msg.handle, 0, |challenge_size_buf| {
+        let challenge_size = api.access_invec(msg.handle, 0, |challenge_size_buf| {
             if challenge_size_buf.len() != size_of::<usize>() {
                 return Err(StatusCode::InvalidArgument);
             }
@@ -361,7 +361,7 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
         let token_size = self.initial_attest_get_token_size(challenge_size, &additional_claims)?;
 
         let token_size_bytes = token_size.to_ne_bytes();
-        api.map_outvec(msg.handle, 0, |outvec| {
+        api.access_outvec(msg.handle, 0, |outvec| {
             if outvec.len() < token_size_bytes.len() {
                 outvec.fill(0);
                 (Err(StatusCode::BufferTooSmall), 0)

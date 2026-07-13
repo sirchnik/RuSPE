@@ -191,7 +191,7 @@ unsafe fn svc_call<const SVC_NUM: u8>(
 
 pub struct SvcApi;
 impl SpmApi for SvcApi {
-    fn map_invec<R>(
+    fn access_invec<R>(
         &self,
         msg_handle: ServiceHandle,
         invec_idx: u32,
@@ -217,7 +217,7 @@ impl SpmApi for SvcApi {
         result
     }
 
-    fn map_outvec<R>(
+    fn access_outvec<R>(
         &self,
         msg_handle: ServiceHandle,
         outvec_idx: u32,
@@ -244,7 +244,7 @@ impl SpmApi for SvcApi {
         result
     }
 
-    fn map_invec_outvec<R>(
+    fn access_invec_outvec<R>(
         &self,
         msg_handle: ServiceHandle,
         invec_idx: u32,

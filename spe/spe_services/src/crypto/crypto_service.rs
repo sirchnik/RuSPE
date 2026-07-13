@@ -50,7 +50,7 @@ impl<A: SpmApi> Service<A> for CryptoService {
     fn call(&self, msg: PsaMsg, api: &A) -> Result<(), psa_interface::status::StatusCode> {
         // TF-M layout: invec[0] = TfmCryptoPackIovec, invec[1] = hash,
         //              outvec[0] = signature buffer.
-        api.map_invec(msg.handle, 0, |buf| -> Result<(), StatusCode> {
+        api.access_invec(msg.handle, 0, |buf| -> Result<(), StatusCode> {
             let iov: &TfmCryptoPackIovec =
                 bytemuck::try_from_bytes(buf).map_err(|_| StatusCode::ProgrammerError)?;
 
@@ -60,7 +60,7 @@ impl<A: SpmApi> Service<A> for CryptoService {
             Ok(())
         })?;
 
-        api.map_invec_outvec(msg.handle, 1, 0, |hash, sig_buf| {
+        api.access_invec_outvec(msg.handle, 1, 0, |hash, sig_buf| {
             let mut written_len = 0;
             let result = (|| -> Result<(), StatusCode> {
                 written_len = self.sign_hash(hash, sig_buf)?;

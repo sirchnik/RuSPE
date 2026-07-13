@@ -14,21 +14,21 @@ macro_rules! define_spm_api {
 
         pub struct SfnApi;
         impl $crate::spm_api::SpmApi for SfnApi {
-            fn map_invec<R>(&self, msg_handle: psa_interface::types::ServiceHandle, invec_idx: u32, f: impl FnOnce(&[u8]) -> R) -> R {
+            fn access_invec<R>(&self, msg_handle: psa_interface::types::ServiceHandle, invec_idx: u32, f: impl FnOnce(&[u8]) -> R) -> R {
                 let spm = get_spm();
                 $crate::spm_api::with_connection_for_handle(spm, msg_handle, |connection| {
                     $crate::spm_api::with_mapped_invec(spm, connection, invec_idx, f)
                 })
             }
 
-            fn map_outvec<R>(&self, msg_handle: psa_interface::types::ServiceHandle, outvec_idx: u32, f: impl FnOnce(&mut [u8]) -> (R, usize)) -> R {
+            fn access_outvec<R>(&self, msg_handle: psa_interface::types::ServiceHandle, outvec_idx: u32, f: impl FnOnce(&mut [u8]) -> (R, usize)) -> R {
                 let spm = get_spm();
                 $crate::spm_api::with_connection_for_handle(spm, msg_handle, |connection| {
                     $crate::spm_api::with_mapped_outvec(spm, connection, outvec_idx, f)
                 })
             }
 
-            fn map_invec_outvec<R>(&self, msg_handle: psa_interface::types::ServiceHandle, invec_idx: u32, outvec_idx: u32, f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize)) -> R {
+            fn access_invec_outvec<R>(&self, msg_handle: psa_interface::types::ServiceHandle, invec_idx: u32, outvec_idx: u32, f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize)) -> R {
                 let spm = get_spm();
                 $crate::spm_api::with_connection_for_handle(spm, msg_handle, |connection| {
                     let (in_index, in_len, in_base) = $crate::spm_api::prepare_invec(spm, connection, invec_idx);
@@ -379,27 +379,59 @@ use psa_interface::types::{CtrlParam, FFInVec, FFOutVec, ServiceHandle};
 use crate::spm::spm::PSA_MAX_IOVEC;
 
 pub trait SpmApi {
-    fn map_invec<R>(
+    /// Executes a closure with read-only access to the specified input vector
+    /// (`invec`).
+    ///
+    /// The closure `f` is called with a slice containing the data of the input
+    /// vector. This provides direct memory access to the input vector
+    /// without requiring a copy.
+    fn access_invec<R>(
         &self,
         msg_handle: ServiceHandle,
         invec_idx: u32,
         f: impl FnOnce(&[u8]) -> R,
     ) -> R;
-    fn map_outvec<R>(
+
+    /// Executes a closure with write-only access to the specified output vector
+    /// (`outvec`).
+    ///
+    /// The closure `f` is called with a mutable slice for the output vector.
+    /// The closure must return a tuple `(R, usize)`, where the `usize`
+    /// represents the number of bytes written to the vector. The SPM will
+    /// update the vector's length based on this value.
+    fn access_outvec<R>(
         &self,
         msg_handle: ServiceHandle,
         outvec_idx: u32,
         f: impl FnOnce(&mut [u8]) -> (R, usize),
     ) -> R;
-    fn map_invec_outvec<R>(
+
+    /// Executes a closure with simultaneous access to an input vector and an
+    /// output vector.
+    ///
+    /// The closure `f` receives both a read-only slice for the input vector
+    /// and a mutable slice for the output vector. It must return a tuple `(R,
+    /// usize)`, where the `usize` indicates the number of bytes written to
+    /// the output vector.
+    fn access_invec_outvec<R>(
         &self,
         msg_handle: ServiceHandle,
         invec_idx: u32,
         outvec_idx: u32,
         f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize),
     ) -> R;
-    // We also expose the call function for internal use. Services themselves may
-    // not need it.
+
+    /// Calls a service via the Secure Partition Manager (SPM).
+    ///
+    /// This function handles crossing the security boundary or IPC boundaries
+    /// to deliver a request to the specified `handle`.
+    ///
+    /// # Safety
+    ///
+    /// The `in_vec` and `out_vec` pointers must be valid and the buffers they
+    /// point to must outlive the duration of the call. The memory must not
+    /// be mutated concurrently while the SPM or the target service accesses
+    /// it.
     unsafe fn call(
         &self,
         handle: ServiceHandle,
