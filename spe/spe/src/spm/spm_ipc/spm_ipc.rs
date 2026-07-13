@@ -335,6 +335,7 @@ mod tests {
 
     use super::*;
     use crate::spm_api::{CallerAttributes, PsaMsg};
+    use crate::spm::spm_ipc::{IpcPlatform, IpcProcessPlatform, CustomMpuRegion, ServiceVectors, IpcProcess};
 
     #[test]
     fn test_spm_ipc_state_init() {
