@@ -236,7 +236,6 @@ pub fn configure_security(
     nonsecure_flash_limit: u32,
     nonsecure_ram_start: u32,
     nonsecure_ram_limit: u32,
-    restrict_unprivileged: bool,
 ) {
     let nsc_start = nonsecure_flash_start
         .wrapping_add(0x1000_0000)
@@ -330,21 +329,4 @@ pub fn configure_security(
     .unwrap();
 
     sau.enable();
-
-    if restrict_unprivileged {
-        use cortex_m::mpu::{MPU, Permissions};
-        let mpu = unsafe { MPU::<8>::new() };
-        let mut config = mpu.new_config().expect("MPU config slots exhausted");
-
-        mpu.allocate_region(
-            0x3201FF00 as *const u8,
-            0x100,
-            Permissions::ReadOnly,
-            &mut config,
-        )
-        .unwrap();
-
-        unsafe { mpu.configure_mpu(&config) };
-        mpu.enable_mpu();
-    }
 }

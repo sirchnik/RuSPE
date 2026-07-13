@@ -122,7 +122,6 @@ unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
         NONSECURE_FLASH_LIMIT,
         NONSECURE_RAM_START,
         NONSECURE_RAM_LIMIT,
-        true,
     );
 
     let sec_platform = unsafe {
