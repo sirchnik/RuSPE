@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
+use cortex_m::mpu::MpuConfig;
 use psa_interface::types::ServiceHandle;
 
 use crate::libs::mutex::Mutex;
@@ -94,16 +95,16 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
     }
 
     fn apply_mpu_config(&self, process_index: usize) {
-        use cortex_m::mpu::{MPU, Permissions};
+        use cortex_m::mpu::{Mpu, Permissions};
 
         let vectors = self.processes[process_index].get_vectors();
         let Some(vectors) = vectors else {
             return;
         };
 
-        let mpu = unsafe { MPU::<8>::new() };
+        let mpu = Mpu::<8>::new();
 
-        let mut config = mpu.new_config().expect("MPU config slots exhausted");
+        let mut config = MpuConfig::default();
 
         let service_rom_start = vectors.rom_start;
         let service_rom_size = (vectors.rom_limit as usize)
@@ -183,8 +184,8 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
 
         unsafe {
             mpu.configure_mpu(&config);
+            mpu.enable_mpu();
         }
-        mpu.enable_mpu();
     }
 }
 

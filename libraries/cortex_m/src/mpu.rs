@@ -152,17 +152,17 @@ impl<const N: usize> Default for MpuConfig<N> {
     }
 }
 
-pub struct MPU<const N: usize> {
+pub struct Mpu<const N: usize> {
     registers: *const MpuRegisters,
 }
 
-impl<const N: usize> MPU<N> {
+impl<const N: usize> Mpu<N> {
     /// Creates a new MPU handle.
     ///
     /// # Safety
     /// This function must be used carefully to ensure only one entity manages
     /// the MPU.
-    pub const unsafe fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             registers: 0xE000ED90 as *const MpuRegisters,
         }
@@ -173,15 +173,10 @@ impl<const N: usize> MPU<N> {
     }
 
     /// Enables the MPU
-    pub fn enable_mpu(&self) {
+    pub unsafe fn enable_mpu(&self) {
         self.registers()
             .ctrl
             .write(MPU_CTRL::ENABLE::SET + MPU_CTRL::HFNMIENA::CLEAR + MPU_CTRL::PRIVDEFENA::SET);
-    }
-
-    /// Creates a new empty MPU configuration.
-    pub fn new_config(&self) -> Result<MpuConfig<N>, ()> {
-        Ok(MpuConfig::default())
     }
 
     /// Allocates an MPU region in the provided configuration.
