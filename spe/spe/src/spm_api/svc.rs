@@ -178,6 +178,29 @@ unsafe fn svc_call<const SVC_NUM: u8>(
     (out0, out1, out2, out3)
 }
 
+/// Exit the service process and return `status` to the caller.
+///
+/// This function encapsulates the `svc {SVC_PROCESS_EXIT}` instruction so
+/// callers in service code don't need to use inline assembly themselves.
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+pub fn process_exit(status: PsaStatus) -> ! {
+    use core::arch::asm;
+
+    unsafe {
+        asm!(
+            "svc {SVC_PROCESS_EXIT}",
+            SVC_PROCESS_EXIT = const SVC_PROCESS_EXIT,
+            in("r0") status,
+            options(noreturn),
+        )
+    }
+}
+
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
+pub fn process_exit(_status: PsaStatus) -> ! {
+    panic!("process_exit is only available on ARM bare-metal targets");
+}
+
 #[cfg(not(all(target_arch = "arm", target_os = "none")))]
 unsafe fn svc_call<const SVC_NUM: u8>(
     _: usize,

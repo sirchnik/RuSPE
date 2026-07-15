@@ -8,7 +8,6 @@ use psa_interface::types::{PsaStatus, ServiceHandle};
 
 use super::ipc_platform::IpcProcessPlatform;
 use super::svc_call::{EXCEPTION_FRAME_WORDS, svc_call_unpriv};
-use crate::service::Service;
 use crate::spm::spm::SpmCall;
 use crate::spm_api::PsaMsg;
 
@@ -21,7 +20,7 @@ use crate::spm_api::PsaMsg;
 pub struct ServiceVectors {
     pub version: u32,
     pub init_entry: unsafe extern "C" fn(),
-    pub call_entry: unsafe extern "C" fn(*const PsaMsg) -> !,
+    pub call_entry: unsafe extern "C" fn(PsaMsg) -> !,
     /// Start of the service ROM window containing executable code and rodata.
     pub rom_start: *const u8,
     /// Exclusive end of the service ROM window.
@@ -44,16 +43,7 @@ pub struct ServiceVectors {
 unsafe impl Sync for ServiceVectors {}
 
 /// A process that can be managed and dispatched by the SPM IPC mechanism.
-///
-/// Implementors represent either a flash-resident service binary
-/// (`ServiceProcess`) or a service compiled directly into the SPM binary
-/// (`EmbeddedProcess`).
-///
-/// # Safety
-///
-/// Implementors must ensure that `init()` and `call()` are safe to invoke
-/// in the unprivileged execution context provided by the SPM.
-pub unsafe trait IpcProcess: Sync {
+pub trait IpcProcess: Sync {
     fn handle(&self) -> ServiceHandle;
     fn get_vectors(&self) -> Option<&'static ServiceVectors>;
     fn version(&self) -> u32;
@@ -142,7 +132,7 @@ impl ServiceProcess {
 // # Safety
 // ServiceProcess vectors are assumed valid and immutable in flash for the
 // lifetime of the program. The caller of SpmIpc ensures correct flash layout.
-unsafe impl IpcProcess for ServiceProcess {
+impl IpcProcess for ServiceProcess {
     fn handle(&self) -> ServiceHandle {
         self.handle
     }
@@ -196,68 +186,6 @@ unsafe impl IpcProcess for ServiceProcess {
 }
 
 // ---------------------------------------------------------------------------
-// EmbeddedProcess - service compiled into the SPM binary
-// ---------------------------------------------------------------------------
-
-pub struct EmbeddedProcess<A: crate::spm_api::SpmApi + Sync + 'static> {
-    pub handle: ServiceHandle,
-    pub version: u32,
-    service: &'static (dyn Service<A> + Sync),
-    api: &'static A,
-}
-
-// # Safety
-unsafe impl<A: crate::spm_api::SpmApi + Sync + 'static> Sync for EmbeddedProcess<A> {}
-
-impl<A: crate::spm_api::SpmApi + Sync + 'static> EmbeddedProcess<A> {
-    pub const fn new(
-        handle: ServiceHandle,
-        version: u32,
-        service: &'static (dyn Service<A> + Sync),
-        api: &'static A,
-    ) -> Self {
-        Self {
-            handle,
-            version,
-            service,
-            api,
-        }
-    }
-}
-
-// # Safety
-// The embedded service runs in the same binary; its call() only accesses the
-unsafe impl<A: crate::spm_api::SpmApi + Sync + 'static> IpcProcess for EmbeddedProcess<A> {
-    fn handle(&self) -> ServiceHandle {
-        self.handle
-    }
-
-    fn get_vectors(&self) -> Option<&'static ServiceVectors> {
-        None
-    }
-
-    fn version(&self) -> u32 {
-        self.version
-    }
-
-    unsafe fn init_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
-        &self,
-        _platform: &P,
-        _spm: &S,
-    ) {
-        // Embedded services are fully initialized at construction time.
-    }
-
-    unsafe fn call_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
-        &self,
-        _platform: &P,
-        _spm: &S,
-        msg: PsaMsg,
-    ) -> Result<(), crate::StatusCode> {
-        self.service.call(msg, self.api)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use core::mem::size_of;
@@ -287,12 +215,12 @@ mod tests {
             handle: ServiceHandle::Crypto,
             msg_type: 0,
             caller: crate::spm_api::CallerAttributes::SECURE_UNPRIVILEGED,
-            in_size: [None; 4],
-            out_size: [None; 4],
+            in_size: [crate::spm_api::MaybeUsize::none(); 4],
+            out_size: [crate::spm_api::MaybeUsize::none(); 4],
         };
 
         unsafe extern "C" fn dummy_init() {}
-        unsafe extern "C" fn dummy_call(_: *const PsaMsg) -> ! {
+        unsafe extern "C" fn dummy_call(_: PsaMsg) -> ! {
             loop {}
         }
 

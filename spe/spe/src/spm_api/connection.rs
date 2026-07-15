@@ -8,7 +8,7 @@ use psa_interface::status::StatusCode;
 use psa_interface::types::{CtrlParam, FFInVec, FFOutVec, ServiceHandle};
 
 use crate::spm::spm::{Connection, PSA_MAX_IOVEC, SpmCall, SpmError};
-use crate::spm_api::{CallerAttributes, PsaMsg};
+use crate::spm_api::{CallerAttributes, MaybeUsize, PsaMsg};
 pub fn validate_call_params(ctrl_param: CtrlParam) -> Result<(i32, usize, usize), StatusCode> {
     let msg_type = ctrl_param.unpack_type();
 
@@ -110,13 +110,13 @@ pub fn call_from_slices(
     for (idx, in_vec) in in_vecs.iter().enumerate() {
         invec_base[idx] = in_vec.base;
         invec_accessed[idx] = 0;
-        msg.in_size[idx] = Some(in_vec.len);
+        msg.in_size[idx] = MaybeUsize::some(in_vec.len);
     }
 
     for (idx, out_vec) in out_vecs.iter_mut().enumerate() {
         outvec_base[idx] = out_vec.base;
         outvec_written[idx] = 0;
-        msg.out_size[idx] = Some(out_vec.len);
+        msg.out_size[idx] = MaybeUsize::some(out_vec.len);
     }
 
     Ok(Connection {
@@ -290,7 +290,7 @@ pub fn commit_outvec_write(
     }
 
     connection.outvec_written[out_index] = written_len;
-    connection.msg.out_size[out_index] = Some(written_len);
+    connection.msg.out_size[out_index] = MaybeUsize::some(written_len);
     connection.outvec_unmapped[out_index] = true;
 }
 

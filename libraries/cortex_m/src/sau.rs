@@ -7,8 +7,8 @@
 //! Reference Manual.
 
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
-use tock_registers::{register_bitfields, register_structs};
 use tock_registers::registers::{ReadOnly, ReadWrite};
+use tock_registers::{register_bitfields, register_structs};
 
 register_structs! {
     /// Register block

@@ -140,7 +140,7 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
                     if self.find_process_index(conn.msg.handle) == Some(process_index) {
                         for (i, &is_mapped) in conn.invec_mapped.iter().enumerate() {
                             if is_mapped && !conn.invec_unmapped[i] {
-                                if let Some(size) = conn.msg.in_size[i] {
+                                if let Some(size) = conn.msg.in_size[i].as_option() {
                                     if size > 0 {
                                         let base_addr = conn.invec_base[i] as usize;
                                         let aligned_base = base_addr & !0x1F;
@@ -159,7 +159,7 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
                         }
                         for (i, &is_mapped) in conn.outvec_mapped.iter().enumerate() {
                             if is_mapped && !conn.outvec_unmapped[i] {
-                                if let Some(size) = conn.msg.out_size[i] {
+                                if let Some(size) = conn.msg.out_size[i].as_option() {
                                     if size > 0 {
                                         let base_addr = conn.outvec_base[i] as usize;
                                         let aligned_base = base_addr & !0x1F;
@@ -366,7 +366,7 @@ mod tests {
     }
 
     // # Safety: test stub
-    unsafe impl IpcProcess for MockProcess {
+    impl IpcProcess for MockProcess {
         fn handle(&self) -> ServiceHandle {
             self.handle
         }

@@ -203,8 +203,8 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
     fn has_exactly_one_iovec(msg: &PsaMsg) -> bool {
         msg.in_size[0].is_some()
             && msg.out_size[0].is_some()
-            && msg.in_size[1..].iter().all(Option::is_none)
-            && msg.out_size[1..].iter().all(Option::is_none)
+            && msg.in_size[1..].iter().all(|m| m.is_none())
+            && msg.out_size[1..].iter().all(|m| m.is_none())
     }
 
     fn build_token_claims<'a>(

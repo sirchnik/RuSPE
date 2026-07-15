@@ -15,18 +15,10 @@ static SERVICE: InitialAttestation<spe::spm_api::IpcPsaClient> =
     InitialAttestation::new(Psc3AttestPlatform::new(Some(0x32007F00)));
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn call(msg: *const PsaMsg) -> ! {
-    let msg = unsafe { &*msg };
-    let status = into_psa_status(SERVICE.call(*msg, &spe::spm_api::SvcApi));
+pub extern "C" fn call(msg: PsaMsg) -> ! {
+    let status = into_psa_status(SERVICE.call(msg, &spe::spm_api::SvcApi));
     // stack gets reset by SPM on every call, so we can just exit the process here
-    unsafe {
-        core::arch::asm!(
-            "svc {SVC_PROCESS_EXIT}",
-            SVC_PROCESS_EXIT = const spe::spm_api::SVC_PROCESS_EXIT,
-            in("r0") status,
-            options(noreturn)
-        )
-    }
+    spe::spm_api::process_exit(status);
 }
 
 // External linker symbols for memory initialization

@@ -442,6 +442,7 @@ pub trait SpmApi {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(C)]
 pub struct CallerAttributes {
     /// Caller is from the Non-Secure world.
     pub ns: bool,
@@ -469,12 +470,13 @@ impl CallerAttributes {
 }
 
 #[derive(Clone, Copy, Debug)]
+#[repr(C)]
 pub struct PsaMsg {
     pub handle: ServiceHandle,
     pub msg_type: i32,
     pub caller: CallerAttributes,
-    pub in_size: [Option<usize>; PSA_MAX_IOVEC],
-    pub out_size: [Option<usize>; PSA_MAX_IOVEC],
+    pub in_size: [MaybeUsize; PSA_MAX_IOVEC],
+    pub out_size: [MaybeUsize; PSA_MAX_IOVEC],
 }
 
 impl PsaMsg {
@@ -483,8 +485,61 @@ impl PsaMsg {
             handle,
             msg_type,
             caller,
-            in_size: [None; PSA_MAX_IOVEC],
-            out_size: [None; PSA_MAX_IOVEC],
+            in_size: [MaybeUsize::none(); PSA_MAX_IOVEC],
+            out_size: [MaybeUsize::none(); PSA_MAX_IOVEC],
+        }
+    }
+}
+
+/// FFI-safe replacement for `Option<usize>` used inside `PsaMsg`.
+///
+/// We represent `None` as `usize::MAX` and `Some(v)` as `v`. Marked
+/// `#[repr(transparent)]` so the layout is identical to `usize`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct MaybeUsize(pub usize);
+
+impl MaybeUsize {
+    pub const NONE_SENTINEL: usize = usize::MAX;
+
+    pub const fn none() -> Self {
+        Self(Self::NONE_SENTINEL)
+    }
+
+    pub const fn some(v: usize) -> Self {
+        Self(v)
+    }
+
+    pub fn is_some(&self) -> bool {
+        self.0 != Self::NONE_SENTINEL
+    }
+
+    pub fn is_none(&self) -> bool {
+        self.0 == Self::NONE_SENTINEL
+    }
+
+    pub fn as_option(&self) -> Option<usize> {
+        if self.is_some() { Some(self.0) } else { None }
+    }
+
+    pub fn unwrap_or(&self, default: usize) -> usize {
+        if self.is_some() { self.0 } else { default }
+    }
+
+    pub fn unwrap(&self) -> usize {
+        if self.is_some() {
+            self.0
+        } else {
+            panic!("called `MaybeUsize::unwrap()` on a None value")
+        }
+    }
+}
+
+impl From<Option<usize>> for MaybeUsize {
+    fn from(opt: Option<usize>) -> Self {
+        match opt {
+            Some(v) => MaybeUsize::some(v),
+            None => MaybeUsize::none(),
         }
     }
 }
