@@ -12,10 +12,11 @@ use tock_registers::{register_bitfields, register_structs};
 #[derive(Copy, Clone, Debug)]
 pub enum Permissions {
     ReadWriteExecute,
-    ReadWriteOnly,
-    ReadExecuteOnly,
-    ReadOnly,
-    ExecuteOnly,
+    ReadWriteXN,
+    ReadXN,
+    ReadExecute,
+    ReadPrivXN,
+    ReadPrivExecute,
 }
 
 register_structs! {
@@ -75,8 +76,8 @@ register_bitfields![u32,
             ReadOnly = 0b11
         ],
         XN OFFSET(0) NUMBITS(1) [
-            Enable = 0,
-            Disable = 1
+            Disable = 0,
+            Enable = 1
         ]
     ],
     MPU_RLAR [
@@ -193,11 +194,12 @@ impl<const N: usize> MPU<N> {
     ) -> Result<(), ()> {
         let (access, execute) = match permissions {
             Permissions::ReadWriteExecute => (MPU_RBAR::AP::ReadWrite, MPU_RBAR::XN::Enable),
-            Permissions::ReadWriteOnly => (MPU_RBAR::AP::ReadWrite, MPU_RBAR::XN::Disable),
-            Permissions::ReadExecuteOnly => (MPU_RBAR::AP::ReadOnly, MPU_RBAR::XN::Enable),
-            Permissions::ReadOnly => (MPU_RBAR::AP::ReadOnly, MPU_RBAR::XN::Disable),
-            Permissions::ExecuteOnly => {
-                (MPU_RBAR::AP::ReadOnlyPrivilegedOnly, MPU_RBAR::XN::Enable)
+            Permissions::ReadWriteXN => (MPU_RBAR::AP::ReadWrite, MPU_RBAR::XN::Disable),
+            Permissions::ReadXN => (MPU_RBAR::AP::ReadOnly, MPU_RBAR::XN::Enable),
+            Permissions::ReadExecute => (MPU_RBAR::AP::ReadOnly, MPU_RBAR::XN::Disable),
+            Permissions::ReadPrivXN => (MPU_RBAR::AP::ReadOnlyPrivilegedOnly, MPU_RBAR::XN::Enable),
+            Permissions::ReadPrivExecute => {
+                (MPU_RBAR::AP::ReadOnlyPrivilegedOnly, MPU_RBAR::XN::Disable)
             }
         };
 

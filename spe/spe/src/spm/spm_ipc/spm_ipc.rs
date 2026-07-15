@@ -116,14 +116,14 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
         mpu.allocate_region(
             service_rom_start,
             service_rom_size,
-            Permissions::ReadExecuteOnly,
+            Permissions::ReadExecute,
             &mut config,
         )
         .unwrap();
         mpu.allocate_region(
             service_ram_start,
             service_ram_size,
-            Permissions::ReadWriteOnly,
+            Permissions::ReadWriteXN,
             &mut config,
         )
         .unwrap();
@@ -149,7 +149,7 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
                                         mpu.allocate_region(
                                             aligned_base as *const u8,
                                             aligned_size,
-                                            Permissions::ReadOnly,
+                                            Permissions::ReadXN,
                                             &mut config,
                                         )
                                         .unwrap();
@@ -168,7 +168,7 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
                                         mpu.allocate_region(
                                             aligned_base as *const u8,
                                             aligned_size,
-                                            Permissions::ReadWriteOnly,
+                                            Permissions::ReadWriteXN,
                                             &mut config,
                                         )
                                         .unwrap();
@@ -323,8 +323,10 @@ mod tests {
     use psa_interface::types::ServiceHandle;
 
     use super::*;
+    use crate::spm::spm_ipc::{
+        CustomMpuRegion, IpcPlatform, IpcProcess, IpcProcessPlatform, ServiceVectors,
+    };
     use crate::spm_api::{CallerAttributes, PsaMsg};
-    use crate::spm::spm_ipc::{IpcPlatform, IpcProcessPlatform, CustomMpuRegion, ServiceVectors, IpcProcess};
 
     #[test]
     fn test_spm_ipc_state_init() {

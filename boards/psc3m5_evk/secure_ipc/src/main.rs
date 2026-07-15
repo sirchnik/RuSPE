@@ -108,17 +108,17 @@ impl IpcPlatform for Psc3IpcPlatform {
                 CustomMpuRegion {
                     base: 0x4223_0000 as *const u8,
                     size: 0x200,
-                    permissions: Permissions::ReadWriteOnly,
+                    permissions: Permissions::ReadWriteXN,
                 },
                 CustomMpuRegion {
                     base: 0x4261_0180 as *const u8,
                     size: 0x20,
-                    permissions: Permissions::ReadOnly,
+                    permissions: Permissions::ReadXN,
                 },
                 CustomMpuRegion {
                     base: 0x3200_7F00 as *const u8,
                     size: 0x100,
-                    permissions: Permissions::ReadOnly,
+                    permissions: Permissions::ReadXN,
                 },
             ];
             &REGIONS
