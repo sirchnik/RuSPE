@@ -153,6 +153,8 @@ impl ServiceProcess {
             .wrapping_sub(offset)
             .cast_mut()
             .cast::<PsaMsg>();
+        // SAFETY: The mailbox address is verified to be within the service's RAM region
+        // and correctly aligned.
         unsafe {
             mailbox.write(msg);
         }
@@ -179,6 +181,9 @@ impl IpcProcess for ServiceProcess {
 
     fn init_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(&self, _platform: &P, _spm: &S) {
         let vectors = self.vectors;
+        // SAFETY: The init_entry, stack_limit, and stack_top are provided by the
+        // ServiceVectors which are guaranteed to be valid by the safety
+        // contract of ServiceProcess::new.
         unsafe {
             svc_call_unpriv(
                 vectors.init_entry as usize,
@@ -197,6 +202,9 @@ impl IpcProcess for ServiceProcess {
     ) -> Result<(), crate::StatusCode> {
         let vectors = self.vectors;
         let (staged_msg, stack_top) = Self::stage_msg_mailbox(vectors, msg);
+        // SAFETY: The call_entry, stack_limit, and stack_top are provided by the
+        // ServiceVectors which are guaranteed to be valid by the safety
+        // contract of ServiceProcess::new.
         let status = unsafe {
             svc_call_unpriv(
                 vectors.call_entry as usize,
@@ -234,8 +242,10 @@ mod tests {
         // Create a dummy RAM buffer
         let mut ram = [0u8; 1024];
         let ram_start = ram.as_mut_ptr();
+        // SAFETY: The offset is within the bounds of `ram` array.
         let ram_limit = unsafe { ram_start.add(ram.len()) };
 
+        // SAFETY: The offset is within the bounds of `ram` array.
         let stack_top = unsafe { ram_limit.sub(16) }; // 16 bytes for padding
         let stack_limit = ram_start;
 
@@ -277,6 +287,7 @@ mod tests {
         );
 
         // Ensure message was written
+        // SAFETY: msg_ptr points to the valid staged message in the ram buffer.
         let read_msg = unsafe { &*msg_ptr };
         assert_eq!(read_msg.handle, ServiceHandle::Crypto);
     }

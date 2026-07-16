@@ -183,6 +183,9 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
             })
             .unwrap();
 
+        // SAFETY: `config` contains validated MPU regions. Configuring and enabling
+        // the MPU restricts access to memory according to the specified permissions,
+        // which enforces process isolation.
         unsafe {
             mpu.configure_mpu(&config);
             mpu.enable_mpu();
@@ -190,9 +193,8 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
     }
 
     #[inline(never)]
-    fn fun_name(&self) -> Option<usize> {
-        let prev_process_index = self
-            .state
+    fn get_last_process_index(&self) -> Option<usize> {
+        self.state
             .try_lock(|state| {
                 state.connections.pop_connection();
                 state
@@ -201,8 +203,7 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
                     .ok()
                     .and_then(|conn| self.find_process_index(conn.msg.handle))
             })
-            .unwrap();
-        prev_process_index
+            .unwrap()
     }
 }
 
@@ -235,7 +236,7 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmCall
         let result = self.processes[process_index].call_process(self.platform, self, msg);
 
         // Restore MPU of previous process, if any
-        let prev_process_index = self.fun_name();
+        let prev_process_index = self.get_last_process_index();
 
         if let Some(prev) = prev_process_index {
             self.apply_mpu_config(prev);

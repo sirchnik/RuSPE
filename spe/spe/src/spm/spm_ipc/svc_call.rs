@@ -4,40 +4,25 @@
 
 /// Call a function in unprivileged Thread mode via SVC, using PSP.
 ///
-/// Before issuing `SVC_START_PROCESS`, this function:
-/// 1. Writes a fabricated exception frame at `stack_top - 32` containing the
-///    target `fn_ptr`, `arg`, and `thunk` (return address).
-/// 2. Sets PSP to that frame base.
+/// Sets up an exception frame at `stack_top - 32` with `PC = fn_ptr`, `R0 =
+/// arg`, and `LR = 0xFFFF_FFFF` (dummy). It then switches to PSP and triggers
+/// `SVC_START_PROCESS`.
 ///
-/// The SVC handler then:
-/// - Sets `CONTROL.nPRIV = 1`
-/// - Sets EXC_RETURN SPSEL bit -> exception return unstacks from PSP
-/// - bx lr -> hardware pops frame from PSP -> service runs unprivileged.
-///
-/// The service is expected to return to the `thunk` address (via `LR`), which
-/// will issue `svc {SVC_PROCESS_EXIT}`. This triggers the handler to copy the
-/// return value from the PSP frame to the orphaned MSP frame, clear nPRIV, flip
-/// EXC_RETURN back to MSP, and return - landing us back here with the result in
-/// R0.
+/// The handler executes the service unprivileged. The service MUST exit by
+/// issuing `svc {SVC_PROCESS_EXIT}`, as returning normally (via the dummy `LR`)
+/// will fault. The handler then restores privileged mode and returns the
+/// service's `R0` result.
 ///
 /// # Safety
-/// The caller must guarantee the following conditions to avoid undefined
-/// behavior:
-/// - Memory Boundaries: `stack_top` must be an 8-byte aligned address pointing
-///   to the end of a valid, writable memory allocation. It must have at least
-///   32 bytes of valid space immediately below it for the fabricated exception
-///   frame.
-/// - Stack Limits: `stack_limit` must be less than or equal to `stack_top -
-///   32`. It sets the hardware bounds for the Process Stack Pointer (PSP). The
-///   region between `stack_limit` and `stack_top` must be valid, accessible
-///   memory.
-/// - Executable Code: `fn_ptr` must point to valid, executable code
-///   instructions.
-/// - Hardware Isolation: The caller must have appropriately configured the
-///   memory protection unit (MPU). The unprivileged code must be strictly
-///   sandboxed so it cannot violate Rust's memory safety guarantees by reading
-///   or mutating privileged memory or memory belonging to other isolated
-///   processes.
+/// The caller must guarantee:
+/// - *Memory*: `stack_top` must be 8-byte aligned, pointing to valid memory,
+///   with at least 32 bytes of space below it for the exception frame.
+/// - *Bounds*: `stack_limit <= stack_top - 32`, forming a valid, accessible
+///   stack region.
+/// - *Execution*: `fn_ptr` must point to valid code that exits via `svc
+///   {SVC_PROCESS_EXIT}` (returning normally will fault).
+/// - *Isolation*: The MPU must be configured to strictly sandbox the
+///   unprivileged execution.
 #[cfg(target_arch = "arm")]
 pub(crate) unsafe fn svc_call_unpriv(
     fn_ptr: usize,
@@ -59,6 +44,9 @@ pub(crate) unsafe fn svc_call_unpriv(
         "service stack limit overlaps exception frame"
     );
     let frame_base = frame_base_addr as *mut usize;
+    // SAFETY: The frame_base is calculated to be strictly within the
+    // caller-provided valid stack boundaries (`stack_top` and `stack_limit`).
+    // The memory is therefore safe to write to.
     unsafe {
         frame_base.add(0).write_volatile(arg); // R0 = argument
         frame_base.add(1).write_volatile(0); // R1
@@ -72,6 +60,9 @@ pub(crate) unsafe fn svc_call_unpriv(
 
     // Point PSP at the fake frame and bound it with PSPLIM so stack growth
     // faults before it can trample staged service arguments.
+    // SAFETY: The `stack_limit` and `frame_base` are valid stack limits as
+    // guaranteed by the caller. Setting PSP and PSPLIM configures the hardware
+    // for the unprivileged execution context.
     unsafe {
         cortex_m::register::set_psplim(stack_limit as u32);
         asm!(
@@ -85,6 +76,9 @@ pub(crate) unsafe fn svc_call_unpriv(
     // When the service finishes -> SVC_PROCESS_EXIT -> handler returns via
     // MSP -> we land back here with the return value in R0.
     let ret: usize;
+    // SAFETY: The SVC instruction transitions the processor to handler mode.
+    // The exception handler respects the caller's stack setup, preserving memory
+    // safety.
     unsafe {
         asm!(
             "svc {svc_num}",
