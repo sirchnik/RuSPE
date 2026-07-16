@@ -510,22 +510,25 @@ impl MaybeUsize {
         Self(v)
     }
 
-    pub fn is_some(&self) -> bool {
+    pub const fn is_some(&self) -> bool {
         self.0 != Self::NONE_SENTINEL
     }
 
-    pub fn is_none(&self) -> bool {
+    pub const fn is_none(&self) -> bool {
         self.0 == Self::NONE_SENTINEL
     }
 
-    pub fn as_option(&self) -> Option<usize> {
+    pub const fn as_option(&self) -> Option<usize> {
         if self.is_some() { Some(self.0) } else { None }
     }
 
-    pub fn unwrap_or(&self, default: usize) -> usize {
+    pub const fn unwrap_or(&self, default: usize) -> usize {
         if self.is_some() { self.0 } else { default }
     }
 
+    /// # Panics
+    ///
+    /// Panics on invalid state.
     pub fn unwrap(&self) -> usize {
         if self.is_some() {
             self.0
@@ -537,9 +540,6 @@ impl MaybeUsize {
 
 impl From<Option<usize>> for MaybeUsize {
     fn from(opt: Option<usize>) -> Self {
-        match opt {
-            Some(v) => MaybeUsize::some(v),
-            None => MaybeUsize::none(),
-        }
+        opt.map_or_else(Self::none, Self::some)
     }
 }

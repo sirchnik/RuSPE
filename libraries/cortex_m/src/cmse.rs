@@ -4,7 +4,7 @@
 
 /// Memory access behavior: determine which privilege execution mode is used
 /// and which Memory Protection Unit (MPU) is used.
-#[derive(PartialEq, Copy, Clone, Debug)]
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub enum AccessType {
     /// Access using current privilege level and reading from current security
     /// state MPU.
@@ -17,7 +17,7 @@ pub enum AccessType {
     NonSecureUnprivileged,
 }
 
-#[derive(PartialEq, Copy, Clone, Debug)]
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub struct TestTarget {
     bits: u32,
     access_type: AccessType,
@@ -61,7 +61,7 @@ impl TestTarget {
             }
         };
 
-        TestTarget { bits, access_type }
+        Self { bits, access_type }
     }
 
     /// Checks a memory range. Returns None if boundaries are crossed or range
@@ -73,7 +73,7 @@ impl TestTarget {
         let begin = addr as usize;
         let end = begin.checked_add(size - 1)?;
 
-        let test_start = TestTarget::check(addr, access_type);
+        let test_start = Self::check(addr, access_type);
 
         // 32-byte alignment check: If the range crosses a 32-byte boundary,
         // we must check the end address to ensure security attributes remain identical.
@@ -82,39 +82,41 @@ impl TestTarget {
         if single_check {
             Some(test_start)
         } else {
-            let test_end = TestTarget::check(end as *mut u32, access_type);
-            if test_start.bits != test_end.bits {
-                None
-            } else {
-                Some(test_start)
-            }
+            let test_end = Self::check(end as *mut u32, access_type);
+            (test_start.bits == test_end.bits).then_some(test_start)
         }
     }
 
     // --- Bitfield extraction logic ---
 
-    pub fn readable(&self) -> bool {
+    #[must_use]
+    pub const fn readable(&self) -> bool {
         (self.bits >> 18) & 1 != 0
     }
 
-    pub fn read_and_writable(&self) -> bool {
+    #[must_use]
+    pub const fn read_and_writable(&self) -> bool {
         (self.bits >> 19) & 1 != 0
     }
 
-    pub fn secure(&self) -> bool {
+    #[must_use]
+    pub const fn secure(&self) -> bool {
         (self.bits >> 22) & 1 != 0
     }
 
-    pub fn ns_readable(&self) -> bool {
+    #[must_use]
+    pub const fn ns_readable(&self) -> bool {
         (self.bits >> 20) & 1 != 0
     }
 
-    pub fn ns_read_and_writable(&self) -> bool {
+    #[must_use]
+    pub const fn ns_read_and_writable(&self) -> bool {
         (self.bits >> 21) & 1 != 0
     }
 
     /// MPU Region: Valid if bit 17 (srvalid) is set.
-    pub fn mpu_region(&self) -> Option<u8> {
+    #[must_use]
+    pub const fn mpu_region(&self) -> Option<u8> {
         if (self.bits >> 17) & 1 != 0 {
             Some(((self.bits >> 8) & 0xFF) as u8)
         } else {
@@ -123,12 +125,14 @@ impl TestTarget {
     }
 
     /// SAU Region: Uses the same bit as MPU (SREGION).
-    pub fn sau_region(&self) -> Option<u8> {
+    #[must_use]
+    pub const fn sau_region(&self) -> Option<u8> {
         self.mpu_region()
     }
 
     /// IDAU Region: Valid if bit 23 (irvalid) is set.
-    pub fn idau_region(&self) -> Option<u8> {
+    #[must_use]
+    pub const fn idau_region(&self) -> Option<u8> {
         if (self.bits >> 23) & 1 != 0 {
             Some(((self.bits >> 24) & 0xFF) as u8)
         } else {
@@ -136,11 +140,13 @@ impl TestTarget {
         }
     }
 
-    pub fn as_u32(&self) -> u32 {
+    #[must_use]
+    pub const fn as_u32(&self) -> u32 {
         self.bits
     }
 
-    pub fn access_type(&self) -> AccessType {
+    #[must_use]
+    pub const fn access_type(&self) -> AccessType {
         self.access_type
     }
 }

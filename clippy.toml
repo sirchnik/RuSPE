@@ -1,0 +1,5 @@
+# SPDX-FileCopyrightText: Infineon Technologies AG
+#
+# SPDX-License-Identifier: MIT
+
+absolute-paths-allowed-crates = ["core"]

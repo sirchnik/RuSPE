@@ -47,7 +47,7 @@ impl CryptoService {
 }
 
 impl<A: SpmApi> Service<A> for CryptoService {
-    fn call(&self, msg: PsaMsg, api: &A) -> Result<(), psa_interface::status::StatusCode> {
+    fn call(&self, msg: PsaMsg, api: &A) -> Result<(), StatusCode> {
         // TF-M layout: invec[0] = TfmCryptoPackIovec, invec[1] = hash,
         //              outvec[0] = signature buffer.
         api.access_invec(msg.handle, 0, |buf| -> Result<(), StatusCode> {
@@ -76,11 +76,11 @@ impl<A: SpmApi> Service<A> for CryptoService {
         })
     }
 
-    fn init(&mut self, _api: &A) -> Result<(), psa_interface::status::StatusCode> {
+    fn init(&mut self, _api: &A) -> Result<(), StatusCode> {
         Ok(())
     }
 
-    fn deinit(&mut self, _api: &A) -> Result<(), psa_interface::status::StatusCode> {
+    fn deinit(&mut self, _api: &A) -> Result<(), StatusCode> {
         Ok(())
     }
 }

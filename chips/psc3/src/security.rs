@@ -231,6 +231,11 @@ const NONSECURE_PRIV: &[PpcRegion] = &[
     PpcRegion::ProtMcpass,
 ];
 
+/// Configures the security settings for the platform.
+///
+/// # Panics
+///
+/// Panics if the SAU region configuration fails.
 pub fn configure_security(
     nonsecure_flash_start: u32,
     nonsecure_flash_limit: u32,

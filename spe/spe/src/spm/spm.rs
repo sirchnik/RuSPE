@@ -4,6 +4,8 @@
 
 use crate::spm_api::{CallerAttributes, PsaMsg};
 
+use psa_interface::types::ServiceHandle;
+
 const MAX_CONNECTIONS: usize = 4;
 pub const PSA_MAX_IOVEC: usize = 4;
 
@@ -53,7 +55,7 @@ impl ConnectionArray {
         }
     }
 
-    pub(crate) fn add_connection(&mut self, connection: Connection) -> Result<(), SpmError> {
+    pub(crate) const fn add_connection(&mut self, connection: Connection) -> Result<(), SpmError> {
         if self.top_connection >= MAX_CONNECTIONS {
             return Err(SpmError::ConnectionStackFull);
         }
@@ -65,7 +67,7 @@ impl ConnectionArray {
         Ok(())
     }
 
-    pub(crate) fn take_active_connection(&mut self) -> Result<(usize, Connection), SpmError> {
+    pub(crate) const fn take_active_connection(&mut self) -> Result<(usize, Connection), SpmError> {
         if self.top_connection == 0 {
             return Err(SpmError::NoActiveConnection);
         }
@@ -82,7 +84,7 @@ impl ConnectionArray {
         Ok((index, connection))
     }
 
-    pub(crate) fn restore_active_connection(
+    pub(crate) const fn restore_active_connection(
         &mut self,
         index: usize,
         connection: Connection,
@@ -108,7 +110,7 @@ impl ConnectionArray {
         }
     }
 
-    pub(crate) fn peek_active_connection(&self) -> Result<&Connection, SpmError> {
+    pub(crate) const fn peek_active_connection(&self) -> Result<&Connection, SpmError> {
         if self.top_connection == 0 {
             return Err(SpmError::EmptyConnectionStack);
         }
@@ -126,6 +128,7 @@ impl ConnectionArray {
 /// statics.
 pub trait SpmCall: Sync {
     fn call(&self, connection: Connection) -> Result<(), crate::StatusCode>;
+
     fn with_active_connection<F: FnMut(&mut Connection)>(&self, f: F) -> Result<(), SpmError>;
     fn has_real_permission(
         &self,
@@ -136,5 +139,5 @@ pub trait SpmCall: Sync {
     ) -> bool;
     fn map_vec(&self, is_outvec: bool, vec_idx: u32, base: *const u8, size: usize);
     fn unmap_vec(&self, is_outvec: bool, vec_idx: u32);
-    fn version(&self, handle: psa_interface::types::ServiceHandle) -> Option<u32>;
+    fn version(&self, handle: ServiceHandle) -> Option<u32>;
 }

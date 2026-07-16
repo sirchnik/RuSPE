@@ -4,6 +4,8 @@
 
 use crate::status::StatusCode;
 use crate::{PsaApiCallInterface, types};
+use core::mem::size_of;
+use core::ptr::from_ref;
 
 fn status_from_raw(status: types::PsaStatus) -> Result<(), StatusCode> {
     match StatusCode::try_from(status) {
@@ -13,10 +15,13 @@ fn status_from_raw(status: types::PsaStatus) -> Result<(), StatusCode> {
     }
 }
 
+#[must_use]
 pub fn psa_version<T: PsaApiCallInterface>(service_handle: types::ServiceHandle) -> u32 {
     T::psa_version(service_handle as u32)
 }
 
+/// # Errors
+/// Returns `StatusCode` on failure.
 pub fn psa_initial_attest_get_token<T: PsaApiCallInterface>(
     challenge: &[u8],
     token_buf: &mut [u8],
@@ -34,7 +39,7 @@ pub fn psa_initial_attest_get_token<T: PsaApiCallInterface>(
     let status = T::psa_call(
         types::ServiceHandle::AttestationService,
         types::CtrlParam::new(
-            types::AttestationServiceType::GetToken as i16,
+            types::AttestationServiceType::GetToken as u16,
             1,
             true,
             1,
@@ -48,6 +53,8 @@ pub fn psa_initial_attest_get_token<T: PsaApiCallInterface>(
     Ok(out_vec[0].len)
 }
 
+/// # Errors
+/// Returns `StatusCode` on failure.
 pub fn psa_initial_attest_get_token_size<T: PsaApiCallInterface>(
     challenge_size: usize,
 ) -> Result<usize, StatusCode> {
@@ -57,7 +64,7 @@ pub fn psa_initial_attest_get_token_size<T: PsaApiCallInterface>(
         len: challenge_size_bytes.len(),
     }];
 
-    let mut token_size_bytes = [0u8; core::mem::size_of::<usize>()];
+    let mut token_size_bytes = [0_u8; size_of::<usize>()];
     let mut out_vec = [types::FFOutVec {
         base: token_size_bytes.as_mut_ptr(),
         len: token_size_bytes.len(),
@@ -66,7 +73,7 @@ pub fn psa_initial_attest_get_token_size<T: PsaApiCallInterface>(
     let status = T::psa_call(
         types::ServiceHandle::AttestationService,
         types::CtrlParam::new(
-            types::AttestationServiceType::GetTokenSize as i16,
+            types::AttestationServiceType::GetTokenSize as u16,
             1,
             true,
             1,
@@ -83,11 +90,14 @@ pub fn psa_initial_attest_get_token_size<T: PsaApiCallInterface>(
 /// PSA Crypto `psa_sign_hash` - sign a pre-computed hash.
 ///
 /// Matches the TF-M iovec layout:
-///   invec\[0\] = `TfmCryptoPackIovec` (function_id, key_id, alg)
+///   invec\[0\] = `TfmCryptoPackIovec` (`function_id`, `key_id`, `alg`)
 ///   invec\[1\] = hash
 ///   outvec\[0\] = signature buffer
 ///
 /// On success, returns the number of bytes written to `signature`.
+///
+/// # Errors
+/// Returns `StatusCode` on failure.
 pub fn psa_sign_hash<T: PsaApiCallInterface>(
     key: types::PsaKeyId,
     alg: types::PsaAlgorithm,
@@ -98,8 +108,8 @@ pub fn psa_sign_hash<T: PsaApiCallInterface>(
 
     let in_vec = [
         types::FFInVec {
-            base: core::ptr::from_ref::<types::TfmCryptoPackIovec>(&iov).cast::<u8>(),
-            len: core::mem::size_of::<types::TfmCryptoPackIovec>(),
+            base: from_ref::<types::TfmCryptoPackIovec>(&iov).cast::<u8>(),
+            len: size_of::<types::TfmCryptoPackIovec>(),
         },
         types::FFInVec {
             base: hash.as_ptr(),
@@ -114,7 +124,7 @@ pub fn psa_sign_hash<T: PsaApiCallInterface>(
 
     let status = T::psa_call(
         types::ServiceHandle::Crypto,
-        types::CtrlParam::new(types::CryptoServiceType::SignHash as i16, 2, true, 1, true),
+        types::CtrlParam::new(types::CryptoServiceType::SignHash as u16, 2, true, 1, true),
         &in_vec,
         &mut out_vec,
     );

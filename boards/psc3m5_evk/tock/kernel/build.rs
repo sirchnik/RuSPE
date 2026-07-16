@@ -16,8 +16,8 @@ fn main() {
     let non_secure_tz_enabled = std::env::var_os("CARGO_FEATURE_NON_SECURE_TZ").is_some();
 
     if non_secure_tz_enabled {
-        println!("cargo:rustc-link-arg={}", SECURE_VENEERS_OBJ);
-        println!("cargo:rerun-if-changed={}", SECURE_VENEERS_OBJ);
+        println!("cargo:rustc-link-arg={SECURE_VENEERS_OBJ}");
+        println!("cargo:rerun-if-changed={SECURE_VENEERS_OBJ}");
         tock_build::set_and_track_linker_script(LINKER_SCRIPT_NSEC);
     } else {
         tock_build::set_and_track_linker_script(LINKER_SCRIPT_SEC);

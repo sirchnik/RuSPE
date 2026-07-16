@@ -4,7 +4,7 @@
 
 //! Cortex-M Nested Vectored Interrupt Controller (NVIC)
 
-use tock_registers::interfaces::{Readable, Writeable};
+use tock_registers::interfaces::{Readable as _, Writeable as _};
 use tock_registers::registers::{ReadOnly, ReadWrite};
 use tock_registers::{register_bitfields, register_structs};
 
@@ -110,14 +110,14 @@ register_bitfields![u32,
     ]
 ];
 
-const NVIC_BASE: *const NvicRegisters = 0xE000E000 as *const NvicRegisters;
+const NVIC_BASE: *const NvicRegisters = 0xE000_E000 as *const NvicRegisters;
 
 #[inline]
-fn nvic() -> &'static NvicRegisters {
+const fn nvic() -> &'static NvicRegisters {
     unsafe { &*NVIC_BASE }
 }
 
-/// Number of valid NVIC_XXXX registers. Note this is a ceiling on the number
+/// Number of valid `NVIC_XXXX` registers. Note this is a ceiling on the number
 /// of available interrupts (as this is the number of banks of 32), but the
 /// actual number may be less. See NVIC and ICTR documentation for more detail.
 fn number_of_nvic_registers() -> usize {
@@ -125,14 +125,20 @@ fn number_of_nvic_registers() -> usize {
 }
 
 /// Clear all pending interrupts
+///
+/// # Safety
+/// Calling this function incorrectly can disrupt execution.
 pub unsafe fn clear_all_pending() {
     for icpr in nvic().icpr.iter().take(number_of_nvic_registers()) {
-        icpr.set(!0)
+        icpr.set(!0);
     }
 }
 
-/// Set all interrupts in the range [start_id, end_id] to be non-secure. Note
-/// end_id is inclusive.
+/// Set all interrupts in the range [`start_id`, `end_id`] to be non-secure.
+/// Note `end_id` is inclusive.
+///
+/// # Safety
+/// Incorrect configuration can lead to security vulnerabilities.
 pub unsafe fn set_interrupt_non_secure(start_id: u32, end_id: u32) {
     for block in (start_id / 32)..=(end_id / 32) {
         let mut mask = nvic().itns[block as usize].get();
@@ -146,21 +152,31 @@ pub unsafe fn set_interrupt_non_secure(start_id: u32, end_id: u32) {
 }
 
 /// Enable all interrupts
+///
+/// # Safety
+/// Enabling all interrupts can cause unpredictable behavior.
 pub unsafe fn enable_all() {
     for icer in nvic().iser.iter().take(number_of_nvic_registers()) {
-        icer.set(!0)
+        icer.set(!0);
     }
 }
 
 /// Disable all interrupts
+///
+/// # Safety
+/// Disabling all interrupts can block system functions.
 pub unsafe fn disable_all() {
     for icer in nvic().icer.iter().take(number_of_nvic_registers()) {
-        icer.set(!0)
+        icer.set(!0);
     }
 }
 
 /// Get the index (0-240) the lowest number pending interrupt, or `None` if none
 /// are pending.
+///
+/// # Safety
+/// Depends on valid NVIC configuration.
+#[must_use]
 pub unsafe fn next_pending() -> Option<u32> {
     for (block, ispr) in nvic()
         .ispr
@@ -174,6 +190,7 @@ pub unsafe fn next_pending() -> Option<u32> {
         if ispr != 0 {
             // trailing_zeros == index of first high bit
             let bit = ispr.trailing_zeros();
+            #[expect(clippy::cast_possible_truncation, reason = "block index multiplication fits in u32")]
             return Some(block as u32 * 32 + bit);
         }
     }
@@ -187,6 +204,10 @@ pub unsafe fn next_pending() -> Option<u32> {
 /// Mask is defined as two `u128` fields,
 ///   `mask.0` has the bits corresponding to interrupts from 128 to 240.
 ///   `mask.1` has the bits corresponding to interrupts from 0 to 127.
+///
+/// # Safety
+/// Depends on valid NVIC configuration.
+#[must_use]
 pub unsafe fn next_pending_with_mask(mask: (u128, u128)) -> Option<u32> {
     for (block, ispr) in nvic()
         .ispr
@@ -195,18 +216,23 @@ pub unsafe fn next_pending_with_mask(mask: (u128, u128)) -> Option<u32> {
         .enumerate()
     {
         let interrupt_mask = if block < 4 { mask.1 } else { mask.0 };
+        #[expect(clippy::cast_possible_truncation, reason = "mask shift fits in u32")]
         let ispr_masked = ispr.get() & !((interrupt_mask >> (32 * (block % 4))) as u32);
 
         // If there are any high bits there is a pending interrupt
         if ispr_masked != 0 {
             // trailing_zeros == index of first high bit
             let bit = ispr_masked.trailing_zeros();
+            #[expect(clippy::cast_possible_truncation, reason = "block index multiplication fits in u32")]
             return Some(block as u32 * 32 + bit);
         }
     }
     None
 }
 
+/// # Safety
+/// Depends on valid NVIC configuration.
+#[must_use]
 pub unsafe fn has_pending() -> bool {
     nvic()
         .ispr
@@ -222,6 +248,10 @@ pub unsafe fn has_pending() -> bool {
 /// Mask is defined as two `u128` fields,
 ///   `mask.0` has the bits corresponding to interrupts from 128 to 240.
 ///   `mask.1` has the bits corresponding to interrupts from 0 to 127.
+///
+/// # Safety
+/// Depends on valid NVIC configuration.
+#[must_use]
 pub unsafe fn has_pending_with_mask(mask: (u128, u128)) -> bool {
     nvic()
         .ispr
@@ -230,7 +260,9 @@ pub unsafe fn has_pending_with_mask(mask: (u128, u128)) -> bool {
         .enumerate()
         .fold(0, |i, (block, ispr)| {
             let interrupt_mask = if block < 4 { mask.1 } else { mask.0 };
-            (ispr.get() & !((interrupt_mask >> (32 * (block % 4))) as u32)) | i
+            #[expect(clippy::cast_possible_truncation, reason = "mask shift fits in u32")]
+            let mask_u32 = !((interrupt_mask >> (32 * (block % 4))) as u32);
+            (ispr.get() & mask_u32) | i
         })
         != 0
 }
@@ -244,10 +276,12 @@ pub struct Nvic(u32);
 impl Nvic {
     /// Creates a new `Nvic`.
     ///
+    /// # Safety
     /// Marked unsafe because only chip/platform configuration code should be
     /// able to create these.
-    pub const unsafe fn new(idx: u32) -> Nvic {
-        Nvic(idx)
+    #[must_use]
+    pub const unsafe fn new(idx: u32) -> Self {
+        Self(idx)
     }
 
     /// Enable the interrupt

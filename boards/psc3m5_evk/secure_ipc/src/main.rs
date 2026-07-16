@@ -38,7 +38,7 @@ mod service_config {
 mod io;
 mod startup;
 
-#[allow(unexpected_cfgs)]
+#[expect(unexpected_cfgs)]
 pub mod global_spm_api {
     spe::define_spm_api!(spe::spm::spm_ipc::SpmIpc<crate::Psc3IpcPlatform, { crate::service_config::SERVICE_COUNT }, spe::spm::spm_ipc::ServiceProcess>);
 }

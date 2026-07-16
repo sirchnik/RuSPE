@@ -1,3 +1,4 @@
+#![allow(clippy::module_inception, reason = "nested modules under spm_ipc folder")]
 pub mod ipc_platform;
 pub mod process;
 mod spm_ipc;

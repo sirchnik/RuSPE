@@ -8,6 +8,7 @@ use cose::cose_sign1::{
 };
 use minicbor::Encoder;
 use minicbor::encode::write::Cursor;
+use minicbor::encode::{Error, Write};
 use psa_interface::PsaApiCallInterface;
 use psa_interface::psa_api::psa_sign_hash;
 use psa_interface::status::StatusCode;
@@ -56,17 +57,17 @@ pub struct AttestClaim<'a> {
     pub value: AttestClaimValue<'a>,
 }
 
-fn map_cose_error(err: CoseSign1Error) -> StatusCode {
+const fn map_cose_error(err: CoseSign1Error) -> StatusCode {
     match err {
         CoseSign1Error::BufferTooSmall => StatusCode::BufferTooSmall,
         _ => StatusCode::InvalidArgument,
     }
 }
 
-fn encode_sw_components<W: minicbor::encode::Write>(
+fn encode_sw_components<W: Write>(
     enc: &mut Encoder<W>,
     components: &[SwComponent<'_>],
-) -> Result<(), minicbor::encode::Error<W::Error>> {
+) -> Result<(), Error<W::Error>> {
     enc.array(components.len() as u64)?;
     for comp in components {
         let entries = if comp.measurement_type.is_some() {
@@ -86,10 +87,10 @@ fn encode_sw_components<W: minicbor::encode::Write>(
     Ok(())
 }
 
-fn encode_claim_value<W: minicbor::encode::Write>(
+fn encode_claim_value<W: Write>(
     enc: &mut Encoder<W>,
     value: AttestClaimValue<'_>,
-) -> Result<(), minicbor::encode::Error<W::Error>> {
+) -> Result<(), Error<W::Error>> {
     match value {
         AttestClaimValue::Bytes(bytes) => {
             enc.bytes(bytes)?;
@@ -108,10 +109,10 @@ fn encode_claim_value<W: minicbor::encode::Write>(
     Ok(())
 }
 
-fn encode_payload_to<W: minicbor::encode::Write>(
+fn encode_payload_to<W: Write>(
     claims: &[AttestClaim<'_>],
     enc: &mut Encoder<W>,
-) -> Result<(), minicbor::encode::Error<W::Error>> {
+) -> Result<(), Error<W::Error>> {
     enc.map(claims.len() as u64)?;
     for claim in claims {
         enc.i32(claim.key as i32)?;
@@ -192,7 +193,7 @@ struct SizeCounter {
     len: usize,
 }
 
-impl minicbor::encode::Write for SizeCounter {
+impl Write for SizeCounter {
     type Error = core::convert::Infallible;
 
     fn write_all(&mut self, buf: &[u8]) -> Result<(), Self::Error> {

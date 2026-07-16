@@ -317,7 +317,7 @@ UARTPCELLID3 [
 ];
 
 /// Number of stop bits to send after each word.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum StopBits {
     /// Include one stop bit after each word.
     One = 1,
@@ -326,7 +326,7 @@ pub enum StopBits {
 }
 
 /// Parity bit configuration.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Parity {
     /// No parity bits.
     None = 0,
@@ -337,7 +337,7 @@ pub enum Parity {
 }
 
 /// Number of bits in each word.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Width {
     /// Six bits per word.
     Six = 6,
@@ -363,16 +363,16 @@ pub struct Parameters {
 }
 
 const UART0_BASE_SEC: StaticRef<UartRegisters> =
-    unsafe { StaticRef::new(0x50105000 as *const UartRegisters) };
+    unsafe { StaticRef::new(0x5010_5000 as *const UartRegisters) };
 
 const UART0_BASE_NSEC: StaticRef<UartRegisters> =
-    unsafe { StaticRef::new(0x40105000 as *const UartRegisters) };
+    unsafe { StaticRef::new(0x4010_5000 as *const UartRegisters) };
 
 const UART1_BASE_SEC: StaticRef<UartRegisters> =
-    unsafe { StaticRef::new(0x50106000 as *const UartRegisters) };
+    unsafe { StaticRef::new(0x5010_6000 as *const UartRegisters) };
 
 const UART1_BASE_NSEC: StaticRef<UartRegisters> =
-    unsafe { StaticRef::new(0x40106000 as *const UartRegisters) };
+    unsafe { StaticRef::new(0x4010_6000 as *const UartRegisters) };
 
 pub struct UartMin {
     registers: StaticRef<UartRegisters>,
@@ -421,7 +421,9 @@ impl UartMin {
 
     pub fn send_byte(&self, data: u8) {
         while !self.uart_is_writable() {}
-        self.registers.uartdr.write(UARTDR::DATA.val(data as u32));
+        self.registers
+            .uartdr
+            .write(UARTDR::DATA.val(u32::from(data)));
     }
 
     pub fn receive_byte(&self) -> u8 {
@@ -434,23 +436,23 @@ impl UartMin {
         self.registers.uartlcr_h.modify(UARTLCR_H::FEN::CLEAR);
 
         let baud_rate_div = 8 * clock_freq / params.baud_rate;
-        let mut baud_ibrd = baud_rate_div >> 7;
-        let mut baud_fbrd = (baud_rate_div & 0x7f).div_ceil(2);
+        let mut baud_int_brd = baud_rate_div >> 7;
+        let mut baud_frac_brd = (baud_rate_div & 0x7f).div_ceil(2);
 
-        if baud_ibrd == 0 {
-            baud_ibrd = 1;
-            baud_fbrd = 0;
-        } else if baud_ibrd >= 65535 {
-            baud_ibrd = 65535;
-            baud_fbrd = 0;
+        if baud_int_brd == 0 {
+            baud_int_brd = 1;
+            baud_frac_brd = 0;
+        } else if baud_int_brd >= 65535 {
+            baud_int_brd = 65535;
+            baud_frac_brd = 0;
         }
 
         self.registers
             .uartibrd
-            .write(UARTIBRD::BAUD_DIVINT.val(baud_ibrd));
+            .write(UARTIBRD::BAUD_DIVINT.val(baud_int_brd));
         self.registers
             .uartfbrd
-            .write(UARTFBRD::BAUD_DIVFRAC.val(baud_fbrd));
+            .write(UARTFBRD::BAUD_DIVFRAC.val(baud_frac_brd));
 
         self.registers.uartlcr_h.modify(UARTLCR_H::BRK::SET);
         // Configure the word length

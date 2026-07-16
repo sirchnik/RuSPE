@@ -12,6 +12,7 @@ use kernel::grant::{AllowRoCount, AllowRwCount, Grant, GrantKernelData, UpcallCo
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
+use kernel::process::Error as ProcessError;
 use psa_interface::psa_api;
 use psa_interface::status::StatusCode;
 use psa_veneer_client::PsaVeneerClient;
@@ -35,40 +36,33 @@ mod rw_allow {
 pub struct App;
 
 enum_from_primitive! {
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Cmd {
     Exists = 0,
     InitialAttestGetToken = 1,
 }
 }
 
-fn psa_status_to_error_code(status: StatusCode) -> ErrorCode {
+const fn psa_status_to_error_code(status: StatusCode) -> ErrorCode {
     match status {
-        StatusCode::_Success => ErrorCode::FAIL,
-        StatusCode::ProgrammerError => ErrorCode::INVAL,
-        StatusCode::ConnectionRefused => ErrorCode::RESERVE,
-        StatusCode::ConnectionBusy => ErrorCode::BUSY,
-        StatusCode::GenericError => ErrorCode::FAIL,
-        StatusCode::NotPermitted => ErrorCode::RESERVE,
+        StatusCode::_Success
+        | StatusCode::ServiceFailure
+        | StatusCode::StorageFailure
+        | StatusCode::InvalidSignature
+        | StatusCode::CorruptionDetected
+        | StatusCode::DataCorrupt
+        | StatusCode::GenericError
+        | StatusCode::DataInvalid => ErrorCode::FAIL,
+        StatusCode::ProgrammerError | StatusCode::InvalidArgument => ErrorCode::INVAL,
+        StatusCode::ConnectionRefused | StatusCode::NotPermitted => ErrorCode::RESERVE,
+        StatusCode::ConnectionBusy | StatusCode::OperationIncomplete => ErrorCode::BUSY,
         StatusCode::NotSupported => ErrorCode::NOSUPPORT,
-        StatusCode::InvalidArgument => ErrorCode::INVAL,
-        StatusCode::InvalidHandle => ErrorCode::NODEVICE,
-        StatusCode::BadState => ErrorCode::ALREADY,
-        StatusCode::BufferTooSmall => ErrorCode::SIZE,
-        StatusCode::AlreadyExists => ErrorCode::ALREADY,
-        StatusCode::DoesNotExist => ErrorCode::NODEVICE,
-        StatusCode::InsufficientMemory => ErrorCode::NOMEM,
-        StatusCode::InsufficientStorage => ErrorCode::NOMEM,
-        StatusCode::InsufficientData => ErrorCode::SIZE,
-        StatusCode::ServiceFailure => ErrorCode::FAIL,
+        StatusCode::InvalidHandle | StatusCode::DoesNotExist => ErrorCode::NODEVICE,
+        StatusCode::BadState | StatusCode::AlreadyExists => ErrorCode::ALREADY,
+        StatusCode::BufferTooSmall | StatusCode::InsufficientData => ErrorCode::SIZE,
+        StatusCode::InsufficientMemory | StatusCode::InsufficientStorage => ErrorCode::NOMEM,
         StatusCode::CommunicationFailure => ErrorCode::NOACK,
-        StatusCode::StorageFailure => ErrorCode::FAIL,
         StatusCode::HardwareFailure => ErrorCode::OFF,
-        StatusCode::InvalidSignature => ErrorCode::FAIL,
-        StatusCode::CorruptionDetected => ErrorCode::FAIL,
-        StatusCode::DataCorrupt => ErrorCode::FAIL,
-        StatusCode::DataInvalid => ErrorCode::FAIL,
-        StatusCode::OperationIncomplete => ErrorCode::BUSY,
     }
 }
 
@@ -89,7 +83,7 @@ pub struct SpeAdapter {
 }
 
 impl SpeAdapter {
-    pub fn new(
+    pub const fn new(
         grants: Grant<
             App,
             UpcallCount<0>,
@@ -162,14 +156,13 @@ impl SpeAdapter {
         self.grants
             .enter(process_id, |_, kernel_data| {
                 let mut challenge = [0u8; MAX_CHALLENGE_LEN];
-                let challenge_len = match Self::read_challenge(kernel_data, arg1, &mut challenge) {
-                    Some(len) => len,
-                    None => return CommandReturn::failure(ErrorCode::INVAL),
+                let Some(challenge_len) = Self::read_challenge(kernel_data, arg1, &mut challenge)
+                else {
+                    return CommandReturn::failure(ErrorCode::INVAL);
                 };
 
-                let token_len = match Self::token_capacity(kernel_data) {
-                    Some(len) => len,
-                    None => return CommandReturn::failure(ErrorCode::INVAL),
+                let Some(token_len) = Self::token_capacity(kernel_data) else {
+                    return CommandReturn::failure(ErrorCode::INVAL);
                 };
 
                 let mut token = [0u8; MAX_TOKEN_LEN];
@@ -190,7 +183,7 @@ impl SpeAdapter {
                     Err(err) => psa_status_to_command_return(Err(err)),
                 }
             })
-            .unwrap_or(CommandReturn::failure(ErrorCode::NOMEM))
+            .unwrap_or_else(|_| CommandReturn::failure(ErrorCode::NOMEM))
     }
 }
 
@@ -201,15 +194,14 @@ impl SyscallDriver for SpeAdapter {
         arg1: usize,
         _: usize,
         process_id: ProcessId,
-    ) -> kernel::syscall::CommandReturn {
+    ) -> CommandReturn {
         if cmd_num == 0 {
             return CommandReturn::success();
         }
 
         let cmd = Cmd::from_usize(cmd_num);
-        let cmd = match cmd {
-            Some(cmd) => cmd,
-            None => return CommandReturn::failure(ErrorCode::INVAL),
+        let Some(cmd) = cmd else {
+            return CommandReturn::failure(ErrorCode::INVAL);
         };
 
         match cmd {
@@ -218,7 +210,7 @@ impl SyscallDriver for SpeAdapter {
         }
     }
 
-    fn allocate_grant(&self, process_id: ProcessId) -> Result<(), kernel::process::Error> {
+    fn allocate_grant(&self, process_id: ProcessId) -> Result<(), ProcessError> {
         self.grants.enter(process_id, |_, _| {})
     }
 }

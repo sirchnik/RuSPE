@@ -45,7 +45,7 @@ unsafe impl Sync for ServiceVectors {}
 #[derive(Clone, Copy, Debug)]
 pub struct MemoryRegion {
     pub base: *const u8,
-    pub size: usize,
+    pub size: u32,
 }
 
 impl ServiceVectors {
@@ -53,7 +53,7 @@ impl ServiceVectors {
     pub fn rom_region(&self) -> MemoryRegion {
         MemoryRegion {
             base: self.rom_start,
-            size: (self.rom_limit as usize).saturating_sub(self.rom_start as usize),
+            size: (self.rom_limit as u32).saturating_sub(self.rom_start as u32),
         }
     }
 
@@ -61,7 +61,7 @@ impl ServiceVectors {
     pub fn ram_region(&self) -> MemoryRegion {
         MemoryRegion {
             base: self.ram_start,
-            size: (self.ram_limit as usize).saturating_sub(self.ram_start as usize),
+            size: (self.ram_limit as u32).saturating_sub(self.ram_start as u32),
         }
     }
 }
@@ -148,6 +148,7 @@ impl ServiceProcess {
         );
 
         let offset = stack_top - mailbox_addr;
+        #[expect(clippy::cast_ptr_alignment, reason = "pointers are aligned via checks")]
         let mailbox = vectors
             .stack_top
             .wrapping_sub(offset)
@@ -205,6 +206,7 @@ impl IpcProcess for ServiceProcess {
         // SAFETY: The call_entry, stack_limit, and stack_top are provided by the
         // ServiceVectors which are guaranteed to be valid by the safety
         // contract of ServiceProcess::new.
+        #[expect(clippy::cast_possible_wrap, reason = "status is a valid status code within range")]
         let status = unsafe {
             svc_call_unpriv(
                 vectors.call_entry as usize,

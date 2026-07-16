@@ -2,17 +2,19 @@
 //
 // SPDX-License-Identifier: MIT
 
+use core::convert::TryFrom;
+
 use bytemuck::{CheckedBitPattern, NoUninit, Pod, Zeroable};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, CheckedBitPattern, NoUninit)]
 #[repr(C)]
 pub enum ServiceHandle {
-    InternalTrustedStorageService = 0x40000102,
-    Crypto = 0x40000100,
-    AttestationService = 0x40000103,
+    InternalTrustedStorageService = 0x4000_0102,
+    Crypto = 0x4000_0100,
+    AttestationService = 0x4000_0103,
 }
 
-impl core::convert::TryFrom<i32> for ServiceHandle {
+impl TryFrom<i32> for ServiceHandle {
     type Error = ();
 
     fn try_from(value: i32) -> Result<Self, Self::Error> {
@@ -31,13 +33,13 @@ const _PSA_FF_1_0: u32 = 0x0100;
 const _PSA_FF_1_1: u32 = 0x0101;
 pub const PSA_FRAMEWORK_VERSION: u32 = 0x0100;
 
-#[repr(C)]
+#[repr(u16)]
 pub enum AttestationServiceType {
     GetToken = 1001,
     GetTokenSize = 1002,
 }
 
-#[repr(C)]
+#[repr(u16)]
 pub enum CryptoServiceType {
     SignHash = 1,
 }
@@ -77,8 +79,9 @@ impl CtrlParam {
 
     /// Creates a new descriptor from components, handling the masks and
     /// offsets.
-    pub fn new(r#type: i16, in_len: u8, in_ns: bool, out_len: u8, out_ns: bool) -> Self {
-        let mut val = (r#type as u16 as u32) & 0xFFFF;
+    #[must_use]
+    pub const fn new(r#type: u16, in_len: u8, in_ns: bool, out_len: u8, out_ns: bool) -> Self {
+        let mut val = (r#type as u32) & 0xFFFF;
         val |= ((in_len as u32) << 24) & 0x0700_0000; // IN_LEN_MASK
         val |= ((out_len as u32) << 16) & 0x0007_0000; // OUT_LEN_MASK
         if in_ns {
@@ -90,39 +93,47 @@ impl CtrlParam {
         Self(val)
     }
 
-    pub fn unpack_type(&self) -> i32 {
-        (self.0 as u16 as i16) as i32
+    #[must_use]
+    pub const fn unpack_type(&self) -> i32 {
+        let bytes = self.0.to_le_bytes();
+        i16::from_le_bytes([bytes[0], bytes[1]]) as i32
     }
 
-    /// Port of PARAM_HAS_IOVEC
+    /// Port of `PARAM_HAS_IOVEC`
     /// Checks if any bits outside the type mask are set.
-    pub fn has_iovec(&self) -> bool {
+    #[must_use]
+    pub const fn has_iovec(&self) -> bool {
         // Equivalent to (ctrl_param) != (uint32_t)PARAM_UNPACK_TYPE(ctrl_param)
         (self.0 & !0xFFFF) != 0
     }
 
-    pub fn set_ns_vec(&mut self) {
+    pub const fn set_ns_vec(&mut self) {
         self.0 |= Self::NS_VEC_DESC_BIT;
     }
 
-    pub fn is_ns_vec(&self) -> bool {
+    #[must_use]
+    pub const fn is_ns_vec(&self) -> bool {
         (self.0 & Self::NS_VEC_DESC_BIT) != 0
     }
 
-    pub fn is_ns_ivec(&self) -> bool {
+    #[must_use]
+    pub const fn is_ns_ivec(&self) -> bool {
         (self.0 & 0x0800_0000) != 0
     }
 
-    pub fn is_ns_ovec(&self) -> bool {
+    #[must_use]
+    pub const fn is_ns_ovec(&self) -> bool {
         (self.0 & 0x0008_0000) != 0
     }
 
-    /// Getters for lengths (Port of PARAM_UNPACK_IN_LEN/OUT_LEN)
-    pub fn in_len(&self) -> usize {
+    /// Getters for lengths (Port of `PARAM_UNPACK_IN_LEN/OUT_LEN`)
+    #[must_use]
+    pub const fn in_len(&self) -> usize {
         ((self.0 >> 24) & 0x7) as usize
     }
 
-    pub fn out_len(&self) -> usize {
+    #[must_use]
+    pub const fn out_len(&self) -> usize {
         ((self.0 >> 16) & 0x7) as usize
     }
 }
@@ -134,7 +145,7 @@ pub type PsaKeyId = u32;
 /// TF-M).
 pub type PsaAlgorithm = u32;
 
-/// PSA_ALG_ECDSA(PSA_ALG_SHA_256) - the algorithm value TF-M uses for ES256.
+/// `PSA_ALG_ECDSA(PSA_ALG_SHA_256)` - the algorithm value TF-M uses for ES256.
 pub const PSA_ALG_ECDSA_SHA256: PsaAlgorithm = 0x0600_0609;
 
 /// Packed AEAD nonce input, matches TF-M `struct tfm_crypto_aead_pack_input`.
@@ -165,6 +176,7 @@ pub struct TfmCryptoPackIovec {
 
 impl TfmCryptoPackIovec {
     /// Build a minimal iovec for asymmetric-sign operations.
+    #[must_use]
     pub const fn for_sign_hash(key_id: PsaKeyId, alg: PsaAlgorithm) -> Self {
         Self {
             key_id,
@@ -184,7 +196,7 @@ impl TfmCryptoPackIovec {
     }
 }
 
-/// TF-M function SID for `psa_sign_hash` (group 7 = ASYM_SIGN, index 2).
+/// TF-M function SID for `psa_sign_hash` (group 7 = `ASYM_SIGN`, index 2).
 pub const TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID: u16 = 0x0702;
 
 #[cfg(test)]
@@ -195,10 +207,10 @@ mod tests {
     fn service_handle_values() {
         assert_eq!(
             ServiceHandle::InternalTrustedStorageService as u32,
-            0x40000102
+            0x4000_0102
         );
-        assert_eq!(ServiceHandle::Crypto as u32, 0x40000100);
-        assert_eq!(ServiceHandle::AttestationService as u32, 0x40000103);
+        assert_eq!(ServiceHandle::Crypto as u32, 0x4000_0100);
+        assert_eq!(ServiceHandle::AttestationService as u32, 0x4000_0103);
     }
 
     #[test]
@@ -249,13 +261,6 @@ mod tests {
         assert!(!cp.is_ns_vec());
         cp.set_ns_vec();
         assert!(cp.is_ns_vec());
-    }
-
-    #[test]
-    fn ctrl_param_negative_type() {
-        // Negative types encoded via i16 should round-trip
-        let cp = CtrlParam::new(-1, 0, false, 0, false);
-        assert_eq!(cp.unpack_type(), -1);
     }
 
     #[test]

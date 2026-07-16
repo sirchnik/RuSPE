@@ -5,6 +5,11 @@
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicBool, Ordering};
 
+/// Error type returned when `try_lock` fails because the mutex is already
+/// locked.
+#[derive(Debug, Eq, PartialEq)]
+pub struct TryLockError;
+
 #[derive(Debug)]
 pub struct Mutex<T> {
     lock: AtomicBool,
@@ -24,7 +29,7 @@ impl<T> Mutex<T> {
     }
 
     /// Primary entry point: Provides &mut T to the closure if the lock is free.
-    pub fn try_lock<R>(&self, f: impl FnOnce(&mut T) -> R) -> Result<R, ()> {
+    pub fn try_lock<R>(&self, f: impl FnOnce(&mut T) -> R) -> Result<R, TryLockError> {
         if self
             .lock
             .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
@@ -37,7 +42,7 @@ impl<T> Mutex<T> {
             self.lock.store(false, Ordering::Release);
             Ok(result)
         } else {
-            Err(())
+            Err(TryLockError)
         }
     }
 }

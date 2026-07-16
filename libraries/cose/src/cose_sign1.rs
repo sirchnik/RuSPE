@@ -2,19 +2,19 @@
 //
 // SPDX-License-Identifier: MIT
 
-//! Minimal COSE_Sign1 parameter encoding support.
+//! Minimal `COSE_Sign1` parameter encoding support.
 //!
 //! This module supports only ECDSA with SHA-256 (COSE alg `ES256`, `-7`).
 
 use minicbor::data::Tag;
-use minicbor::encode::Write;
+use minicbor::encode::{Error, Write};
 use minicbor::encode::write::{Cursor, EndOfSlice};
 use minicbor::{Decoder, Encoder};
 use p256::ecdsa::signature::hazmat::PrehashSigner;
 use p256::ecdsa::{Signature, SigningKey};
 use sha2::{Digest, Sha256};
 
-#[allow(dead_code)]
+#[expect(dead_code, reason = "some labels are not used in ES256")]
 enum CoseHeaderLabels {
     Alg = 1,
     ContentType = 3,
@@ -24,7 +24,7 @@ enum CoseHeaderLabels {
     CounterSignature = 7,
 }
 
-/// CBOR tag for COSE_Sign1.
+/// CBOR tag for `COSE_Sign1`.
 pub const CBOR_TAG_COSE_SIGN1: u64 = 18;
 /// COSE algorithm identifier for ECDSA with SHA-256.
 pub const COSE_ALGORITHM_ES256: i32 = -7;
@@ -48,18 +48,28 @@ pub enum CoseSign1Error {
     CborEncoding,
 }
 
-/// Option flags corresponding to t_cose Sign1 behavior.
+impl From<Error<EndOfSlice>> for CoseSign1Error {
+    fn from(err: Error<EndOfSlice>) -> Self {
+        if err.as_write().is_some() {
+            Self::BufferTooSmall
+        } else {
+            Self::CborEncoding
+        }
+    }
+}
+
+/// Option flags corresponding to `t_cose` Sign1 behavior.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Sign1Options {
     /// Do not emit CBOR tag 18.
     pub omit_cbor_tag: bool,
-    /// Emit detached payload (`null`) in COSE_Sign1 payload field.
+    /// Emit detached payload (`null`) in `COSE_Sign1` payload field.
     ///
     /// The payload bstr is still signed in the `Sig_structure`.
     pub detached_payload: bool,
 }
 
-/// Result of encoding COSE_Sign1 parameters.
+/// Result of encoding `COSE_Sign1` parameters.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EncodedParameters {
     /// Number of bytes encoded into the output buffer.
@@ -74,7 +84,7 @@ pub trait CoseHasher {
     fn finalize(self) -> [u8; 32];
 }
 
-/// Unified crypto abstraction for COSE_Sign1.
+/// Unified crypto abstraction for `COSE_Sign1`.
 ///
 /// Implementations must provide SHA-256 hashing and ES256 prehash signing.
 pub trait CoseCrypto {
@@ -82,17 +92,20 @@ pub trait CoseCrypto {
 
     fn hasher_sha256(&self) -> Self::Hasher;
 
+    /// # Errors
+    /// Returns `CoseSign1Error` if the signature generation fails.
     fn sign_es256_prehash(&self, digest: &[u8; 32]) -> Result<[u8; 64], CoseSign1Error>;
 }
 
-/// Default RustCrypto backend using `sha2` and `p256`.
+/// Default `RustCrypto` backend using `sha2` and `p256`.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct RustCryptoBackend<'a> {
     key: &'a [u8],
 }
 
 impl<'a> RustCryptoBackend<'a> {
-    pub fn new(key: &'a [u8]) -> Self {
+    #[must_use]
+    pub const fn new(key: &'a [u8]) -> Self {
         Self { key }
     }
 }
@@ -132,7 +145,7 @@ impl CoseCrypto for RustCryptoBackend<'_> {
     }
 }
 
-/// Struct-based API for COSE_Sign1 encoding and ES256 signing.
+/// Struct-based API for `COSE_Sign1` encoding and ES256 signing.
 pub struct CoseSign1<'a, C: CoseCrypto> {
     crypto: C,
     option_flags: Sign1Options,
@@ -143,7 +156,8 @@ pub struct CoseSign1<'a, C: CoseCrypto> {
 impl<'a, C: CoseCrypto> CoseSign1<'a, C> {
     /// Creates a signer configured for ES256 using a raw 32-byte P-256 private
     /// key.
-    pub fn new(crypto: C, option_flags: Sign1Options) -> Self {
+    #[must_use]
+    pub const fn new(crypto: C, option_flags: Sign1Options) -> Self {
         Self {
             crypto,
             option_flags,
@@ -152,24 +166,29 @@ impl<'a, C: CoseCrypto> CoseSign1<'a, C> {
         }
     }
 
-    #[allow(dead_code)]
+    #[allow(dead_code, reason = "helper API for clients")]
     /// Sets the COSE `kid` value for the unprotected header.
+    #[must_use]
     pub const fn with_key_id(mut self, key_id: &'a [u8]) -> Self {
         self.key_id = Some(key_id);
         self
     }
 
-    #[allow(dead_code)]
+    #[allow(dead_code, reason = "helper API for clients")]
     /// Sets external AAD used in `Sig_structure`.
+    #[must_use]
     pub const fn with_external_aad(mut self, external_aad: &'a [u8]) -> Self {
         self.external_aad = external_aad;
         self
     }
 
-    /// Encodes a complete COSE_Sign1 using a caller-prepared encoded payload
+    /// Encodes a complete `COSE_Sign1` using a caller-prepared encoded payload
     /// bstr.
     ///
     /// `payload_bstr` must be one CBOR bstr item containing the payload.
+    ///
+    /// # Errors
+    /// Returns `CoseSign1Error` if the encoding fails.
     pub fn encode_from_payload_bstr(
         &self,
         payload_bstr: &[u8],
@@ -185,36 +204,27 @@ impl<'a, C: CoseCrypto> CoseSign1<'a, C> {
             protected_headers,
             self.external_aad,
             payload_bstr,
-        )?;
+        );
         let signature_bytes = self.crypto.sign_es256_prehash(&digest)?;
 
         let mut sign1_enc = Encoder::new(Cursor::new(out));
         if !self.option_flags.omit_cbor_tag {
-            sign1_enc
-                .tag(Tag::new(CBOR_TAG_COSE_SIGN1))
-                .map_err(map_encode_error)?;
+            sign1_enc.tag(Tag::new(CBOR_TAG_COSE_SIGN1))?;
         }
 
-        sign1_enc
-            .array(4)
-            .map_err(map_encode_error)?
-            .bytes(protected_headers)
-            .map_err(map_encode_error)?;
+        sign1_enc.array(4)?.bytes(protected_headers)?;
 
         if let Some(kid) = self.key_id {
             sign1_enc
-                .map(1)
-                .map_err(map_encode_error)?
-                .u8(CoseHeaderLabels::Kid as u8)
-                .map_err(map_encode_error)?
-                .bytes(kid)
-                .map_err(map_encode_error)?;
+                .map(1)?
+                .u8(CoseHeaderLabels::Kid as u8)?
+                .bytes(kid)?;
         } else {
-            sign1_enc.map(0).map_err(map_encode_error)?;
+            sign1_enc.map(0)?;
         }
 
         if self.option_flags.detached_payload {
-            sign1_enc.null().map_err(map_encode_error)?;
+            sign1_enc.null()?;
         } else {
             sign1_enc
                 .writer_mut()
@@ -222,9 +232,7 @@ impl<'a, C: CoseCrypto> CoseSign1<'a, C> {
                 .map_err(|_| CoseSign1Error::BufferTooSmall)?;
         }
 
-        sign1_enc
-            .bytes(&signature_bytes)
-            .map_err(map_encode_error)?;
+        sign1_enc.bytes(&signature_bytes)?;
 
         Ok(EncodedParameters {
             encoded_len: sign1_enc.writer().position(),
@@ -237,22 +245,11 @@ fn encode_protected_headers() -> Result<([u8; 16], usize), CoseSign1Error> {
     let mut protected_headers = [0u8; 16];
     let mut protected_headers_enc = Encoder::new(Cursor::new(&mut protected_headers[..]));
     protected_headers_enc
-        .map(1)
-        .map_err(map_encode_error)?
-        .u8(CoseHeaderLabels::Alg as u8)
-        .map_err(map_encode_error)?
-        .i32(COSE_ALGORITHM_ES256)
-        .map_err(map_encode_error)?;
+        .map(1)?
+        .u8(CoseHeaderLabels::Alg as u8)?
+        .i32(COSE_ALGORITHM_ES256)?;
     let protected_headers_len = protected_headers_enc.writer().position();
     Ok((protected_headers, protected_headers_len))
-}
-
-fn map_encode_error(err: minicbor::encode::Error<EndOfSlice>) -> CoseSign1Error {
-    if err.as_write().is_some() {
-        CoseSign1Error::BufferTooSmall
-    } else {
-        CoseSign1Error::CborEncoding
-    }
 }
 
 fn validate_payload_bstr(encoded_payload_bstr: &[u8]) -> Result<(), CoseSign1Error> {
@@ -271,7 +268,7 @@ fn hash_sig_structure(
     protected_headers: &[u8],
     external_aad: &[u8],
     payload_bstr: &[u8],
-) -> Result<[u8; 32], CoseSign1Error> {
+) -> [u8; 32] {
     let mut hasher = crypto.hasher_sha256();
 
     hasher.update(&[0x84]);
@@ -280,7 +277,7 @@ fn hash_sig_structure(
     hash_cbor_bstr(&mut hasher, external_aad);
     hasher.update(payload_bstr);
 
-    Ok(hasher.finalize())
+    hasher.finalize()
 }
 
 fn hash_cbor_text(hasher: &mut impl CoseHasher, value: &[u8]) {
@@ -299,6 +296,7 @@ fn hash_cbor_major_len(hasher: &mut impl CoseHasher, major: u8, len: usize) {
     hasher.update(&header[..header_len]);
 }
 
+#[expect(clippy::cast_possible_truncation, reason = "len fits in expected type")]
 fn encode_cbor_major_len_header(major: u8, len: usize, header: &mut [u8; 9]) -> usize {
     if len <= 23 {
         header[0] = (major << 5) | (len as u8);
@@ -326,9 +324,12 @@ fn encode_cbor_major_len_header(major: u8, len: usize, header: &mut [u8; 9]) -> 
 ///
 /// This is useful when the payload bstr is prepared separately and then passed
 /// to [`CoseSign1::encode_from_payload_bstr`].
+///
+/// # Errors
+/// Returns `CoseSign1Error` if the output buffer is too small.
 pub fn encode_payload_bstr(payload: &[u8], out: &mut [u8]) -> Result<usize, CoseSign1Error> {
     let mut payload_bstr_enc = Encoder::new(Cursor::new(out));
-    payload_bstr_enc.bytes(payload).map_err(map_encode_error)?;
+    payload_bstr_enc.bytes(payload)?;
     Ok(payload_bstr_enc.writer().position())
 }
 
@@ -336,6 +337,9 @@ pub fn encode_payload_bstr(payload: &[u8], out: &mut [u8]) -> Result<usize, Cose
 ///
 /// The payload must start at the beginning of `out` and will be shifted forward
 /// to make room for the bstr header.
+///
+/// # Errors
+/// Returns `CoseSign1Error` if the output buffer is too small.
 pub fn encode_payload_bstr_in_place(
     payload_len: usize,
     out: &mut [u8],

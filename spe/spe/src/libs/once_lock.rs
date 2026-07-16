@@ -6,7 +6,7 @@ use core::cell::UnsafeCell;
 use core::mem::MaybeUninit;
 use core::sync::atomic::{AtomicU8, Ordering};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum OnceLockState {
     Uninitialized,
@@ -26,6 +26,12 @@ pub struct OnceLock<T> {
 // 2. `Sync` is required because multiple threads can access `&T` (via `get`)
 //    simultaneously once initialization is complete.
 unsafe impl<T: Sync + Send> Sync for OnceLock<T> {}
+
+impl<T> Default for OnceLock<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl<T> OnceLock<T> {
     pub const fn new() -> Self {

@@ -96,7 +96,7 @@ pub(crate) unsafe fn svc_call_unpriv(
 }
 
 #[cfg(not(target_arch = "arm"))]
-pub(crate) unsafe fn svc_call_unpriv(
+pub unsafe fn svc_call_unpriv(
     _fn_ptr: usize,
     _arg: usize,
     _stack_limit: usize,
@@ -105,4 +105,4 @@ pub(crate) unsafe fn svc_call_unpriv(
     unimplemented!("svc_call_unpriv is only implemented for ARM architectures");
 }
 
-pub(crate) const EXCEPTION_FRAME_WORDS: usize = 8;
+pub const EXCEPTION_FRAME_WORDS: usize = 8;

@@ -5,7 +5,10 @@
 //! Cortex-M core registers
 
 /// Set Main Stack Pointer Limit (MSPLIM).
-#[inline(always)]
+///
+/// # Safety
+/// Incorrect stack limits can lead to memory corruption or crashes.
+#[inline]
 pub unsafe fn set_msplim(limit: u32) {
     unsafe {
         core::arch::asm!(
@@ -17,7 +20,10 @@ pub unsafe fn set_msplim(limit: u32) {
 }
 
 /// Set Process Stack Pointer Limit (PSPLIM).
-#[inline(always)]
+///
+/// # Safety
+/// Incorrect stack limits can lead to memory corruption or crashes.
+#[inline]
 pub unsafe fn set_psplim(limit: u32) {
     unsafe {
         core::arch::asm!(

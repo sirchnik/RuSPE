@@ -3,31 +3,32 @@
 // SPDX-License-Identifier: MIT
 
 use cortex_m::cmse;
-use psa_interface;
+use psa_interface::{PsaApiCallInterface, types::ServiceHandle};
 use spe::service::Service;
 use spe::spm::spm_fn::SfnPlatform;
-use spe::spm_api::{CallerAttributes, PsaMsg};
+use spe::spm_api::{CallerAttributes, PsaMsg, SpmApi};
 
 use crate::services;
 
 pub struct MuscaB1SecPlatform<
-    C: psa_interface::PsaApiCallInterface + Sync,
-    A: spe::spm_api::SpmApi + Sync,
+    C: PsaApiCallInterface + Sync,
+    A: SpmApi + Sync,
 > {
     pub api: A,
     pub initial_attestation: services::InitialAttestation<C>,
     pub crypto: services::Crypto,
 }
 
-impl<C: psa_interface::PsaApiCallInterface + Sync, A: spe::spm_api::SpmApi + Sync> SfnPlatform
+impl<C: PsaApiCallInterface + Sync, A: SpmApi + Sync> SfnPlatform
     for MuscaB1SecPlatform<C, A>
 {
     fn call(&self, msg: PsaMsg) -> Result<(), spe::StatusCode> {
+        #[expect(clippy::match_wildcard_for_single_variants, reason = "not all services implemented")]
         match msg.handle {
-            psa_interface::types::ServiceHandle::AttestationService => {
+            ServiceHandle::AttestationService => {
                 self.initial_attestation.call(msg, &self.api)
             }
-            psa_interface::types::ServiceHandle::Crypto => self.crypto.call(msg, &self.api),
+            ServiceHandle::Crypto => self.crypto.call(msg, &self.api),
             _ => Err(spe::StatusCode::NotSupported),
         }
     }
@@ -54,7 +55,7 @@ impl<C: psa_interface::PsaApiCallInterface + Sync, A: spe::spm_api::SpmApi + Syn
             (false, true) => cmse::AccessType::Current,
         };
 
-        if let Some(target) = cmse::TestTarget::check_range(base as *mut u32, len, access_type) {
+        cmse::TestTarget::check_range(base as *mut u32, len, access_type).is_some_and(|target| {
             if caller.ns {
                 if is_write {
                     target.ns_read_and_writable()
@@ -68,17 +69,16 @@ impl<C: psa_interface::PsaApiCallInterface + Sync, A: spe::spm_api::SpmApi + Syn
                     target.readable()
                 }
             }
-        } else {
-            false
-        }
+        })
     }
 
-    fn version(&self, handle: psa_interface::types::ServiceHandle) -> Option<u32> {
+    fn version(&self, handle: ServiceHandle) -> Option<u32> {
+        #[expect(clippy::match_wildcard_for_single_variants, reason = "not all services implemented")]
         match handle {
-            psa_interface::types::ServiceHandle::AttestationService => {
+            ServiceHandle::AttestationService => {
                 Some(services::InitialAttestation::<C>::VERSION)
             }
-            psa_interface::types::ServiceHandle::Crypto => Some(services::Crypto::VERSION),
+            ServiceHandle::Crypto => Some(services::Crypto::VERSION),
             _ => None,
         }
     }

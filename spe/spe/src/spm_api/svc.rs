@@ -4,8 +4,11 @@
 
 use core::{mem, panic, slice};
 
-use psa_interface::status::StatusCode;
-use psa_interface::types::{CtrlParam, FFInVec, FFOutVec, PsaStatus, ServiceHandle};
+use psa_interface::{
+    status::{into_psa_status, StatusCode},
+    types::{CtrlParam, FFInVec, FFOutVec, PsaStatus, ServiceHandle, PSA_FRAMEWORK_VERSION},
+    PsaApiCallInterface,
+};
 
 use crate::spm::spm::SpmCall;
 use crate::spm_api::{
@@ -31,7 +34,7 @@ pub struct SvcStackFrame {
     pub xpsr: usize,
 }
 
-fn service_handle_from_raw(raw: usize) -> Result<ServiceHandle, StatusCode> {
+const fn service_handle_from_raw(raw: usize) -> Result<ServiceHandle, StatusCode> {
     match raw as u32 {
         x if x == ServiceHandle::InternalTrustedStorageService as u32 => {
             Ok(ServiceHandle::InternalTrustedStorageService)
@@ -42,15 +45,15 @@ fn service_handle_from_raw(raw: usize) -> Result<ServiceHandle, StatusCode> {
     }
 }
 
-fn set_status(frame: &mut SvcStackFrame, status: StatusCode) {
-    frame.r0 = (status as PsaStatus) as usize;
+const fn set_status(frame: &mut SvcStackFrame, status: StatusCode) {
+    frame.r0 = (status as PsaStatus).cast_unsigned();
 }
 
-fn set_success(frame: &mut SvcStackFrame) {
+const fn set_success(frame: &mut SvcStackFrame) {
     set_status(frame, StatusCode::_Success);
 }
 
-fn set_error(frame: &mut SvcStackFrame, status: StatusCode) {
+const fn set_error(frame: &mut SvcStackFrame, status: StatusCode) {
     frame.r1 = 0;
     frame.r2 = 0;
     frame.r3 = 0;
@@ -93,7 +96,7 @@ pub fn handle_svc_with_spm<S: SpmCall, A: SpmApi>(
             match result {
                 Ok(raw) => {
                     spm.map_vec(is_outvec, frame.r1 as u32, raw.base, raw.len);
-                    set_raw_vec(frame, raw)
+                    set_raw_vec(frame, raw);
                 }
                 Err(status) => set_error(frame, status),
             }
@@ -108,7 +111,7 @@ pub fn handle_svc_with_spm<S: SpmCall, A: SpmApi>(
             match result {
                 Ok(()) => {
                     spm.unmap_vec(is_outvec, frame.r1 as u32);
-                    set_success(frame)
+                    set_success(frame);
                 }
                 Err(status) => set_error(frame, status),
             }
@@ -138,7 +141,8 @@ pub fn handle_svc_with_spm<S: SpmCall, A: SpmApi>(
 }
 
 fn status_from_raw(raw: usize) -> Result<(), StatusCode> {
-    match StatusCode::try_from(raw as PsaStatus) {
+    let status_val = PsaStatus::from_ne_bytes(raw.to_ne_bytes());
+    match StatusCode::try_from(status_val) {
         Ok(StatusCode::_Success) => Ok(()),
         Ok(status) => Err(status),
         Err(_) => Err(StatusCode::CommunicationFailure),
@@ -196,6 +200,9 @@ pub fn process_exit(status: PsaStatus) -> ! {
     }
 }
 
+/// # Panics
+///
+/// Panics on invalid state.
 #[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub fn process_exit(_status: PsaStatus) -> ! {
     panic!("process_exit is only available on ARM bare-metal targets");
@@ -222,8 +229,7 @@ impl SpmApi for SvcApi {
     ) -> R {
         let (status, base, len, _) =
             unsafe { svc_call::<SVC_PSA_MAP_VEC>(msg_handle as usize, invec_idx as usize, 0, 0) };
-        status_from_raw(status)
-            .unwrap_or_else(|err| panic!("failed to map input vector: {:?}", err));
+        status_from_raw(status).unwrap_or_else(|err| panic!("failed to map input vector: {err:?}"));
 
         let invec = if len == 0 {
             &[]
@@ -235,7 +241,7 @@ impl SpmApi for SvcApi {
         let (status, _, _, _) =
             unsafe { svc_call::<SVC_PSA_UNMAP_VEC>(msg_handle as usize, invec_idx as usize, 0, 0) };
         status_from_raw(status)
-            .unwrap_or_else(|err| panic!("failed to unmap input vector: {:?}", err));
+            .unwrap_or_else(|err| panic!("failed to unmap input vector: {err:?}"));
 
         result
     }
@@ -249,7 +255,7 @@ impl SpmApi for SvcApi {
         let (status, base, len, _) =
             unsafe { svc_call::<SVC_PSA_MAP_VEC>(msg_handle as usize, outvec_idx as usize, 1, 0) };
         status_from_raw(status)
-            .unwrap_or_else(|err| panic!("failed to map output vector: {:?}", err));
+            .unwrap_or_else(|err| panic!("failed to map output vector: {err:?}"));
 
         let outvec = if len == 0 {
             &mut []
@@ -262,7 +268,7 @@ impl SpmApi for SvcApi {
             svc_call::<SVC_PSA_UNMAP_VEC>(msg_handle as usize, outvec_idx as usize, 1, written_len)
         };
         status_from_raw(status)
-            .unwrap_or_else(|err| panic!("failed to commit output vector: {:?}", err));
+            .unwrap_or_else(|err| panic!("failed to commit output vector: {err:?}"));
 
         result
     }
@@ -277,12 +283,12 @@ impl SpmApi for SvcApi {
         let (in_status, in_base, in_len, _) =
             unsafe { svc_call::<SVC_PSA_MAP_VEC>(msg_handle as usize, invec_idx as usize, 0, 0) };
         status_from_raw(in_status)
-            .unwrap_or_else(|err| panic!("failed to map input vector: {:?}", err));
+            .unwrap_or_else(|err| panic!("failed to map input vector: {err:?}"));
 
         let (out_status, out_base, out_len, _) =
             unsafe { svc_call::<SVC_PSA_MAP_VEC>(msg_handle as usize, outvec_idx as usize, 1, 0) };
         status_from_raw(out_status)
-            .unwrap_or_else(|err| panic!("failed to map output vector: {:?}", err));
+            .unwrap_or_else(|err| panic!("failed to map output vector: {err:?}"));
 
         let invec = if in_len == 0 {
             &[]
@@ -301,12 +307,12 @@ impl SpmApi for SvcApi {
             svc_call::<SVC_PSA_UNMAP_VEC>(msg_handle as usize, outvec_idx as usize, 1, written_len)
         };
         status_from_raw(out_status)
-            .unwrap_or_else(|err| panic!("failed to commit output vector: {:?}", err));
+            .unwrap_or_else(|err| panic!("failed to commit output vector: {err:?}"));
 
         let (in_status, _, _, _) =
             unsafe { svc_call::<SVC_PSA_UNMAP_VEC>(msg_handle as usize, invec_idx as usize, 0, 0) };
         status_from_raw(in_status)
-            .unwrap_or_else(|err| panic!("failed to unmap input vector: {:?}", err));
+            .unwrap_or_else(|err| panic!("failed to unmap input vector: {err:?}"));
 
         result
     }
@@ -332,26 +338,26 @@ impl SpmApi for SvcApi {
 
 pub struct IpcPsaClient;
 
-impl psa_interface::PsaApiCallInterface for IpcPsaClient {
+impl PsaApiCallInterface for IpcPsaClient {
     fn psa_framework_version() -> u32 {
-        psa_interface::types::PSA_FRAMEWORK_VERSION
+        PSA_FRAMEWORK_VERSION
     }
 
     fn psa_version(service_id: u32) -> u32 {
-        let handle = match psa_interface::types::ServiceHandle::try_from(service_id as i32) {
-            Ok(h) => h,
-            Err(()) => return 0,
+        let Ok(handle) = ServiceHandle::try_from(service_id.cast_signed())
+        else {
+            return 0;
         };
         let (version, _, _, _) = unsafe { svc_call::<SVC_PSA_VERSION>(handle as usize, 0, 0, 0) };
         version as u32
     }
 
     fn psa_call(
-        handle: psa_interface::types::ServiceHandle,
-        ctrl_param: psa_interface::types::CtrlParam,
-        in_vec: &[psa_interface::types::FFInVec],
-        out_vec: &mut [psa_interface::types::FFOutVec],
-    ) -> psa_interface::types::PsaStatus {
+        handle: ServiceHandle,
+        ctrl_param: CtrlParam,
+        in_vec: &[FFInVec],
+        out_vec: &mut [FFOutVec],
+    ) -> PsaStatus {
         let in_vec_ptr = if in_vec.is_empty() {
             core::ptr::null()
         } else {
@@ -364,8 +370,8 @@ impl psa_interface::PsaApiCallInterface for IpcPsaClient {
             out_vec.as_mut_ptr()
         };
 
-        psa_interface::status::into_psa_status(unsafe {
-            crate::spm_api::SpmApi::call(&SvcApi, handle, ctrl_param, in_vec_ptr, out_vec_ptr)
+        into_psa_status(unsafe {
+            SpmApi::call(&SvcApi, handle, ctrl_param, in_vec_ptr, out_vec_ptr)
         })
     }
 }

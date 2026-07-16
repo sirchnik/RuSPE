@@ -38,7 +38,7 @@ unsafe extern "C" {
 mod io;
 mod startup;
 
-#[allow(unexpected_cfgs)]
+#[expect(unexpected_cfgs)]
 pub mod global_spm_api {
     spe::define_spm_api!(
         spe::spm::spm_fn::SpmFn<crate::Psc3SecPlatform<InternalPsaClient, SfnApi>>

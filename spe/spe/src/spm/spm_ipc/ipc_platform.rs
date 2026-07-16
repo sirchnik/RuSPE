@@ -11,7 +11,7 @@ use crate::spm_api::CallerAttributes;
 #[derive(Clone, Copy)]
 pub struct CustomMpuRegion {
     pub base: *const u8,
-    pub size: usize,
+    pub size: u32,
     pub permissions: Permissions,
 }
 

@@ -18,7 +18,7 @@ use ruspe_musca_b1::uart;
 mod io;
 mod startup;
 
-#[allow(unexpected_cfgs)]
+#[expect(unexpected_cfgs)]
 pub mod global_spm_api {
     spe::define_spm_api!(
         spe::spm::spm_fn::SpmFn<ruspe_musca_b1::MuscaB1SecPlatform<InternalPsaClient, SfnApi>>

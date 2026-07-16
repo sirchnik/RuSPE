@@ -5,8 +5,10 @@
 use core::mem::size_of;
 
 use psa_interface::status::StatusCode;
+use psa_interface::types::AttestationServiceType;
+use psa_interface::PsaApiCallInterface;
 use spe::service::Service;
-use spe::spm_api::{PsaMsg, SpmApi};
+use spe::spm_api::{MaybeUsize, PsaMsg, SpmApi};
 
 use crate::attest::psa_token::{
     AttestClaim, AttestClaimValue, IatClaim, SwComponent, compute_initial_attestation_token_size,
@@ -19,26 +21,32 @@ pub const PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE: usize = 0x250;
 /// Maximum size of hardware version in bytes
 ///
 /// Recommended to use the European Article Number format: EAN-13 + '-' + 5
-/// https://www.ietf.org/archive/id/draft-tschofenig-rats-psa-token-09.html#name-certification-reference
+/// <https://www.ietf.org/archive/id/draft-tschofenig-rats-psa-token-09.html#name-certification-reference>
 pub const CERTIFICATION_REF_MAX_SIZE: usize = 19;
 
 pub trait AttestPlatform {
     /// Get the security lifecycle of the device as a numeric lifecycle code.
     fn security_lifecycle(&self) -> Result<u32, StatusCode>;
+
     /// Get the verification service indicator (UTF-8 text). Returns number of
     /// bytes written.
     fn verification_service(&self, buf: &mut [u8]) -> Result<usize, StatusCode>;
+
     /// Get the name of the profile definition document (UTF-8 text). Returns
     /// number of bytes written.
     fn profile_definition(&self, buf: &mut [u8]) -> Result<usize, StatusCode>;
+
     /// Generate or retrieve the 32-byte boot seed value used for initial
     /// attestation.
     fn boot_seed(&self, seed: &mut [u8; 32]) -> Result<(), StatusCode>;
+
     /// Get the implementation ID of the device.
     fn implementation_id(&self, buf: &mut [u8; 32]) -> Result<(), StatusCode>;
+
     /// Get the instance ID (UEID) of the device (33 bytes: 1-byte type +
     /// 32-byte ID).
     fn instance_id(&self, buf: &mut [u8; 33]) -> Result<(), StatusCode>;
+
     /// Get the hardware version (UTF-8 text, EAN-13 format). Returns number of
     /// bytes written.
     fn cert_ref(&self, buf: &mut [u8; CERTIFICATION_REF_MAX_SIZE]) -> Result<usize, StatusCode>;
@@ -53,8 +61,8 @@ const MAX_TOTAL_CLAIMS: usize = 16;
 const TEMP_KEY_ID: u32 = 0x1234_5678;
 
 const SHARED_DATA_TLV_INFO_MAGIC: u16 = 0x2016;
-const IAS_MEASURE_VALUE_TYPE: u16 = (0x1 << 12) | (0x00 << 6) | 0x08;
-const IAS_SIGNER_ID_TYPE: u16 = (0x1 << 12) | (0x00 << 6) | 0x01;
+const IAS_MEASURE_VALUE_TYPE: u16 = (0x1 << 12) | 0x08;
+const IAS_SIGNER_ID_TYPE: u16 = (0x1 << 12) | 0x01;
 
 fn parse_boot_data(data: &[u8]) -> Option<SwComponent<'_>> {
     if data.len() < 4 {
@@ -126,7 +134,7 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
         }
     }
 
-    fn challenge_size_is_supported(challenge_size: usize) -> bool {
+    const fn challenge_size_is_supported(challenge_size: usize) -> bool {
         matches!(challenge_size, 32 | 48 | 64)
     }
 
@@ -203,12 +211,16 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
     fn has_exactly_one_iovec(msg: &PsaMsg) -> bool {
         msg.in_size[0].is_some()
             && msg.out_size[0].is_some()
-            && msg.in_size[1..].iter().all(|m| m.is_none())
-            && msg.out_size[1..].iter().all(|m| m.is_none())
+            && msg.in_size[1..]
+                .iter()
+                .all(MaybeUsize::is_none)
+            && msg.out_size[1..]
+                .iter()
+                .all(MaybeUsize::is_none)
     }
 
+    #[expect(clippy::too_many_arguments, reason = "required by PSA token structure")]
     fn build_token_claims<'a>(
-        &'a self,
         boot_seed: &'a [u8; 32],
         profile_str: &'a str,
         security_lifecycle: u32,
@@ -233,7 +245,7 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
             },
             AttestClaim {
                 key: IatClaim::SecurityLifecycle,
-                value: AttestClaimValue::Unsigned(security_lifecycle as u64),
+                value: AttestClaimValue::Unsigned(u64::from(security_lifecycle)),
             },
             AttestClaim {
                 key: IatClaim::BootSeed,
@@ -298,7 +310,7 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
             &sw_components[..0]
         };
 
-        let additional_claims = self.build_token_claims(
+        let additional_claims = Self::build_token_claims(
             &boot_seed,
             profile_str,
             security_lifecycle,
@@ -374,29 +386,29 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
     }
 }
 
-impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface, A: SpmApi> Service<A>
+impl<P: AttestPlatform, C: PsaApiCallInterface, A: SpmApi> Service<A>
     for AttestService<P, C>
 {
-    fn call(&self, msg: PsaMsg, api: &A) -> Result<(), psa_interface::status::StatusCode> {
+    fn call(&self, msg: PsaMsg, api: &A) -> Result<(), StatusCode> {
         if !Self::has_exactly_one_iovec(&msg) {
-            return Err(psa_interface::status::StatusCode::InvalidArgument);
+            return Err(StatusCode::InvalidArgument);
         }
 
-        if msg.msg_type == psa_interface::types::AttestationServiceType::GetToken as i32 {
+        if msg.msg_type == AttestationServiceType::GetToken as i32 {
             self.handle_get_token(&msg, api)
-        } else if msg.msg_type == psa_interface::types::AttestationServiceType::GetTokenSize as i32
+        } else if msg.msg_type == AttestationServiceType::GetTokenSize as i32
         {
             self.handle_get_token_size(&msg, api)
         } else {
-            Err(psa_interface::status::StatusCode::NotSupported)
+            Err(StatusCode::NotSupported)
         }
     }
 
-    fn init(&mut self, _api: &A) -> Result<(), psa_interface::status::StatusCode> {
+    fn init(&mut self, _api: &A) -> Result<(), StatusCode> {
         Ok(())
     }
 
-    fn deinit(&mut self, _api: &A) -> Result<(), psa_interface::status::StatusCode> {
+    fn deinit(&mut self, _api: &A) -> Result<(), StatusCode> {
         Ok(())
     }
 }

@@ -5,6 +5,7 @@
 use super::spm::{Connection, ConnectionArray, SpmCall, SpmError};
 use crate::libs::mutex::Mutex;
 use crate::spm_api::{CallerAttributes, PsaMsg};
+use psa_interface::types::ServiceHandle;
 
 pub trait SfnPlatform: Sync {
     fn call(&self, msg: PsaMsg) -> Result<(), crate::StatusCode>;
@@ -16,7 +17,7 @@ pub trait SfnPlatform: Sync {
         caller: CallerAttributes,
     ) -> bool;
 
-    fn version(&self, handle: psa_interface::types::ServiceHandle) -> Option<u32>;
+    fn version(&self, handle: ServiceHandle) -> Option<u32>;
 }
 
 pub struct SpmFn<P: SfnPlatform + 'static> {
@@ -36,23 +37,23 @@ impl<P: SfnPlatform + 'static> SpmFn<P> {
     }
 
     fn add_connection(&self, connection: Connection) -> Result<(), SpmError> {
-        match self
-            .connections
+        self.connections
             .try_lock(|connections| connections.add_connection(connection))
-        {
-            Ok(result) => result,
-            Err(()) => Err(SpmError::MutexBusy),
-        }
+            .map_or(Err(SpmError::MutexBusy), |result| result)
     }
 
+    /// # Panics
+    ///
+    /// Panics on invalid state.
     pub fn call(&self, connection: Connection) -> Result<(), crate::StatusCode> {
         let msg = connection.msg;
-        if self.add_connection(connection).is_err() {
-            panic!("SPM connection stack exhausted");
-        }
+        assert!(
+            self.add_connection(connection).is_ok(),
+            "SPM connection stack exhausted"
+        );
         let result = self.platform.call(msg);
         self.connections
-            .try_lock(|connections| connections.pop_connection())
+            .try_lock(super::spm::ConnectionArray::pop_connection)
             .unwrap();
         result
     }
@@ -65,11 +66,11 @@ impl<P: SfnPlatform + 'static> SpmFn<P> {
     ) -> Result<R, SpmError> {
         let (index, mut connection) = match self
             .connections
-            .try_lock(|connections| connections.take_active_connection())
+            .try_lock(super::spm::ConnectionArray::take_active_connection)
         {
             Ok(Ok(result)) => result,
             Ok(Err(err)) => return Err(err),
-            Err(()) => return Err(SpmError::MutexBusy),
+            Err(_) => return Err(SpmError::MutexBusy),
         };
 
         let result = f(&mut connection);
@@ -80,7 +81,7 @@ impl<P: SfnPlatform + 'static> SpmFn<P> {
         {
             Ok(Ok(())) => {}
             Ok(Err(err)) => return Err(err),
-            Err(()) => return Err(SpmError::MutexBusy),
+            Err(_) => return Err(SpmError::MutexBusy),
         }
         Ok(result)
     }
@@ -90,7 +91,7 @@ impl<P: SfnPlatform + 'static> SpmCall for SpmFn<P> {
     /// Forwards the call to the platform's call method, while managing the
     /// connection stack.
     fn call(&self, connection: Connection) -> Result<(), crate::StatusCode> {
-        SpmFn::call(self, connection)
+        Self::call(self, connection)
     }
 
     fn with_active_connection<F: FnMut(&mut Connection)>(&self, mut f: F) -> Result<(), SpmError> {
@@ -114,7 +115,7 @@ impl<P: SfnPlatform + 'static> SpmCall for SpmFn<P> {
 
     fn unmap_vec(&self, _is_outvec: bool, _vec_idx: u32) {}
 
-    fn version(&self, handle: psa_interface::types::ServiceHandle) -> Option<u32> {
+    fn version(&self, handle: ServiceHandle) -> Option<u32> {
         self.platform.version(handle)
     }
 }

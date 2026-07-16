@@ -39,7 +39,7 @@ macro_rules! static_init {
 /// macro on the same buffer.
 ///
 /// This function is implemented separately without inlining to removes the size
-/// bloat of track_caller saving the location of every single call to
+/// bloat of `track_caller` saving the location of every single call to
 /// [`static_buf!()`](crate::static_buf) or
 /// [`static_init!()`](crate::static_init).
 ///
@@ -58,6 +58,11 @@ macro_rules! static_init {
 /// [`static_buf!()`](crate::static_buf) are hidden within calls to
 /// [`static_init!()`](crate::static_init) or component helper macros, so start
 /// your search there.
+///
+/// # Panics
+///
+/// Panics if the passed reference `used` is `true`, indicating the buffer has
+/// already been initialized.
 #[inline(never)]
 pub fn static_buf_check_used(used: &mut bool) {
     // Check if this `BUF` has already been declared and initialized. If it

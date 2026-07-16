@@ -27,14 +27,14 @@ register_structs! {
 
 pub fn enable_idau_nsc_code() {
     unsafe {
-        let spcb = &*(0x50080000u32 as *const SpcbRegisters);
+        let spcb = &*(0x5008_0000u32 as *const SpcbRegisters);
         spcb.nsc_cfg.modify(NscCfg::allow_sau_code_nsc::SET);
     }
 }
 
 pub fn enable_uart1_ns() {
     unsafe {
-        let spcb = &*(0x50080000u32 as *const SpcbRegisters);
+        let spcb = &*(0x5008_0000u32 as *const SpcbRegisters);
         // WORKAROUND:
         // In datasheet Bit 5 controls UART0 security (1 = Non-Secure)
         // In reality it control UART1 somehow or just plain doesn't work idk.

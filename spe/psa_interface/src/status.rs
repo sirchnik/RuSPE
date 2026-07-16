@@ -74,31 +74,31 @@ impl TryFrom<PsaStatus> for StatusCode {
 
     fn try_from(status: PsaStatus) -> Result<Self, Self::Error> {
         match status {
-            0 => Ok(StatusCode::_Success),
-            -129 => Ok(StatusCode::ProgrammerError),
-            -130 => Ok(StatusCode::ConnectionRefused),
-            -131 => Ok(StatusCode::ConnectionBusy),
-            -132 => Ok(StatusCode::GenericError),
-            -133 => Ok(StatusCode::NotPermitted),
-            -134 => Ok(StatusCode::NotSupported),
-            -135 => Ok(StatusCode::InvalidArgument),
-            -136 => Ok(StatusCode::InvalidHandle),
-            -137 => Ok(StatusCode::BadState),
-            -138 => Ok(StatusCode::BufferTooSmall),
-            -139 => Ok(StatusCode::AlreadyExists),
-            -140 => Ok(StatusCode::DoesNotExist),
-            -141 => Ok(StatusCode::InsufficientMemory),
-            -142 => Ok(StatusCode::InsufficientStorage),
-            -143 => Ok(StatusCode::InsufficientData),
-            -144 => Ok(StatusCode::ServiceFailure),
-            -145 => Ok(StatusCode::CommunicationFailure),
-            -146 => Ok(StatusCode::StorageFailure),
-            -147 => Ok(StatusCode::HardwareFailure),
-            -149 => Ok(StatusCode::InvalidSignature),
-            -151 => Ok(StatusCode::CorruptionDetected),
-            -152 => Ok(StatusCode::DataCorrupt),
-            -153 => Ok(StatusCode::DataInvalid),
-            -248 => Ok(StatusCode::OperationIncomplete),
+            0 => Ok(Self::_Success),
+            -129 => Ok(Self::ProgrammerError),
+            -130 => Ok(Self::ConnectionRefused),
+            -131 => Ok(Self::ConnectionBusy),
+            -132 => Ok(Self::GenericError),
+            -133 => Ok(Self::NotPermitted),
+            -134 => Ok(Self::NotSupported),
+            -135 => Ok(Self::InvalidArgument),
+            -136 => Ok(Self::InvalidHandle),
+            -137 => Ok(Self::BadState),
+            -138 => Ok(Self::BufferTooSmall),
+            -139 => Ok(Self::AlreadyExists),
+            -140 => Ok(Self::DoesNotExist),
+            -141 => Ok(Self::InsufficientMemory),
+            -142 => Ok(Self::InsufficientStorage),
+            -143 => Ok(Self::InsufficientData),
+            -144 => Ok(Self::ServiceFailure),
+            -145 => Ok(Self::CommunicationFailure),
+            -146 => Ok(Self::StorageFailure),
+            -147 => Ok(Self::HardwareFailure),
+            -149 => Ok(Self::InvalidSignature),
+            -151 => Ok(Self::CorruptionDetected),
+            -152 => Ok(Self::DataCorrupt),
+            -153 => Ok(Self::DataInvalid),
+            -248 => Ok(Self::OperationIncomplete),
             _ => Err(status),
         }
     }
@@ -108,7 +108,8 @@ impl TryFrom<PsaStatus> for StatusCode {
 ///
 /// `Ok(())` becomes `_Success` (0); errors become their PSA-defined
 /// negative integer.
-pub fn into_psa_status(r: Result<(), StatusCode>) -> isize {
+#[must_use]
+pub const fn into_psa_status(r: Result<(), StatusCode>) -> isize {
     match r {
         Ok(()) => StatusCode::_Success as isize,
         Err(e) => e as isize,

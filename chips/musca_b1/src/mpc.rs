@@ -39,17 +39,17 @@ pub struct Mpc {
 
 impl Mpc {
     pub fn new(mpc_address: u32, memory_base_address: u32) -> Self {
-        let block_index_max = unsafe { (*Mpc::ptr(mpc_address)).blk_max.get() };
+        let block_index_max = unsafe { (*Self::ptr(mpc_address)).blk_max.get() };
         let block_size =
-            unsafe { 1 << ((*Mpc::ptr(mpc_address)).blk_cfg.read(BlkCfg::block_size) + 5) };
+            unsafe { 1 << ((*Self::ptr(mpc_address)).blk_cfg.read(BlkCfg::block_size) + 5) };
         unsafe {
-            (*Mpc::ptr(mpc_address))
+            (*Self::ptr(mpc_address))
                 .ctrl
                 .modify(Ctrl::autoincrement::CLEAR + Ctrl::sec_resp::SET);
         }
         let memory_limit_address =
             memory_base_address + block_size * (block_index_max + 1) * 32 - 1;
-        Mpc {
+        Self {
             mpc_address,
             memory_base_address,
             memory_limit_address,
@@ -57,10 +57,18 @@ impl Mpc {
         }
     }
 
-    fn ptr(mpc_address: u32) -> *const RegisterBlock {
+    const fn ptr(mpc_address: u32) -> *const RegisterBlock {
         mpc_address as *const _
     }
 
+    /// Sets a range of memory as non-secure in the MPC.
+    ///
+    /// # Panics
+    ///
+    /// Panics if:
+    /// - The address range is invalid or outside the supported memory limits.
+    /// - The base address is not aligned to the block size boundary.
+    /// - The limit address is not aligned to the end of a block size boundary.
     pub fn set_non_secure(&mut self, base_address: u32, limit_address: u32) {
         // The address range needs to be inside the supported address range.
         if base_address < self.memory_base_address
@@ -71,25 +79,25 @@ impl Mpc {
             panic!("Invalid address range.");
         }
         // Base address should be at the beginning of a block.
-        if !base_address.is_multiple_of(self.block_size) {
-            panic!(
-                "Base address not at the beginning of a block: base_address={:#X}, block_size={:#X}",
-                base_address, self.block_size
-            );
-        }
+        assert!(
+            base_address.is_multiple_of(self.block_size),
+            "Base address not at the beginning of a block: base_address={:#X}, block_size={:#X}",
+            base_address,
+            self.block_size
+        );
         // Limit address should be
-        if !(limit_address + 1).is_multiple_of(self.block_size) {
-            panic!(
-                "Limit address not at the end of a block: limit_address={:#X}, block_size={:#X}",
-                limit_address, self.block_size
-            );
-        }
+        assert!(
+            (limit_address + 1).is_multiple_of(self.block_size),
+            "Limit address not at the end of a block: limit_address={:#X}, block_size={:#X}",
+            limit_address,
+            self.block_size
+        );
         let start_block = (base_address - self.memory_base_address) / self.block_size;
         let end_block = (limit_address + 1 - self.memory_base_address) / self.block_size;
         let mut current_idx = start_block / 32;
 
         unsafe {
-            let regs = &*Mpc::ptr(self.mpc_address);
+            let regs = &*Self::ptr(self.mpc_address);
             regs.blk_idx.set(current_idx);
             let mut current_lut = regs.blk_lut.get();
             for block in start_block..end_block {

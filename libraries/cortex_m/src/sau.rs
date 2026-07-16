@@ -6,7 +6,7 @@
 //! For reference please check the section B8.3 of the Armv8-M Architecture
 //! Reference Manual.
 
-use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers::interfaces::{ReadWriteable as _, Readable as _, Writeable as _};
 use tock_registers::registers::{ReadOnly, ReadWrite};
 use tock_registers::{register_bitfields, register_structs};
 
@@ -106,7 +106,7 @@ pub struct SauRegion {
 #[derive(Debug)]
 pub enum SauError {
     /// The region number parameter to set or get a region must be between 0 and
-    /// region_numbers() - 1.
+    /// `region_numbers()` - 1.
     RegionNumberTooBig,
     /// Bits 0 to 4 of the base address of a SAU region must be set to zero.
     WrongBaseAddress,
@@ -119,20 +119,24 @@ pub struct SAU {
 }
 
 /// Create a new SAU interface for the Cortex-M33 SAU peripheral.
+#[must_use]
 pub const fn new() -> SAU {
     SAU {
-        registers: 0xE000EDD0 as *const SauRegisters,
+        registers: 0xE000_EDD0 as *const SauRegisters,
     }
 }
 
 impl SAU {
-    fn registers(&self) -> &SauRegisters {
+    const fn registers(&self) -> &SauRegisters {
         unsafe { &*self.registers }
     }
 
     /// Get the number of implemented SAU regions.
+    #[must_use]
     pub fn region_numbers(&self) -> u8 {
-        self.registers().type_reg.read(TYPE::SREGION) as u8
+        #[expect(clippy::cast_possible_truncation, reason = "SAU region count fits in u8")]
+        let val = self.registers().type_reg.read(TYPE::SREGION) as u8;
+        val
     }
 
     /// Enable the SAU.
@@ -147,6 +151,9 @@ impl SAU {
     /// significant bits of the limit address must be set to one. The region
     /// number must be valid. This function should be executed under a
     /// critical section to prevent having inconsistent results.
+    ///
+    /// # Errors
+    /// Returns `SauError` if the configuration is invalid.
     pub fn set_region(&mut self, region_number: u8, region: SauRegion) -> Result<(), SauError> {
         let base_address = region.base_address;
         let limit_address = region.limit_address;
@@ -183,6 +190,9 @@ impl SAU {
     /// The region number must be valid.
     /// This function should be executed under a critical section to prevent
     /// having inconsistent results.
+    ///
+    /// # Errors
+    /// Returns `SauError::RegionNumberTooBig` if the region number is invalid.
     pub fn get_region(&mut self, region_number: u8) -> Result<SauRegion, SauError> {
         if region_number >= self.region_numbers() {
             return Err(SauError::RegionNumberTooBig);

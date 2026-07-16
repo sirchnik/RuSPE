@@ -11,7 +11,7 @@ fn main() {
     linker::include_test_nspe_layout();
     linker::add_board_dir_to_linker_search_path();
 
-    println!("cargo:rustc-link-arg={}", SECURE_VENEERS_OBJ);
-    println!("cargo:rerun-if-changed={}", SECURE_VENEERS_OBJ);
+    println!("cargo:rustc-link-arg={SECURE_VENEERS_OBJ}");
+    println!("cargo:rerun-if-changed={SECURE_VENEERS_OBJ}");
     linker::set_and_track_linker_script(LINKER_SCRIPT_NSEC);
 }

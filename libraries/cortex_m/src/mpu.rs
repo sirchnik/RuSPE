@@ -4,7 +4,7 @@
 
 //! Cortex-M33 Memory Protection Unit (MPU)
 
-use tock_registers::interfaces::{ReadWriteable, Writeable};
+use tock_registers::interfaces::{ReadWriteable as _, Writeable as _};
 use tock_registers::registers::{ReadOnly, ReadWrite};
 use tock_registers::{register_bitfields, register_structs};
 
@@ -17,6 +17,17 @@ pub enum Permissions {
     ReadExecute,
     ReadPrivXN,
     ReadPrivExecute,
+}
+
+/// Errors that can occur during MPU operations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MpuError {
+    /// The base or limit address is not properly aligned to 32 bytes.
+    AddressNotAligned,
+    /// The size of the region is too small (less than 32 bytes).
+    SizeTooSmall,
+    /// There are no available MPU regions to allocate.
+    NoRegionsAvailable,
 }
 
 register_structs! {
@@ -156,23 +167,33 @@ pub struct Mpu<const N: usize> {
     registers: *const MpuRegisters,
 }
 
+impl<const N: usize> Default for Mpu<N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<const N: usize> Mpu<N> {
     /// Creates a new MPU handle.
     ///
     /// # Safety
     /// This function must be used carefully to ensure only one entity manages
     /// the MPU.
+    #[must_use]
     pub const fn new() -> Self {
         Self {
-            registers: 0xE000ED90 as *const MpuRegisters,
+            registers: 0xE000_ED90 as *const MpuRegisters,
         }
     }
 
-    fn registers(&self) -> &MpuRegisters {
+    const fn registers(&self) -> &MpuRegisters {
         unsafe { &*self.registers }
     }
 
     /// Enables the MPU
+    ///
+    /// # Safety
+    /// Incorrect use can endanger isolation properties.
     pub unsafe fn enable_mpu(&self) {
         self.registers()
             .ctrl
@@ -180,13 +201,20 @@ impl<const N: usize> Mpu<N> {
     }
 
     /// Allocates an MPU region in the provided configuration.
+    ///
+    /// # Errors
+    /// Returns `Err(MpuError::AddressNotAligned)` if the base or end address
+    /// are not properly aligned, `Err(MpuError::SizeTooSmall)` if the size
+    /// is less than 32 bytes, or `Err(MpuError::NoRegionsAvailable)` if no
+    /// regions are available.
+    #[expect(clippy::similar_names, reason = "rbar and rlar are standard register names")]
     pub fn allocate_region(
         &self,
         base: *const u8,
-        size: usize,
+        size: u32,
         permissions: Permissions,
         config: &mut MpuConfig<N>,
-    ) -> Result<(), ()> {
+    ) -> Result<(), MpuError> {
         let (access, execute) = match permissions {
             Permissions::ReadWriteExecute => (MPU_RBAR::AP::ReadWrite, MPU_RBAR::XN::Enable),
             Permissions::ReadWriteXN => (MPU_RBAR::AP::ReadWrite, MPU_RBAR::XN::Disable),
@@ -201,20 +229,23 @@ impl<const N: usize> Mpu<N> {
         // Align start address to 32 bytes
         let base_addr = base as u32;
         if base_addr & 0x1F != 0 {
-            return Err(());
+            return Err(MpuError::AddressNotAligned);
         }
 
-        let rbar =
+        let rbar_val =
             (MPU_RBAR::BASE.val(base_addr >> 5) + MPU_RBAR::SH.val(0) + access + execute).value;
 
         // End address aligned to 32 bytes
-        let end_addr = base_addr + size as u32;
-        if end_addr & 0x1F != 0 || size < 32 {
-            return Err(());
+        let end_addr = base_addr + size;
+        if size < 32 {
+            return Err(MpuError::SizeTooSmall);
+        }
+        if end_addr & 0x1F != 0 {
+            return Err(MpuError::AddressNotAligned);
         }
 
         // ARMv8-M RLAR LIMIT field uses bits [31:5] of the upper inclusive limit.
-        let rlar = (MPU_RLAR::ENABLE::SET
+        let rlar_val = (MPU_RLAR::ENABLE::SET
             + MPU_RLAR::LIMIT.val((end_addr - 1) >> 5)
             + MPU_RLAR::PXN::Disable
             + MPU_RLAR::ATTRINDX.val(0))
@@ -222,12 +253,15 @@ impl<const N: usize> Mpu<N> {
 
         for i in 0..N {
             if config.regions[i].is_none() {
-                config.regions[i] = Some(RegionConfig { rbar, rlar });
+                config.regions[i] = Some(RegionConfig {
+                    rbar: rbar_val,
+                    rlar: rlar_val,
+                });
                 return Ok(());
             }
         }
 
-        Err(())
+        Err(MpuError::NoRegionsAvailable)
     }
 
     /// Configures the MPU with the provided region configuration.
@@ -241,6 +275,7 @@ impl<const N: usize> Mpu<N> {
             .modify(MPU_MAIR0::ATTR0.val(0b0100_0100));
 
         for (i, region_opt) in config.regions.iter().enumerate() {
+            #[expect(clippy::cast_possible_truncation, reason = "region index fits in u32")] // region len should be below u32
             self.registers().rnr.write(MPU_RNR::REGION.val(i as u32));
             if let Some(region) = region_opt {
                 self.registers().rbar.set(region.rbar);

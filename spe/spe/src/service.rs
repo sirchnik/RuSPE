@@ -3,11 +3,14 @@
 // SPDX-License-Identifier: MIT
 
 use crate::spm_api::{PsaMsg, SpmApi};
+use psa_interface::status::StatusCode;
 
 pub trait Service<A: SpmApi> {
-    fn call(&self, msg: PsaMsg, api: &A) -> Result<(), psa_interface::status::StatusCode>;
-    fn init(&mut self, api: &A) -> Result<(), psa_interface::status::StatusCode>;
-    fn deinit(&mut self, api: &A) -> Result<(), psa_interface::status::StatusCode>;
+    fn call(&self, msg: PsaMsg, api: &A) -> Result<(), StatusCode>;
+
+    fn init(&mut self, api: &A) -> Result<(), StatusCode>;
+
+    fn deinit(&mut self, api: &A) -> Result<(), StatusCode>;
 }
 
 /// Initialize memory segments for unprivileged service execution.
@@ -74,6 +77,9 @@ pub unsafe extern "C" fn init() {
     );
 }
 
+/// # Safety
+///
+/// This function is unsafe.
 #[cfg(not(target_arch = "arm"))]
 pub unsafe extern "C" fn init() {
     unimplemented!("init is only implemented for ARM architectures");
