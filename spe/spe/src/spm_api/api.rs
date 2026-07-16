@@ -441,7 +441,7 @@ pub trait SpmApi {
     ) -> Result<(), StatusCode>;
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, bytemuck::CheckedBitPattern, bytemuck::NoUninit)]
 #[repr(C)]
 pub struct CallerAttributes {
     /// Caller is from the Non-Secure world.
@@ -469,7 +469,7 @@ impl CallerAttributes {
     };
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, bytemuck::CheckedBitPattern)]
 #[repr(C)]
 pub struct PsaMsg {
     pub handle: ServiceHandle,
@@ -495,7 +495,7 @@ impl PsaMsg {
 ///
 /// We represent `None` as `usize::MAX` and `Some(v)` as `v`. Marked
 /// `#[repr(transparent)]` so the layout is identical to `usize`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(transparent)]
 pub struct MaybeUsize(pub usize);
 

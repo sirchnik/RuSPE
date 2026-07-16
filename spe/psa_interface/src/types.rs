@@ -2,9 +2,9 @@
 //
 // SPDX-License-Identifier: MIT
 
-use bytemuck::{Pod, Zeroable};
+use bytemuck::{CheckedBitPattern, NoUninit, Pod, Zeroable};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, CheckedBitPattern, NoUninit)]
 #[repr(C)]
 pub enum ServiceHandle {
     InternalTrustedStorageService = 0x40000102,

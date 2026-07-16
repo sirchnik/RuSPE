@@ -51,10 +51,16 @@ use spe::{{service::Service, spm::spm_ipc::ServiceVectors, spm_api::PsaMsg}};
 
 static SERVICE: {spec.generated_service_type} = {spec.generated_service_ctor};
 
+/// # Safety
+///
+/// This function must only be called by the SPM via the service vector table.
+/// The caller must ensure that the `msg` pointer is valid, properly aligned,
+/// and points to readable memory containing a valid `PsaMsg`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn call(msg: *const PsaMsg) -> ! {{
-    let msg = unsafe {{ &*msg }};
-    let status = into_psa_status(SERVICE.call(*msg, &spe::spm_api::SvcApi));
+    let msg_bytes = unsafe {{ core::slice::from_raw_parts(msg as *const u8, core::mem::size_of::<PsaMsg>()) }};
+    let msg = *bytemuck::checked::from_bytes::<PsaMsg>(msg_bytes);
+    let status = into_psa_status(SERVICE.call(msg, &spe::spm_api::SvcApi));
     // stack gets reset by SPM on every call, so we can just exit the process here
     spe::spm_api::process_exit(status);
 }}
@@ -103,6 +109,7 @@ edition.workspace = true
 build = "./build.rs"
 
 [dependencies]
+bytemuck = {{ version = "1.25.0", features = ["derive"] }}
 ruspe_psc3 = {{ package = "psc3", path = "../../../../chips/psc3" }}
 spe = {{ path = "../../../../spe/spe", features = ["spm-ipc"] }}
 spe_services = {{ path = "../../../../spe/spe_services" }}

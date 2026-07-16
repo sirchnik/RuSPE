@@ -10,6 +10,7 @@ edition.workspace = true
 build = "./build.rs"
 
 [dependencies]
+bytemuck = { version = "1.25.0", features = ["derive"] }
 ruspe_psc3 = { package = "psc3", path = "../../../../chips/psc3" }
 spe = { path = "../../../../spe/spe", features = ["spm-ipc"] }
 spe_services = { path = "../../../../spe/spe_services" }

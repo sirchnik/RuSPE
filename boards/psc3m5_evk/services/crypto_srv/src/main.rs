@@ -16,8 +16,16 @@ static SERVICE: Crypto = Crypto::new([
     0xb8, 0x09, 0x3b, 0xe9, 0xb1, 0x5b, 0xc4, 0xbd, 0x4a, 0x54, 0x95, 0x3c, 0xd3, 0x31, 0xce, 0x1b,
 ]);
 
+/// # Safety
+///
+/// This function must only be called by the SPM via the service vector table.
+/// The caller must ensure that the `msg` pointer is valid, properly aligned,
+/// and points to readable memory containing a valid `PsaMsg`.
 #[unsafe(no_mangle)]
-pub extern "C" fn call(msg: PsaMsg) -> ! {
+pub unsafe extern "C" fn call(msg: *const PsaMsg) -> ! {
+    let msg_bytes =
+        unsafe { core::slice::from_raw_parts(msg as *const u8, core::mem::size_of::<PsaMsg>()) };
+    let msg = *bytemuck::checked::from_bytes::<PsaMsg>(msg_bytes);
     let status = into_psa_status(SERVICE.call(msg, &spe::spm_api::SvcApi));
     // stack gets reset by SPM on every call, so we can just exit the process here
     spe::spm_api::process_exit(status);

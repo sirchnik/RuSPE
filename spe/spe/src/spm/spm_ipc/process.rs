@@ -20,7 +20,7 @@ use crate::spm_api::PsaMsg;
 pub struct ServiceVectors {
     pub version: u32,
     pub init_entry: unsafe extern "C" fn(),
-    pub call_entry: unsafe extern "C" fn(PsaMsg) -> !,
+    pub call_entry: unsafe extern "C" fn(*const PsaMsg) -> !,
     /// Start of the service ROM window containing executable code and rodata.
     pub rom_start: *const u8,
     /// Exclusive end of the service ROM window.
@@ -103,6 +103,21 @@ impl ServiceProcess {
         addr & !(align - 1)
     }
 
+    /// Stages a `PsaMsg` at the top of the service's stack, ensuring proper
+    /// alignment and leaving room below for an exception frame.
+    ///
+    /// # Memory Layout
+    /// ```text
+    /// stack_top    --> +-------------------+
+    ///                  |     (Padding)     |
+    /// mailbox_addr --> +-------------------+
+    ///                  |      PsaMsg       |
+    /// frame_base   --> +-------------------+
+    ///                  |  Exception Frame  |
+    ///                  +-------------------+
+    ///                  |  Remaining Stack  |
+    /// stack_limit  --> +-------------------+
+    /// ```
     fn stage_msg_mailbox(vectors: &ServiceVectors, msg: PsaMsg) -> (*const PsaMsg, usize) {
         let stack_top = vectors.stack_top as usize;
         let stack_limit = vectors.stack_limit as usize;
@@ -233,7 +248,7 @@ mod tests {
         };
 
         unsafe extern "C" fn dummy_init() {}
-        unsafe extern "C" fn dummy_call(_: PsaMsg) -> ! {
+        unsafe extern "C" fn dummy_call(_: *const PsaMsg) -> ! {
             loop {}
         }
 

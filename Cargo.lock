@@ -661,6 +661,7 @@ name = "psc3m5_evk_attest_srv"
 version = "0.1.0"
 dependencies = [
  "board_build_scripts",
+ "bytemuck",
  "helpers",
  "psa_interface",
  "psc3 0.1.0",
@@ -673,6 +674,7 @@ name = "psc3m5_evk_crypto_srv"
 version = "0.1.0"
 dependencies = [
  "board_build_scripts",
+ "bytemuck",
  "helpers",
  "psa_interface",
  "psc3 0.1.0",
