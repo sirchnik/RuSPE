@@ -42,6 +42,30 @@ pub struct ServiceVectors {
 // immutable for the lifetime of the program.
 unsafe impl Sync for ServiceVectors {}
 
+#[derive(Clone, Copy, Debug)]
+pub struct MemoryRegion {
+    pub base: *const u8,
+    pub size: usize,
+}
+
+impl ServiceVectors {
+    /// Safely computes the ROM memory region bounds
+    pub fn rom_region(&self) -> MemoryRegion {
+        MemoryRegion {
+            base: self.rom_start,
+            size: (self.rom_limit as usize).saturating_sub(self.rom_start as usize),
+        }
+    }
+
+    /// Safely computes the RAM memory region bounds
+    pub fn ram_region(&self) -> MemoryRegion {
+        MemoryRegion {
+            base: self.ram_start,
+            size: (self.ram_limit as usize).saturating_sub(self.ram_start as usize),
+        }
+    }
+}
+
 /// A process that can be managed and dispatched by the SPM IPC mechanism.
 pub trait IpcProcess: Sync {
     fn handle(&self) -> ServiceHandle;
@@ -49,20 +73,10 @@ pub trait IpcProcess: Sync {
     fn version(&self) -> u32;
 
     /// One-time initialization, called before the first `call()`.
-    ///
-    /// # Safety
-    /// For flash processes, the entry point vectors must be valid.
-    unsafe fn init_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
-        &self,
-        platform: &P,
-        spm: &S,
-    );
+    fn init_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(&self, platform: &P, spm: &S);
 
     /// Dispatch a service call. The connection is already on the SPM stack.
-    ///
-    /// # Safety
-    /// For flash processes, the entry point vectors must be valid.
-    unsafe fn call_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
+    fn call_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
         &self,
         platform: &P,
         spm: &S,
@@ -77,7 +91,10 @@ pub struct ServiceProcess {
 }
 
 impl ServiceProcess {
-    pub const fn new(handle: ServiceHandle, vectors: &'static ServiceVectors) -> Self {
+    /// # Safety
+    /// The caller must ensure that `vectors` points to valid, immutable ROM/RAM
+    /// memory regions and that the entry points are valid functions.
+    pub const unsafe fn new(handle: ServiceHandle, vectors: &'static ServiceVectors) -> Self {
         Self { handle, vectors }
     }
 
@@ -145,11 +162,7 @@ impl IpcProcess for ServiceProcess {
         self.vectors.version
     }
 
-    unsafe fn init_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
-        &self,
-        _platform: &P,
-        _spm: &S,
-    ) {
+    fn init_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(&self, _platform: &P, _spm: &S) {
         let vectors = self.vectors;
         unsafe {
             svc_call_unpriv(
@@ -161,7 +174,7 @@ impl IpcProcess for ServiceProcess {
         }
     }
 
-    unsafe fn call_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
+    fn call_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
         &self,
         _platform: &P,
         _spm: &S,

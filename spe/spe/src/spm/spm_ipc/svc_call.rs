@@ -14,16 +14,30 @@
 /// - Sets EXC_RETURN SPSEL bit -> exception return unstacks from PSP
 /// - bx lr -> hardware pops frame from PSP -> service runs unprivileged.
 ///
-/// The service is expected to issue `svc {SVC_PROCESS_EXIT}` when finished,
-/// which triggers the handler to copy the return value from the PSP frame to
-/// the orphaned MSP frame, clear nPRIV, flip EXC_RETURN back to MSP, and
-/// return - landing us back here with the result in R0.
+/// The service is expected to return to the `thunk` address (via `LR`), which
+/// will issue `svc {SVC_PROCESS_EXIT}`. This triggers the handler to copy the
+/// return value from the PSP frame to the orphaned MSP frame, clear nPRIV, flip
+/// EXC_RETURN back to MSP, and return - landing us back here with the result in
+/// R0.
 ///
 /// # Safety
-/// - `fn_ptr` must point to valid code in unprivileged-accessible memory.
-/// - `stack_limit` must be the lowest permitted PSP value for the service.
-/// - `stack_top` must be an 8-byte aligned address at the top of RAM accessible
-///   to unprivileged code (the service's stack).
+/// The caller must guarantee the following conditions to avoid undefined
+/// behavior:
+/// - Memory Boundaries: `stack_top` must be an 8-byte aligned address pointing
+///   to the end of a valid, writable memory allocation. It must have at least
+///   32 bytes of valid space immediately below it for the fabricated exception
+///   frame.
+/// - Stack Limits: `stack_limit` must be less than or equal to `stack_top -
+///   32`. It sets the hardware bounds for the Process Stack Pointer (PSP). The
+///   region between `stack_limit` and `stack_top` must be valid, accessible
+///   memory.
+/// - Executable Code: `fn_ptr` must point to valid, executable code
+///   instructions.
+/// - Hardware Isolation: The caller must have appropriately configured the
+///   memory protection unit (MPU). The unprivileged code must be strictly
+///   sandboxed so it cannot violate Rust's memory safety guarantees by reading
+///   or mutating privileged memory or memory belonging to other isolated
+///   processes.
 #[cfg(target_arch = "arm")]
 pub(crate) unsafe fn svc_call_unpriv(
     fn_ptr: usize,

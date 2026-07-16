@@ -212,11 +212,13 @@ unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
 
     // Load service configuration generated at build time and build the exact
     // process table.
-    let processes: [ServiceProcess; service_config::SERVICE_COUNT] = core::array::from_fn(|i| {
-        ServiceProcess::new(service_config::SERVICE_HANDLES[i], unsafe {
-            &*(service_config::SERVICE_ADDRS[i] as *const ServiceVectors)
-        })
-    });
+    let processes: [ServiceProcess; service_config::SERVICE_COUNT] =
+        core::array::from_fn(|i| unsafe {
+            ServiceProcess::new(
+                service_config::SERVICE_HANDLES[i],
+                &*(service_config::SERVICE_ADDRS[i] as *const ServiceVectors),
+            )
+        });
 
     let platform = unsafe { static_init!(Psc3IpcPlatform, Psc3IpcPlatform) };
 

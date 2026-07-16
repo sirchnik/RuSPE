@@ -94,6 +94,24 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
         Ok(result)
     }
 
+    fn update_vec_mapping(&self, is_outvec: bool, vec_idx: u32, mapped: bool) {
+        let mut process_index = 0;
+        self.with_active_connection(|conn| {
+            process_index = self.find_process_index(conn.msg.handle).unwrap();
+            let idx = vec_idx as usize;
+            if is_outvec {
+                conn.outvec_mapped[idx] = mapped;
+                conn.outvec_unmapped[idx] = !mapped;
+            } else {
+                conn.invec_mapped[idx] = mapped;
+                conn.invec_unmapped[idx] = !mapped;
+            }
+        })
+        .unwrap();
+
+        self.apply_mpu_config(process_index);
+    }
+
     fn apply_mpu_config(&self, process_index: usize) {
         use cortex_m::mpu::{Mpu, Permissions};
 
@@ -106,28 +124,12 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
 
         let mut config = MpuConfig::default();
 
-        let service_rom_start = vectors.rom_start;
-        let service_rom_size = (vectors.rom_limit as usize)
-            .checked_sub(vectors.rom_start as usize)
+        let rom = vectors.rom_region();
+        let ram = vectors.ram_region();
+        mpu.allocate_region(rom.base, rom.size, Permissions::ReadExecute, &mut config)
             .unwrap();
-        let service_ram_start = vectors.ram_start;
-        let service_ram_size = (vectors.ram_limit as usize)
-            .checked_sub(vectors.ram_start as usize)
+        mpu.allocate_region(ram.base, ram.size, Permissions::ReadWriteXN, &mut config)
             .unwrap();
-        mpu.allocate_region(
-            service_rom_start,
-            service_rom_size,
-            Permissions::ReadExecute,
-            &mut config,
-        )
-        .unwrap();
-        mpu.allocate_region(
-            service_ram_start,
-            service_ram_size,
-            Permissions::ReadWriteXN,
-            &mut config,
-        )
-        .unwrap();
 
         let handle = self.processes[process_index].handle();
         for region in self.platform.custom_mpu_regions(handle) {
@@ -135,45 +137,44 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
                 .unwrap();
         }
 
+        let mut allocate_vec = |base_addr: usize, size: usize, permissions| {
+            if size > 0 {
+                let aligned_base = base_addr & !0x1F;
+                let aligned_end = (base_addr + size + 0x1F) & !0x1F;
+                let aligned_size = aligned_end - aligned_base;
+                mpu.allocate_region(
+                    aligned_base as *const u8,
+                    aligned_size,
+                    permissions,
+                    &mut config,
+                )
+                .unwrap();
+            }
+        };
+
         self.state
             .try_lock(|state| {
                 if let Ok(conn) = state.connections.peek_active_connection() {
                     if self.find_process_index(conn.msg.handle) == Some(process_index) {
-                        for (i, &is_mapped) in conn.invec_mapped.iter().enumerate() {
-                            if is_mapped && !conn.invec_unmapped[i] {
+                        for i in 0..conn.invec_mapped.len() {
+                            if conn.invec_mapped[i] && !conn.invec_unmapped[i] {
                                 if let Some(size) = conn.msg.in_size[i].as_option() {
-                                    if size > 0 {
-                                        let base_addr = conn.invec_base[i] as usize;
-                                        let aligned_base = base_addr & !0x1F;
-                                        let aligned_end = (base_addr + size + 0x1F) & !0x1F;
-                                        let aligned_size = aligned_end - aligned_base;
-                                        mpu.allocate_region(
-                                            aligned_base as *const u8,
-                                            aligned_size,
-                                            Permissions::ReadXN,
-                                            &mut config,
-                                        )
-                                        .unwrap();
-                                    }
+                                    allocate_vec(
+                                        conn.invec_base[i] as usize,
+                                        size,
+                                        Permissions::ReadXN,
+                                    );
                                 }
                             }
                         }
-                        for (i, &is_mapped) in conn.outvec_mapped.iter().enumerate() {
-                            if is_mapped && !conn.outvec_unmapped[i] {
+                        for i in 0..conn.outvec_mapped.len() {
+                            if conn.outvec_mapped[i] && !conn.outvec_unmapped[i] {
                                 if let Some(size) = conn.msg.out_size[i].as_option() {
-                                    if size > 0 {
-                                        let base_addr = conn.outvec_base[i] as usize;
-                                        let aligned_base = base_addr & !0x1F;
-                                        let aligned_end = (base_addr + size + 0x1F) & !0x1F;
-                                        let aligned_size = aligned_end - aligned_base;
-                                        mpu.allocate_region(
-                                            aligned_base as *const u8,
-                                            aligned_size,
-                                            Permissions::ReadWriteXN,
-                                            &mut config,
-                                        )
-                                        .unwrap();
-                                    }
+                                    allocate_vec(
+                                        conn.outvec_base[i] as usize,
+                                        size,
+                                        Permissions::ReadWriteXN,
+                                    );
                                 }
                             }
                         }
@@ -212,32 +213,21 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmCall
         self.apply_mpu_config(process_index);
 
         if should_init {
-            // # Safety:
-            // Process init is safe per the IpcProcess safety contract.
-            unsafe { self.processes[process_index].init_process(self.platform, self) };
+            self.processes[process_index].init_process(self.platform, self);
         }
 
-        // # Safety:
-        // Process call is safe per the IpcProcess safety contract.
-        let result =
-            unsafe { self.processes[process_index].call_process(self.platform, self, msg) };
+        let result = self.processes[process_index].call_process(self.platform, self, msg);
 
         // Restore MPU of previous process, if any
         let prev_process_index = self
             .state
             .try_lock(|state| {
                 state.connections.pop_connection();
-                match state.connections.take_active_connection() {
-                    Ok((idx, conn)) => {
-                        let process_index = self.find_process_index(conn.msg.handle).unwrap();
-                        state
-                            .connections
-                            .restore_active_connection(idx, conn)
-                            .unwrap();
-                        Some(process_index)
-                    }
-                    Err(_) => None,
-                }
+                state
+                    .connections
+                    .peek_active_connection()
+                    .ok()
+                    .and_then(|conn| self.find_process_index(conn.msg.handle))
             })
             .unwrap();
 
@@ -264,53 +254,11 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmCall
     }
 
     fn map_vec(&self, is_outvec: bool, vec_idx: u32, _base: *const u8, _size: usize) {
-        let mut process_index = 0;
-        self.state
-            .try_lock(|state| {
-                let (conn_idx, mut conn) = state.connections.take_active_connection().unwrap();
-                process_index = self.find_process_index(conn.msg.handle).unwrap();
-
-                if is_outvec {
-                    conn.outvec_mapped[vec_idx as usize] = true;
-                    conn.outvec_unmapped[vec_idx as usize] = false;
-                } else {
-                    conn.invec_mapped[vec_idx as usize] = true;
-                    conn.invec_unmapped[vec_idx as usize] = false;
-                }
-
-                state
-                    .connections
-                    .restore_active_connection(conn_idx, conn)
-                    .unwrap();
-            })
-            .unwrap();
-
-        self.apply_mpu_config(process_index);
+        self.update_vec_mapping(is_outvec, vec_idx, true);
     }
 
     fn unmap_vec(&self, is_outvec: bool, vec_idx: u32) {
-        let mut process_index = 0;
-        self.state
-            .try_lock(|state| {
-                let (conn_idx, mut conn) = state.connections.take_active_connection().unwrap();
-                process_index = self.find_process_index(conn.msg.handle).unwrap();
-
-                if is_outvec {
-                    conn.outvec_mapped[vec_idx as usize] = false;
-                    conn.outvec_unmapped[vec_idx as usize] = true;
-                } else {
-                    conn.invec_mapped[vec_idx as usize] = false;
-                    conn.invec_unmapped[vec_idx as usize] = true;
-                }
-
-                state
-                    .connections
-                    .restore_active_connection(conn_idx, conn)
-                    .unwrap();
-            })
-            .unwrap();
-
-        self.apply_mpu_config(process_index);
+        self.update_vec_mapping(is_outvec, vec_idx, false);
     }
 
     fn version(&self, handle: ServiceHandle) -> Option<u32> {
@@ -366,7 +314,6 @@ mod tests {
         handle: ServiceHandle,
     }
 
-    // # Safety: test stub
     impl IpcProcess for MockProcess {
         fn handle(&self) -> ServiceHandle {
             self.handle
@@ -380,14 +327,14 @@ mod tests {
             1
         }
 
-        unsafe fn init_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
+        fn init_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
             &self,
             _platform: &P,
             _spm: &S,
         ) {
         }
 
-        unsafe fn call_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
+        fn call_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(
             &self,
             _platform: &P,
             _spm: &S,
