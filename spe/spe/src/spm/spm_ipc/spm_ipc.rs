@@ -188,6 +188,22 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
             mpu.enable_mpu();
         }
     }
+
+    #[inline(never)]
+    fn fun_name(&self) -> Option<usize> {
+        let prev_process_index = self
+            .state
+            .try_lock(|state| {
+                state.connections.pop_connection();
+                state
+                    .connections
+                    .peek_active_connection()
+                    .ok()
+                    .and_then(|conn| self.find_process_index(conn.msg.handle))
+            })
+            .unwrap();
+        prev_process_index
+    }
 }
 
 impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmCall
@@ -219,17 +235,7 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmCall
         let result = self.processes[process_index].call_process(self.platform, self, msg);
 
         // Restore MPU of previous process, if any
-        let prev_process_index = self
-            .state
-            .try_lock(|state| {
-                state.connections.pop_connection();
-                state
-                    .connections
-                    .peek_active_connection()
-                    .ok()
-                    .and_then(|conn| self.find_process_index(conn.msg.handle))
-            })
-            .unwrap();
+        let prev_process_index = self.fun_name();
 
         if let Some(prev) = prev_process_index {
             self.apply_mpu_config(prev);

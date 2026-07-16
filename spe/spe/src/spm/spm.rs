@@ -38,14 +38,17 @@ pub enum SpmError {
 }
 
 pub(crate) struct ConnectionArray {
-    connections: [Option<Connection>; MAX_CONNECTIONS],
+    connections: [core::mem::MaybeUninit<Connection>; MAX_CONNECTIONS],
+    present: [bool; MAX_CONNECTIONS],
     top_connection: usize,
 }
 
 impl ConnectionArray {
     pub const fn new() -> Self {
         Self {
-            connections: [const { None }; MAX_CONNECTIONS],
+            // SAFETY: An uninitialized array of MaybeUninit is valid.
+            connections: unsafe { core::mem::MaybeUninit::uninit().assume_init() },
+            present: [false; MAX_CONNECTIONS],
             top_connection: 0,
         }
     }
@@ -55,7 +58,8 @@ impl ConnectionArray {
             return Err(SpmError::ConnectionStackFull);
         }
 
-        self.connections[self.top_connection] = Some(connection);
+        self.connections[self.top_connection].write(connection);
+        self.present[self.top_connection] = true;
         self.top_connection += 1;
 
         Ok(())
@@ -67,9 +71,13 @@ impl ConnectionArray {
         }
 
         let index = self.top_connection - 1;
-        let connection = self.connections[index]
-            .take()
-            .ok_or(SpmError::CorruptedConnectionStack)?;
+        if !self.present[index] {
+            return Err(SpmError::CorruptedConnectionStack);
+        }
+
+        // SAFETY: We checked `present[index]` which guarantees it was initialized.
+        let connection = unsafe { self.connections[index].assume_init_read() };
+        self.present[index] = false;
 
         Ok((index, connection))
     }
@@ -79,11 +87,12 @@ impl ConnectionArray {
         index: usize,
         connection: Connection,
     ) -> Result<(), SpmError> {
-        if index >= MAX_CONNECTIONS || self.connections[index].is_some() {
+        if index >= MAX_CONNECTIONS || self.present[index] {
             return Err(SpmError::CorruptedConnectionStack);
         }
 
-        self.connections[index] = Some(connection);
+        self.connections[index].write(connection);
+        self.present[index] = true;
 
         Ok(())
     }
@@ -91,7 +100,11 @@ impl ConnectionArray {
     pub(crate) fn pop_connection(&mut self) {
         if self.top_connection > 0 {
             self.top_connection -= 1;
-            self.connections[self.top_connection] = None;
+            if self.present[self.top_connection] {
+                // SAFETY: We checked `present` is true, so it is initialized.
+                unsafe { self.connections[self.top_connection].assume_init_drop() };
+                self.present[self.top_connection] = false;
+            }
         }
     }
 
@@ -100,9 +113,11 @@ impl ConnectionArray {
             return Err(SpmError::EmptyConnectionStack);
         }
         let index = self.top_connection - 1;
-        match &self.connections[index] {
-            Some(conn) => Ok(conn),
-            None => Err(SpmError::CorruptedConnectionStack),
+        if self.present[index] {
+            // SAFETY: We checked `present[index]` which guarantees it was initialized.
+            Ok(unsafe { self.connections[index].assume_init_ref() })
+        } else {
+            Err(SpmError::CorruptedConnectionStack)
         }
     }
 }

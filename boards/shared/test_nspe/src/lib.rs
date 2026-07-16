@@ -14,7 +14,23 @@ use psa_veneer_client::PsaVeneerClient;
 struct Aligned32<T>(T);
 
 pub fn run_test(writer: &mut dyn Write) {
+    // Activate SysTick for debugging
+    unsafe {
+        let syst_rvr = 0xE000_E014 as *mut u32;
+        let syst_cvr = 0xE000_E018 as *mut u32;
+        let syst_csr = 0xE000_E010 as *mut u32;
+
+        syst_rvr.write_volatile(0x00FF_FFFF); // Max 24-bit value
+        syst_cvr.write_volatile(0); // Clear current value
+        syst_csr.write_volatile(5); // Enable + Processor Clock
+    }
+
     print_version(writer);
+    run_attest(writer);
+    run_attest(writer);
+    run_attest(writer);
+    run_attest(writer);
+    run_attest(writer);
     run_attest(writer);
 }
 fn print_version(writer: &mut dyn Write) {
@@ -41,8 +57,16 @@ fn run_attest(writer: &mut dyn Write) {
 
     let mut token_buf = Aligned32([0u8; 512]);
 
+    let start = unsafe { core::ptr::read_volatile(0xE000_E018 as *const u32) };
+    let _ = write!(writer, "call_start {}\r\n", start);
+
     psa_api::psa_initial_attest_get_token::<PsaVeneerClient>(&challenge.0, &mut token_buf.0)
         .unwrap();
+
+    let end = unsafe { core::ptr::read_volatile(0xE000_E018 as *const u32) };
+    let _ = write!(writer, "call_end {}\r\n", end);
+    let diff = start.wrapping_sub(end) & 0x00FF_FFFF;
+    let _ = write!(writer, "cycles_elapsed {}\r\n", diff);
 
     let _ = write!(writer, "\r\ntoken_buf: ");
 
