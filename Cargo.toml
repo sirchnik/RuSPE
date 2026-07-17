@@ -59,7 +59,7 @@ asm_sub_register = "allow"
 # RESTRICTION LINTS
 restriction = { level = "allow", priority = -1 }
 allow_attributes_without_reason = "deny"
-absolute-paths = { level = "deny", absolute-paths-allowed-crates = ["core"] }
+absolute-paths = { level = "deny" }
 
 # COMPLEXITY LINTS
 complexity = { level = "deny", priority = -1 }

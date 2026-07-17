@@ -194,6 +194,7 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
         }
     }
 
+    // inline(never) for fixing bug in O3
     #[inline(never)]
     fn get_last_process_index(&self) -> Option<usize> {
         self.state

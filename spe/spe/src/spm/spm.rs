@@ -40,6 +40,7 @@ pub enum SpmError {
 }
 
 pub(crate) struct ConnectionArray {
+    // MaybeUninit for fixing bug in O3
     connections: [core::mem::MaybeUninit<Connection>; MAX_CONNECTIONS],
     present: [bool; MAX_CONNECTIONS],
     top_connection: usize,
