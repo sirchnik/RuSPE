@@ -25,14 +25,26 @@ register_structs! {
     }
 }
 
-pub fn enable_idau_nsc_code() {
+/// Enable IDAU NSC code region
+///
+/// # Safety
+/// Modifying IDAU state changes memory execution safety boundaries.
+pub unsafe fn enable_idau_nsc_code() {
+    // SAFETY: Register block is valid. Modifying it is unsafe and the caller's
+    // responsibility.
     unsafe {
         let spcb = &*(0x5008_0000u32 as *const SpcbRegisters);
         spcb.nsc_cfg.modify(NscCfg::allow_sau_code_nsc::SET);
     }
 }
 
-pub fn enable_uart1_ns() {
+/// Enable UART1 non-secure access
+///
+/// # Safety
+/// Changing peripheral security boundaries can break isolation.
+pub unsafe fn enable_uart1_ns() {
+    // SAFETY: Register block is valid. Modifying it is unsafe and the caller's
+    // responsibility.
     unsafe {
         let spcb = &*(0x5008_0000u32 as *const SpcbRegisters);
         // WORKAROUND:

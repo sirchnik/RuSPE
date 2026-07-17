@@ -7,8 +7,8 @@
 //! This module supports only ECDSA with SHA-256 (COSE alg `ES256`, `-7`).
 
 use minicbor::data::Tag;
-use minicbor::encode::{Error, Write};
 use minicbor::encode::write::{Cursor, EndOfSlice};
+use minicbor::encode::{Error, Write};
 use minicbor::{Decoder, Encoder};
 use p256::ecdsa::signature::hazmat::PrehashSigner;
 use p256::ecdsa::{Signature, SigningKey};

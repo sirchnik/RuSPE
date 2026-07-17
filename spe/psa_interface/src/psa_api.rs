@@ -2,10 +2,11 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::status::StatusCode;
-use crate::{PsaApiCallInterface, types};
 use core::mem::size_of;
 use core::ptr::from_ref;
+
+use crate::status::StatusCode;
+use crate::{PsaApiCallInterface, types};
 
 fn status_from_raw(status: types::PsaStatus) -> Result<(), StatusCode> {
     match StatusCode::try_from(status) {

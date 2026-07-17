@@ -2,9 +2,9 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::spm_api::{CallerAttributes, PsaMsg};
-
 use psa_interface::types::ServiceHandle;
+
+use crate::spm_api::{CallerAttributes, PsaMsg};
 
 const MAX_CONNECTIONS: usize = 4;
 pub const PSA_MAX_IOVEC: usize = 4;
@@ -22,12 +22,10 @@ pub struct Connection {
     pub outvec_unmapped: [bool; PSA_MAX_IOVEC],
 }
 
-// # Safety
-// Connection is not Send because it contains raw pointers.
-// Rust did declare raw pointers as !Send as it cannot guarantee ownership and
-// lifetimes. As raw pointers can only be dereferenced in unsafe code, we
-// circumvent the language design and mark Connection Send.
-// There was once a discussion about this in the Rust community https://internals.rust-lang.org/t/shouldnt-pointers-be-send-sync-or/8818
+// SAFETY: Connection contains raw pointers to input/output buffers which are
+// not automatically Send. However, the connection's data is only accessed from
+// the current execution thread of the SPM, making it safe to transfer between
+// threads.
 unsafe impl Send for Connection {}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

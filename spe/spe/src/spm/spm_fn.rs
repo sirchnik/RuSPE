@@ -2,10 +2,11 @@
 //
 // SPDX-License-Identifier: MIT
 
+use psa_interface::types::ServiceHandle;
+
 use super::spm::{Connection, ConnectionArray, SpmCall, SpmError};
 use crate::libs::mutex::Mutex;
 use crate::spm_api::{CallerAttributes, PsaMsg};
-use psa_interface::types::ServiceHandle;
 
 pub trait SfnPlatform: Sync {
     fn call(&self, msg: PsaMsg) -> Result<(), crate::StatusCode>;

@@ -4,10 +4,10 @@
 
 use core::{mem, panic, slice};
 
-use psa_interface::{
-    status::{into_psa_status, StatusCode},
-    types::{CtrlParam, FFInVec, FFOutVec, PsaStatus, ServiceHandle, PSA_FRAMEWORK_VERSION},
-    PsaApiCallInterface,
+use psa_interface::PsaApiCallInterface;
+use psa_interface::status::{StatusCode, into_psa_status};
+use psa_interface::types::{
+    CtrlParam, FFInVec, FFOutVec, PSA_FRAMEWORK_VERSION, PsaStatus, ServiceHandle,
 };
 
 use crate::spm::spm::SpmCall;
@@ -68,6 +68,9 @@ fn set_raw_vec(frame: &mut SvcStackFrame, raw: RawVec) {
 }
 
 fn ctrl_param_from_raw(raw: usize) -> CtrlParam {
+    // SAFETY: Transmuting a u32 from the register frame into CtrlParam is safe
+    // because CtrlParam is a repr(transparent) or repr(C) representation of u32
+    // parameters.
     unsafe { mem::transmute::<u32, CtrlParam>(raw as u32) }
 }
 
@@ -117,6 +120,9 @@ pub fn handle_svc_with_spm<S: SpmCall, A: SpmApi>(
             }
         }
         SVC_PSA_CALL => {
+            // SAFETY: The raw pointers for in_vec and out_vec inside the stack frame are
+            // verified and processed by the SFN api handler within proper
+            // memory bounds.
             let result = unsafe {
                 sfn_api.call(
                     handle,
@@ -164,6 +170,8 @@ unsafe fn svc_call<const SVC_NUM: u8>(
     let out2: usize;
     let out3: usize;
 
+    // SAFETY: Executing the supervisor call (SVC) is safe because it only transfers
+    // control to the secure handler with the specified arguments in registers.
     unsafe {
         asm!("dmb sy", options(nostack, preserves_flags));
         asm!(
@@ -190,6 +198,8 @@ unsafe fn svc_call<const SVC_NUM: u8>(
 pub fn process_exit(status: PsaStatus) -> ! {
     use core::arch::asm;
 
+    // SAFETY: Exiting the process by issuing an SVC call is safe because it never
+    // returns and terminates the current execution context.
     unsafe {
         asm!(
             "svc {SVC_PROCESS_EXIT}",
@@ -227,6 +237,8 @@ impl SpmApi for SvcApi {
         invec_idx: u32,
         f: impl FnOnce(&[u8]) -> R,
     ) -> R {
+        // SAFETY: Making an SVC call to map the input vector is safe as it doesn't
+        // violate memory safety, and returns a verified memory range.
         let (status, base, len, _) =
             unsafe { svc_call::<SVC_PSA_MAP_VEC>(msg_handle as usize, invec_idx as usize, 0, 0) };
         status_from_raw(status).unwrap_or_else(|err| panic!("failed to map input vector: {err:?}"));
@@ -234,10 +246,14 @@ impl SpmApi for SvcApi {
         let invec = if len == 0 {
             &[]
         } else {
+            // SAFETY: The base pointer and length returned by the mapping SVC are
+            // guaranteed by the SPM to point to valid, read-accessible memory.
             unsafe { slice::from_raw_parts(base as *const u8, len) }
         };
         let result = f(invec);
 
+        // SAFETY: Unmapping a previously mapped input vector is safe and releases the
+        // mapped state.
         let (status, _, _, _) =
             unsafe { svc_call::<SVC_PSA_UNMAP_VEC>(msg_handle as usize, invec_idx as usize, 0, 0) };
         status_from_raw(status)
@@ -252,6 +268,8 @@ impl SpmApi for SvcApi {
         outvec_idx: u32,
         f: impl FnOnce(&mut [u8]) -> (R, usize),
     ) -> R {
+        // SAFETY: Mapping the output vector via SVC is safe and returns a valid memory
+        // range.
         let (status, base, len, _) =
             unsafe { svc_call::<SVC_PSA_MAP_VEC>(msg_handle as usize, outvec_idx as usize, 1, 0) };
         status_from_raw(status)
@@ -260,10 +278,13 @@ impl SpmApi for SvcApi {
         let outvec = if len == 0 {
             &mut []
         } else {
+            // SAFETY: The base pointer and length returned by the mapping SVC are
+            // guaranteed by the SPM to point to valid, write-accessible memory.
             unsafe { slice::from_raw_parts_mut(base as *mut u8, len) }
         };
         let (result, written_len) = f(outvec);
 
+        // SAFETY: Unmapping and writing back the output vector via SVC is safe.
         let (status, _, _, _) = unsafe {
             svc_call::<SVC_PSA_UNMAP_VEC>(msg_handle as usize, outvec_idx as usize, 1, written_len)
         };
@@ -280,11 +301,13 @@ impl SpmApi for SvcApi {
         outvec_idx: u32,
         f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize),
     ) -> R {
+        // SAFETY: Mapping the input vector via SVC is safe.
         let (in_status, in_base, in_len, _) =
             unsafe { svc_call::<SVC_PSA_MAP_VEC>(msg_handle as usize, invec_idx as usize, 0, 0) };
         status_from_raw(in_status)
             .unwrap_or_else(|err| panic!("failed to map input vector: {err:?}"));
 
+        // SAFETY: Mapping the output vector via SVC is safe.
         let (out_status, out_base, out_len, _) =
             unsafe { svc_call::<SVC_PSA_MAP_VEC>(msg_handle as usize, outvec_idx as usize, 1, 0) };
         status_from_raw(out_status)
@@ -293,22 +316,28 @@ impl SpmApi for SvcApi {
         let invec = if in_len == 0 {
             &[]
         } else {
+            // SAFETY: The input base and length returned by the SVC are guaranteed valid by
+            // the SPM.
             unsafe { slice::from_raw_parts(in_base as *const u8, in_len) }
         };
         let outvec = if out_len == 0 {
             &mut []
         } else {
+            // SAFETY: The output base and length returned by the SVC are guaranteed valid
+            // by the SPM.
             unsafe { slice::from_raw_parts_mut(out_base as *mut u8, out_len) }
         };
 
         let (result, written_len) = f(invec, outvec);
 
+        // SAFETY: Unmapping the output vector via SVC is safe.
         let (out_status, _, _, _) = unsafe {
             svc_call::<SVC_PSA_UNMAP_VEC>(msg_handle as usize, outvec_idx as usize, 1, written_len)
         };
         status_from_raw(out_status)
             .unwrap_or_else(|err| panic!("failed to commit output vector: {err:?}"));
 
+        // SAFETY: Unmapping the input vector via SVC is safe.
         let (in_status, _, _, _) =
             unsafe { svc_call::<SVC_PSA_UNMAP_VEC>(msg_handle as usize, invec_idx as usize, 0, 0) };
         status_from_raw(in_status)
@@ -324,6 +353,8 @@ impl SpmApi for SvcApi {
         in_vec: *const FFInVec,
         out_vec: *mut FFOutVec,
     ) -> Result<(), StatusCode> {
+        // SAFETY: Issuing an SVC call for PSA service execution is safe as parameters
+        // are verified by the SPM upon handler invocation.
         let (status, _, _, _) = unsafe {
             svc_call::<SVC_PSA_CALL>(
                 handle as usize,
@@ -344,10 +375,10 @@ impl PsaApiCallInterface for IpcPsaClient {
     }
 
     fn psa_version(service_id: u32) -> u32 {
-        let Ok(handle) = ServiceHandle::try_from(service_id.cast_signed())
-        else {
+        let Ok(handle) = ServiceHandle::try_from(service_id.cast_signed()) else {
             return 0;
         };
+        // SAFETY: Querying the service version via SVC is safe.
         let (version, _, _, _) = unsafe { svc_call::<SVC_PSA_VERSION>(handle as usize, 0, 0, 0) };
         version as u32
     }
@@ -370,6 +401,7 @@ impl PsaApiCallInterface for IpcPsaClient {
             out_vec.as_mut_ptr()
         };
 
+        // SAFETY: Calling SpmApi::call with valid vector pointers is safe.
         into_psa_status(unsafe {
             SpmApi::call(&SvcApi, handle, ctrl_param, in_vec_ptr, out_vec_ptr)
         })

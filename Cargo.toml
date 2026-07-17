@@ -59,13 +59,17 @@ asm_sub_register = "allow"
 # RESTRICTION LINTS
 restriction = { level = "allow", priority = -1 }
 allow_attributes_without_reason = "deny"
-absolute-paths = { level = "deny" }
+absolute-paths = "deny"
+unnecessary_safety_comment = "deny"
+unnecessary_safety_doc = "deny"
+undocumented_unsafe_blocks = "deny"
 
 # COMPLEXITY LINTS
 complexity = { level = "deny", priority = -1 }
 
 # STYLE
 style = { level = "deny", priority = -1 }
+missing_safety_doc = "deny"
 
 # PERF
 perf = { level = "deny", priority = -1 }

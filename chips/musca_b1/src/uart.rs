@@ -362,15 +362,23 @@ pub struct Parameters {
     pub hw_flow_control: bool,
 }
 
+// SAFETY: 0x5010_5000 is a valid memory-mapped UART0 secure base address on
+// Musca-B1.
 const UART0_BASE_SEC: StaticRef<UartRegisters> =
     unsafe { StaticRef::new(0x5010_5000 as *const UartRegisters) };
 
+// SAFETY: 0x4010_5000 is a valid memory-mapped UART0 non-secure base address on
+// Musca-B1.
 const UART0_BASE_NSEC: StaticRef<UartRegisters> =
     unsafe { StaticRef::new(0x4010_5000 as *const UartRegisters) };
 
+// SAFETY: 0x5010_6000 is a valid memory-mapped UART1 secure base address on
+// Musca-B1.
 const UART1_BASE_SEC: StaticRef<UartRegisters> =
     unsafe { StaticRef::new(0x5010_6000 as *const UartRegisters) };
 
+// SAFETY: 0x4010_6000 is a valid memory-mapped UART1 non-secure base address on
+// Musca-B1.
 const UART1_BASE_NSEC: StaticRef<UartRegisters> =
     unsafe { StaticRef::new(0x4010_6000 as *const UartRegisters) };
 

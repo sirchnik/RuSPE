@@ -4,9 +4,9 @@
 
 use core::mem::size_of;
 
+use psa_interface::PsaApiCallInterface;
 use psa_interface::status::StatusCode;
 use psa_interface::types::AttestationServiceType;
-use psa_interface::PsaApiCallInterface;
 use spe::service::Service;
 use spe::spm_api::{MaybeUsize, PsaMsg, SpmApi};
 
@@ -211,12 +211,8 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
     fn has_exactly_one_iovec(msg: &PsaMsg) -> bool {
         msg.in_size[0].is_some()
             && msg.out_size[0].is_some()
-            && msg.in_size[1..]
-                .iter()
-                .all(MaybeUsize::is_none)
-            && msg.out_size[1..]
-                .iter()
-                .all(MaybeUsize::is_none)
+            && msg.in_size[1..].iter().all(MaybeUsize::is_none)
+            && msg.out_size[1..].iter().all(MaybeUsize::is_none)
     }
 
     #[expect(clippy::too_many_arguments, reason = "required by PSA token structure")]
@@ -386,9 +382,7 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
     }
 }
 
-impl<P: AttestPlatform, C: PsaApiCallInterface, A: SpmApi> Service<A>
-    for AttestService<P, C>
-{
+impl<P: AttestPlatform, C: PsaApiCallInterface, A: SpmApi> Service<A> for AttestService<P, C> {
     fn call(&self, msg: PsaMsg, api: &A) -> Result<(), StatusCode> {
         if !Self::has_exactly_one_iovec(&msg) {
             return Err(StatusCode::InvalidArgument);
@@ -396,8 +390,7 @@ impl<P: AttestPlatform, C: PsaApiCallInterface, A: SpmApi> Service<A>
 
         if msg.msg_type == AttestationServiceType::GetToken as i32 {
             self.handle_get_token(&msg, api)
-        } else if msg.msg_type == AttestationServiceType::GetTokenSize as i32
-        {
+        } else if msg.msg_type == AttestationServiceType::GetTokenSize as i32 {
             self.handle_get_token_size(&msg, api)
         } else {
             Err(StatusCode::NotSupported)

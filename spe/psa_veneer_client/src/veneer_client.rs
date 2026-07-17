@@ -24,10 +24,12 @@ pub struct PsaVeneerClient;
 
 impl PsaApiCallInterface for PsaVeneerClient {
     fn psa_framework_version() -> u32 {
+        // SAFETY: We trust the SPE veneer to not cause unwanted side-effects.
         unsafe { psa_framework_version_veneer() }
     }
 
     fn psa_version(service_id: u32) -> u32 {
+        // SAFETY: We trust the SPE veneer to not cause unwanted side-effects.
         unsafe { psa_version_veneer(service_id) }
     }
 
@@ -49,6 +51,9 @@ impl PsaApiCallInterface for PsaVeneerClient {
             out_vec.as_mut_ptr()
         };
 
+        // SAFETY: We trust the SPE veneer to not cause unwanted side-effects.
+        // The in_vec_ptr and out_vec_ptr point to valid memory slices (as guaranteed by
+        // their respective Rust slices) or are null.
         unsafe { psa_call_veneer(handle, ctrl_param, in_vec_ptr, out_vec_ptr) }
     }
 }

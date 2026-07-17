@@ -71,6 +71,8 @@ impl attest_service::AttestPlatform for MuscaB1AttestPlatform {
 
     fn boot_record(&self) -> Option<&'static [u8]> {
         let addr = self.boot_record_addr?;
+        // SAFETY: boot_record_addr points to a valid boot record structure in memory,
+        // and we safely check the magic number before slicing the memory region.
         unsafe {
             let ptr = addr as *const u8;
             let magic = u16::from_le_bytes([*ptr, *ptr.add(1)]);

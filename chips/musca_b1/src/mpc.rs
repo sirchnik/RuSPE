@@ -39,9 +39,15 @@ pub struct Mpc {
 
 impl Mpc {
     pub fn new(mpc_address: u32, memory_base_address: u32) -> Self {
+        // SAFETY: Register block is valid. Modifying it is unsafe and the caller's
+        // responsibility.
         let block_index_max = unsafe { (*Self::ptr(mpc_address)).blk_max.get() };
+        // SAFETY: Register block is valid. Modifying it is unsafe and the caller's
+        // responsibility.
         let block_size =
             unsafe { 1 << ((*Self::ptr(mpc_address)).blk_cfg.read(BlkCfg::block_size) + 5) };
+        // SAFETY: Register block is valid. Modifying it is unsafe and the caller's
+        // responsibility.
         unsafe {
             (*Self::ptr(mpc_address))
                 .ctrl
@@ -63,13 +69,17 @@ impl Mpc {
 
     /// Sets a range of memory as non-secure in the MPC.
     ///
+    /// # Safety
+    /// Modifying MPC boundaries can break memory execution safety and isolation
+    /// invariants.
+    ///
     /// # Panics
     ///
     /// Panics if:
     /// - The address range is invalid or outside the supported memory limits.
     /// - The base address is not aligned to the block size boundary.
     /// - The limit address is not aligned to the end of a block size boundary.
-    pub fn set_non_secure(&mut self, base_address: u32, limit_address: u32) {
+    pub unsafe fn set_non_secure(&mut self, base_address: u32, limit_address: u32) {
         // The address range needs to be inside the supported address range.
         if base_address < self.memory_base_address
             || base_address > self.memory_limit_address
@@ -96,6 +106,8 @@ impl Mpc {
         let end_block = (limit_address + 1 - self.memory_base_address) / self.block_size;
         let mut current_idx = start_block / 32;
 
+        // SAFETY: Register block is valid. Modifying it is unsafe and the caller's
+        // responsibility.
         unsafe {
             let regs = &*Self::ptr(self.mpc_address);
             regs.blk_idx.set(current_idx);

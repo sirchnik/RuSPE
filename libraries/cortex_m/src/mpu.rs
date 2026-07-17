@@ -176,9 +176,8 @@ impl<const N: usize> Default for Mpu<N> {
 impl<const N: usize> Mpu<N> {
     /// Creates a new MPU handle.
     ///
-    /// # Safety
-    /// This function must be used carefully to ensure only one entity manages
-    /// the MPU.
+    /// Note: This function must be used carefully to ensure only one entity
+    /// manages the MPU.
     #[must_use]
     pub const fn new() -> Self {
         Self {
@@ -187,6 +186,8 @@ impl<const N: usize> Mpu<N> {
     }
 
     const fn registers(&self) -> &MpuRegisters {
+        // SAFETY: Register block is valid. Modifying it is unsafe and the caller's
+        // responsibility.
         unsafe { &*self.registers }
     }
 
@@ -207,7 +208,10 @@ impl<const N: usize> Mpu<N> {
     /// are not properly aligned, `Err(MpuError::SizeTooSmall)` if the size
     /// is less than 32 bytes, or `Err(MpuError::NoRegionsAvailable)` if no
     /// regions are available.
-    #[expect(clippy::similar_names, reason = "rbar and rlar are standard register names")]
+    #[expect(
+        clippy::similar_names,
+        reason = "rbar and rlar are standard register names"
+    )]
     pub fn allocate_region(
         &self,
         base: *const u8,
@@ -275,7 +279,8 @@ impl<const N: usize> Mpu<N> {
             .modify(MPU_MAIR0::ATTR0.val(0b0100_0100));
 
         for (i, region_opt) in config.regions.iter().enumerate() {
-            #[expect(clippy::cast_possible_truncation, reason = "region index fits in u32")] // region len should be below u32
+            #[expect(clippy::cast_possible_truncation, reason = "region index fits in u32")]
+            // region len should be below u32
             self.registers().rnr.write(MPU_RNR::REGION.val(i as u32));
             if let Some(region) = region_opt {
                 self.registers().rbar.set(region.rbar);

@@ -16,8 +16,9 @@ pub struct Mutex<T> {
     value: UnsafeCell<T>,
 }
 
-// Soundness: T must be Send because Mutex allows transferring T
-// to another thread that acquires the lock.
+// SAFETY: Mutex provides mutual exclusion using an atomic flag, ensuring that
+// only one thread can access the inner value at any time. Thus, if T is Send,
+// the Mutex can be safely shared across threads (Sync).
 unsafe impl<T: Send> Sync for Mutex<T> {}
 
 impl<T> Mutex<T> {
@@ -35,8 +36,7 @@ impl<T> Mutex<T> {
             .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
             .is_ok()
         {
-            // # Safety
-            // We have exclusive access via the atomic flag.
+            // SAFETY: We have exclusive access to the inner value via the atomic flag.
             let result = unsafe { f(&mut *self.value.get()) };
 
             self.lock.store(false, Ordering::Release);

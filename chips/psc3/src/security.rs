@@ -263,75 +263,79 @@ pub fn configure_security(
 
     let mut sau = sau::new();
 
-    sau.set_region(
-        0,
-        sau::SauRegion {
-            base_address: nonsecure_flash_start,
-            limit_address: nonsecure_flash_limit,
-            attribute: sau::SauRegionAttribute::NonSecure,
-        },
-    )
-    .unwrap();
+    // SAFETY: We are configuring the SAU memory boundaries correctly for the PSC3m5
+    // system.
+    unsafe {
+        sau.set_region(
+            0,
+            sau::SauRegion {
+                base_address: nonsecure_flash_start,
+                limit_address: nonsecure_flash_limit,
+                attribute: sau::SauRegionAttribute::NonSecure,
+            },
+        )
+        .unwrap();
 
-    sau.set_region(
-        1,
-        sau::SauRegion {
-            base_address: nsc_start,
-            limit_address: nsc_start + 0xFF,
-            attribute: sau::SauRegionAttribute::NonSecureCallable,
-        },
-    )
-    .unwrap();
+        sau.set_region(
+            1,
+            sau::SauRegion {
+                base_address: nsc_start,
+                limit_address: nsc_start + 0xFF,
+                attribute: sau::SauRegionAttribute::NonSecureCallable,
+            },
+        )
+        .unwrap();
 
-    sau.set_region(
-        2,
-        sau::SauRegion {
-            base_address: nonsecure_ram_start,
-            limit_address: nonsecure_ram_limit,
-            attribute: sau::SauRegionAttribute::NonSecure,
-        },
-    )
-    .unwrap();
+        sau.set_region(
+            2,
+            sau::SauRegion {
+                base_address: nonsecure_ram_start,
+                limit_address: nonsecure_ram_limit,
+                attribute: sau::SauRegionAttribute::NonSecure,
+            },
+        )
+        .unwrap();
 
-    sau.set_region(
-        3,
-        sau::SauRegion {
-            base_address: 0x2400_F000,
-            limit_address: 0x2400_FFFF,
-            attribute: sau::SauRegionAttribute::NonSecure,
-        },
-    )
-    .unwrap();
+        sau.set_region(
+            3,
+            sau::SauRegion {
+                base_address: 0x2400_F000,
+                limit_address: 0x2400_FFFF,
+                attribute: sau::SauRegionAttribute::NonSecure,
+            },
+        )
+        .unwrap();
 
-    sau.set_region(
-        4,
-        sau::SauRegion {
-            base_address: 0x4200_0000,
-            limit_address: 0x4FFF_FFFF,
-            attribute: sau::SauRegionAttribute::NonSecure,
-        },
-    )
-    .unwrap();
+        sau.set_region(
+            4,
+            sau::SauRegion {
+                base_address: 0x4200_0000,
+                limit_address: 0x4FFF_FFFF,
+                attribute: sau::SauRegionAttribute::NonSecure,
+            },
+        )
+        .unwrap();
 
-    sau.set_region(
-        5,
-        sau::SauRegion {
-            base_address: 0x5202_0000,
-            limit_address: 0x5202_637F,
-            attribute: sau::SauRegionAttribute::Secure,
-        },
-    )
-    .unwrap();
+        sau.set_region(
+            5,
+            sau::SauRegion {
+                base_address: 0x5202_0000,
+                limit_address: 0x5202_637F,
+                attribute: sau::SauRegionAttribute::Secure,
+            },
+        )
+        .unwrap();
 
-    sau.set_region(
-        6,
-        sau::SauRegion {
-            base_address: 0x5282_0000,
-            limit_address: 0x5282_0FDF,
-            attribute: sau::SauRegionAttribute::Secure,
-        },
-    )
-    .unwrap();
+        sau.set_region(
+            6,
+            sau::SauRegion {
+                base_address: 0x5282_0000,
+                limit_address: 0x5282_0FDF,
+                attribute: sau::SauRegionAttribute::Secure,
+            },
+        )
+        .unwrap();
 
-    sau.enable();
+        sau.enable();
+    }
 }

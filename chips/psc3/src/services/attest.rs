@@ -66,12 +66,18 @@ impl attest_service::AttestPlatform for Psc3AttestPlatform {
             seed: core::cell::UnsafeCell<[u8; 32]>,
             init: core::cell::UnsafeCell<bool>,
         }
+        // SAFETY: BootSeedState contains cell types and is not thread-safe by default.
+        // However, the attest service is accessed sequentially in the secure
+        // environment, so sharing STATE across threads is safe.
         unsafe impl Sync for BootSeedState {} // TODO remove unsafe here.
         static STATE: BootSeedState = BootSeedState {
             seed: core::cell::UnsafeCell::new([0; 32]),
             init: core::cell::UnsafeCell::new(false),
         };
 
+        // SAFETY: STATE's cells are only accessed and modified in this block.
+        // Exclusive access is guaranteed by the single-threaded nature of the secure
+        // environment.
         unsafe {
             if !*STATE.init.get() {
                 let cryptolite = cryptolite::Cryptolite::new();
@@ -126,6 +132,8 @@ impl attest_service::AttestPlatform for Psc3AttestPlatform {
 
     fn boot_record(&self) -> Option<&'static [u8]> {
         let addr = self.boot_record_addr?;
+        // SAFETY: boot_record_addr points to a valid boot record structure in memory,
+        // and we safely check the magic number before slicing the memory region.
         unsafe {
             let ptr = addr as *const u8;
             let magic = u16::from_le_bytes([*ptr, *ptr.add(1)]);

@@ -37,9 +37,8 @@ pub struct ServiceVectors {
     pub stack_top: *const u8,
 }
 
-// # Safety
-// ServiceVectors contains raw pointers to fixed ROM/RAM addresses that are
-// immutable for the lifetime of the program.
+// SAFETY: ServiceVectors contains raw pointers to fixed ROM/RAM addresses that
+// are immutable for the lifetime of the program.
 unsafe impl Sync for ServiceVectors {}
 
 #[derive(Clone, Copy, Debug)]
@@ -206,7 +205,10 @@ impl IpcProcess for ServiceProcess {
         // SAFETY: The call_entry, stack_limit, and stack_top are provided by the
         // ServiceVectors which are guaranteed to be valid by the safety
         // contract of ServiceProcess::new.
-        #[expect(clippy::cast_possible_wrap, reason = "status is a valid status code within range")]
+        #[expect(
+            clippy::cast_possible_wrap,
+            reason = "status is a valid status code within range"
+        )]
         let status = unsafe {
             svc_call_unpriv(
                 vectors.call_entry as usize,

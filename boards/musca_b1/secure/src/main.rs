@@ -87,80 +87,96 @@ unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
     };
 
     let mut sau = cortex_m::sau::new();
-    sau.set_region(
-        0,
-        cortex_m::sau::SauRegion {
-            base_address: 0x0010_2000,
-            limit_address: 0x0027_FFFF, // Covers rom and prog
-            attribute: cortex_m::sau::SauRegionAttribute::NonSecure,
-        },
-    )
-    .unwrap();
-    sau.set_region(
-        1,
-        cortex_m::sau::SauRegion {
-            base_address: 0x1010_0000,
-            limit_address: 0x1010_1FFF,
-            attribute: cortex_m::sau::SauRegionAttribute::NonSecureCallable,
-        },
-    )
-    .unwrap();
-    sau.set_region(
-        2,
-        cortex_m::sau::SauRegion {
-            base_address: 0x2003_0000,
-            limit_address: 0x2007_FFFF,
-            attribute: cortex_m::sau::SauRegionAttribute::NonSecure,
-        },
-    )
-    .unwrap();
-    sau.set_region(
-        3,
-        cortex_m::sau::SauRegion {
-            base_address: 0x4000_0000,
-            limit_address: 0x4FFF_FFFF,
-            attribute: cortex_m::sau::SauRegionAttribute::NonSecure,
-        },
-    )
-    .unwrap();
-    sau.set_region(
-        4,
-        cortex_m::sau::SauRegion {
-            base_address: 0x4010_5000,
-            limit_address: 0x4010_5FFF,
-            attribute: cortex_m::sau::SauRegionAttribute::NonSecure,
-        },
-    )
-    .unwrap();
-    sau.enable();
+    // SAFETY: We are correctly defining the memory boundary isolation properties
+    // for the Musca-B1 board.
+    unsafe {
+        sau.set_region(
+            0,
+            cortex_m::sau::SauRegion {
+                base_address: 0x0010_2000,
+                limit_address: 0x0027_FFFF, // Covers rom and prog
+                attribute: cortex_m::sau::SauRegionAttribute::NonSecure,
+            },
+        )
+        .unwrap();
+        sau.set_region(
+            1,
+            cortex_m::sau::SauRegion {
+                base_address: 0x1010_0000,
+                limit_address: 0x1010_1FFF,
+                attribute: cortex_m::sau::SauRegionAttribute::NonSecureCallable,
+            },
+        )
+        .unwrap();
+        sau.set_region(
+            2,
+            cortex_m::sau::SauRegion {
+                base_address: 0x2003_0000,
+                limit_address: 0x2007_FFFF,
+                attribute: cortex_m::sau::SauRegionAttribute::NonSecure,
+            },
+        )
+        .unwrap();
+        sau.set_region(
+            3,
+            cortex_m::sau::SauRegion {
+                base_address: 0x4000_0000,
+                limit_address: 0x4FFF_FFFF,
+                attribute: cortex_m::sau::SauRegionAttribute::NonSecure,
+            },
+        )
+        .unwrap();
+        sau.set_region(
+            4,
+            cortex_m::sau::SauRegion {
+                base_address: 0x4010_5000,
+                limit_address: 0x4010_5FFF,
+                attribute: cortex_m::sau::SauRegionAttribute::NonSecure,
+            },
+        )
+        .unwrap();
+        sau.enable();
+    }
 
     let _ = global_spm_api::SPM.try_set(spm);
 
     // Allows SAU to define the code region as a NSC
-    ruspe_musca_b1::spcb::enable_idau_nsc_code();
+    // SAFETY: This configures the system IDAU which is required to set up execution
+    // isolation properly.
+    unsafe {
+        ruspe_musca_b1::spcb::enable_idau_nsc_code();
+    }
 
     // Allow non-secure access to UART1
-    ruspe_musca_b1::spcb::enable_uart1_ns();
+    // SAFETY: This changes UART1 peripheral access rules. Required to allow NSPE to
+    // output.
+    unsafe {
+        ruspe_musca_b1::spcb::enable_uart1_ns();
+    }
 
-    // QSPI MPC
-    let mut eflash_mpc = ruspe_musca_b1::mpc::Mpc::new(0x52000000, 0x00000000);
-    eflash_mpc.set_non_secure(0x00102000, 0x003F7FFF);
+    // SAFETY: We are configuring MPC hardware boundaries to assign memory correctly
+    // for NS execution.
+    unsafe {
+        // QSPI MPC
+        let mut eflash_mpc = ruspe_musca_b1::mpc::Mpc::new(0x52000000, 0x00000000);
+        eflash_mpc.set_non_secure(0x00102000, 0x003F7FFF);
 
-    // External SRAM MPC (QEMU musca-b1 mpc2)
-    let mut ext_sram_mpc = ruspe_musca_b1::mpc::Mpc::new(0x52100000, 0x20000000);
-    ext_sram_mpc.set_non_secure(0x20030000, 0x2007FFFF);
+        // External SRAM MPC (QEMU musca-b1 mpc2)
+        let mut ext_sram_mpc = ruspe_musca_b1::mpc::Mpc::new(0x52100000, 0x20000000);
+        ext_sram_mpc.set_non_secure(0x20030000, 0x2007FFFF);
 
-    // Internal SRAM Bank 1 MPC (0x20020000 - 0x2003FFFF)
-    let mut sram1_mpc = ruspe_musca_b1::mpc::Mpc::new(0x50084000, 0x20020000);
-    sram1_mpc.set_non_secure(0x20030000, 0x2003FFFF);
+        // Internal SRAM Bank 1 MPC (0x20020000 - 0x2003FFFF)
+        let mut sram1_mpc = ruspe_musca_b1::mpc::Mpc::new(0x50084000, 0x20020000);
+        sram1_mpc.set_non_secure(0x20030000, 0x2003FFFF);
 
-    // Internal SRAM Bank 2 MPC (0x20040000 - 0x2005FFFF)
-    let mut sram2_mpc = ruspe_musca_b1::mpc::Mpc::new(0x50085000, 0x20040000);
-    sram2_mpc.set_non_secure(0x20040000, 0x2005FFFF);
+        // Internal SRAM Bank 2 MPC (0x20040000 - 0x2005FFFF)
+        let mut sram2_mpc = ruspe_musca_b1::mpc::Mpc::new(0x50085000, 0x20040000);
+        sram2_mpc.set_non_secure(0x20040000, 0x2005FFFF);
 
-    // Internal SRAM Bank 3 MPC (0x20060000 - 0x2007FFFF)
-    let mut sram3_mpc = ruspe_musca_b1::mpc::Mpc::new(0x50086000, 0x20060000);
-    sram3_mpc.set_non_secure(0x20060000, 0x2007FFFF);
+        // Internal SRAM Bank 3 MPC (0x20060000 - 0x2007FFFF)
+        let mut sram3_mpc = ruspe_musca_b1::mpc::Mpc::new(0x50086000, 0x20060000);
+        sram3_mpc.set_non_secure(0x20060000, 0x2007FFFF);
+    }
 
     io::debugln(format_args!("Init SPE done, jumping to non-secure"));
 

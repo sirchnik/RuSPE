@@ -2,8 +2,9 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::spm_api::{PsaMsg, SpmApi};
 use psa_interface::status::StatusCode;
+
+use crate::spm_api::{PsaMsg, SpmApi};
 
 pub trait Service<A: SpmApi> {
     fn call(&self, msg: PsaMsg, api: &A) -> Result<(), StatusCode>;

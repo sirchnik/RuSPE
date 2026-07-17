@@ -114,6 +114,8 @@ const NVIC_BASE: *const NvicRegisters = 0xE000_E000 as *const NvicRegisters;
 
 #[inline]
 const fn nvic() -> &'static NvicRegisters {
+    // SAFETY: Register block is valid. Modifying it is unsafe and the caller's
+    // responsibility.
     unsafe { &*NVIC_BASE }
 }
 
@@ -190,7 +192,10 @@ pub unsafe fn next_pending() -> Option<u32> {
         if ispr != 0 {
             // trailing_zeros == index of first high bit
             let bit = ispr.trailing_zeros();
-            #[expect(clippy::cast_possible_truncation, reason = "block index multiplication fits in u32")]
+            #[expect(
+                clippy::cast_possible_truncation,
+                reason = "block index multiplication fits in u32"
+            )]
             return Some(block as u32 * 32 + bit);
         }
     }
@@ -223,7 +228,10 @@ pub unsafe fn next_pending_with_mask(mask: (u128, u128)) -> Option<u32> {
         if ispr_masked != 0 {
             // trailing_zeros == index of first high bit
             let bit = ispr_masked.trailing_zeros();
-            #[expect(clippy::cast_possible_truncation, reason = "block index multiplication fits in u32")]
+            #[expect(
+                clippy::cast_possible_truncation,
+                reason = "block index multiplication fits in u32"
+            )]
             return Some(block as u32 * 32 + bit);
         }
     }
@@ -285,21 +293,30 @@ impl Nvic {
     }
 
     /// Enable the interrupt
-    pub fn enable(&self) {
+    ///
+    /// # Safety
+    /// Modifying NVIC state can break interrupt safety invariants.
+    pub unsafe fn enable(&self) {
         let idx = self.0 as usize;
 
         nvic().iser[idx / 32].set(1 << (self.0 & 31));
     }
 
     /// Disable the interrupt
-    pub fn disable(&self) {
+    ///
+    /// # Safety
+    /// Modifying NVIC state can break interrupt safety invariants.
+    pub unsafe fn disable(&self) {
         let idx = self.0 as usize;
 
         nvic().icer[idx / 32].set(1 << (self.0 & 31));
     }
 
     /// Clear pending state
-    pub fn clear_pending(&self) {
+    ///
+    /// # Safety
+    /// Modifying NVIC state can break interrupt safety invariants.
+    pub unsafe fn clear_pending(&self) {
         let idx = self.0 as usize;
 
         nvic().icpr[idx / 32].set(1 << (self.0 & 31));

@@ -3,31 +3,28 @@
 // SPDX-License-Identifier: MIT
 
 use cortex_m::cmse;
-use psa_interface::{PsaApiCallInterface, types::ServiceHandle};
+use psa_interface::PsaApiCallInterface;
+use psa_interface::types::ServiceHandle;
 use spe::service::Service;
 use spe::spm::spm_fn::SfnPlatform;
 use spe::spm_api::{CallerAttributes, PsaMsg, SpmApi};
 
 use crate::services;
 
-pub struct Psc3SecPlatform<
-    C: PsaApiCallInterface + Sync,
-    A: SpmApi + Sync,
-> {
+pub struct Psc3SecPlatform<C: PsaApiCallInterface + Sync, A: SpmApi + Sync> {
     pub api: A,
     pub initial_attestation: services::InitialAttestation<C>,
     pub crypto: services::Crypto,
 }
 
-impl<C: PsaApiCallInterface + Sync, A: SpmApi + Sync> SfnPlatform
-    for Psc3SecPlatform<C, A>
-{
+impl<C: PsaApiCallInterface + Sync, A: SpmApi + Sync> SfnPlatform for Psc3SecPlatform<C, A> {
     fn call(&self, msg: PsaMsg) -> Result<(), spe::StatusCode> {
-        #[expect(clippy::match_wildcard_for_single_variants, reason = "not all services implemented")]
+        #[expect(
+            clippy::match_wildcard_for_single_variants,
+            reason = "not all services implemented"
+        )]
         match msg.handle {
-            ServiceHandle::AttestationService => {
-                self.initial_attestation.call(msg, &self.api)
-            }
+            ServiceHandle::AttestationService => self.initial_attestation.call(msg, &self.api),
             ServiceHandle::Crypto => self.crypto.call(msg, &self.api),
             _ => Err(spe::StatusCode::NotSupported),
         }
@@ -83,11 +80,12 @@ impl<C: PsaApiCallInterface + Sync, A: SpmApi + Sync> SfnPlatform
     }
 
     fn version(&self, handle: ServiceHandle) -> Option<u32> {
-        #[expect(clippy::match_wildcard_for_single_variants, reason = "not all services implemented")]
+        #[expect(
+            clippy::match_wildcard_for_single_variants,
+            reason = "not all services implemented"
+        )]
         match handle {
-            ServiceHandle::AttestationService => {
-                Some(services::InitialAttestation::<C>::VERSION)
-            }
+            ServiceHandle::AttestationService => Some(services::InitialAttestation::<C>::VERSION),
             ServiceHandle::Crypto => Some(services::Crypto::VERSION),
             _ => None,
         }

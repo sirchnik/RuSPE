@@ -128,19 +128,27 @@ pub const fn new() -> SAU {
 
 impl SAU {
     const fn registers(&self) -> &SauRegisters {
+        // SAFETY: Register block is valid. Modifying it is unsafe and the caller's
+        // responsibility.
         unsafe { &*self.registers }
     }
 
     /// Get the number of implemented SAU regions.
     #[must_use]
     pub fn region_numbers(&self) -> u8 {
-        #[expect(clippy::cast_possible_truncation, reason = "SAU region count fits in u8")]
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "SAU region count fits in u8"
+        )]
         let val = self.registers().type_reg.read(TYPE::SREGION) as u8;
         val
     }
 
     /// Enable the SAU.
-    pub fn enable(&mut self) {
+    ///
+    /// # Safety
+    /// Modifying SAU state can break memory isolation invariants.
+    pub unsafe fn enable(&mut self) {
         self.registers().ctrl.modify(CTRL::ENABLE::SET);
     }
 
@@ -154,7 +162,14 @@ impl SAU {
     ///
     /// # Errors
     /// Returns `SauError` if the configuration is invalid.
-    pub fn set_region(&mut self, region_number: u8, region: SauRegion) -> Result<(), SauError> {
+    ///
+    /// # Safety
+    /// Modifying SAU regions can break memory isolation invariants.
+    pub unsafe fn set_region(
+        &mut self,
+        region_number: u8,
+        region: SauRegion,
+    ) -> Result<(), SauError> {
         let base_address = region.base_address;
         let limit_address = region.limit_address;
         let attribute = region.attribute;

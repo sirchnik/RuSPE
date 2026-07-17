@@ -10,6 +10,9 @@
 /// Incorrect stack limits can lead to memory corruption or crashes.
 #[inline]
 pub unsafe fn set_msplim(limit: u32) {
+    // SAFETY: Writing to the MSPLIM register restricts the main stack boundary.
+    // The caller must ensure that the limit is correct to prevent memory corruption
+    // or stack overflow.
     unsafe {
         core::arch::asm!(
             "msr MSPLIM, {limit}",
@@ -25,6 +28,9 @@ pub unsafe fn set_msplim(limit: u32) {
 /// Incorrect stack limits can lead to memory corruption or crashes.
 #[inline]
 pub unsafe fn set_psplim(limit: u32) {
+    // SAFETY: Writing to the PSPLIM register restricts the process stack boundary.
+    // The caller must ensure that the limit is correct to prevent memory corruption
+    // or stack overflow.
     unsafe {
         core::arch::asm!(
             "msr PSPLIM, {limit}",
