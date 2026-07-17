@@ -4,6 +4,7 @@
 
 use core::cmp;
 
+use spe::libs::mutex::Mutex;
 use spe_services::attest::attest_service::{self, CERTIFICATION_REF_MAX_SIZE};
 use tock_psc3::cryptolite;
 use tock_psc3::efuse::{SyslibLcsMode, get_device_lifecycle};
@@ -63,42 +64,34 @@ impl attest_service::AttestPlatform for Psc3AttestPlatform {
 
     fn boot_seed(&self, seed: &mut [u8; 32]) -> Result<(), spe::StatusCode> {
         struct BootSeedState {
-            seed: core::cell::UnsafeCell<[u8; 32]>,
-            init: core::cell::UnsafeCell<bool>,
+            seed: [u8; 32],
+            init: bool,
         }
-        // SAFETY: BootSeedState contains cell types and is not thread-safe by default.
-        // However, the attest service is accessed sequentially in the secure
-        // environment, so sharing STATE across threads is safe.
-        unsafe impl Sync for BootSeedState {} // TODO remove unsafe here.
-        static STATE: BootSeedState = BootSeedState {
-            seed: core::cell::UnsafeCell::new([0; 32]),
-            init: core::cell::UnsafeCell::new(false),
-        };
+        static STATE: Mutex<BootSeedState> = Mutex::new(BootSeedState {
+            seed: [0; 32],
+            init: false,
+        });
 
-        // SAFETY: STATE's cells are only accessed and modified in this block.
-        // Exclusive access is guaranteed by the single-threaded nature of the secure
-        // environment.
-        unsafe {
-            if !*STATE.init.get() {
-                let cryptolite = cryptolite::Cryptolite::new();
-                if cryptolite
-                    .trng_init(&cryptolite::TrngConfig::default())
-                    .and_then(|()| cryptolite.trng_enable())
-                    .is_err()
-                {
-                    return Err(spe::StatusCode::GenericError);
+        STATE
+            .try_lock(|state| {
+                if !state.init {
+                    let cryptolite = cryptolite::Cryptolite::new();
+                    if cryptolite
+                        .trng_init(&cryptolite::TrngConfig::default())
+                        .and_then(|()| cryptolite.trng_enable())
+                        .is_err()
+                    {
+                        return Err(spe::StatusCode::GenericError);
+                    }
+                    if cryptolite.trng_try_fill_bytes(&mut state.seed).is_err() {
+                        return Err(spe::StatusCode::GenericError);
+                    }
+                    state.init = true;
                 }
-                if cryptolite
-                    .trng_try_fill_bytes(&mut *STATE.seed.get())
-                    .is_err()
-                {
-                    return Err(spe::StatusCode::GenericError);
-                }
-                *STATE.init.get() = true;
-            }
-            seed.copy_from_slice(&*STATE.seed.get());
-        }
-        Ok(())
+                seed.copy_from_slice(&state.seed);
+                Ok(())
+            })
+            .map_or(Err(spe::StatusCode::GenericError), |res| res)
     }
 
     fn implementation_id(&self, buf: &mut [u8; 32]) -> Result<(), spe::StatusCode> {

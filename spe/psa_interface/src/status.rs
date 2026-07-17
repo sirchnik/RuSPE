@@ -69,6 +69,14 @@ impl From<StatusCode> for PsaStatus {
     }
 }
 
+impl TryFrom<usize> for StatusCode {
+    type Error = PsaStatus;
+
+    fn try_from(status: usize) -> Result<Self, Self::Error> {
+        Self::try_from(status.cast_signed())
+    }
+}
+
 impl TryFrom<PsaStatus> for StatusCode {
     type Error = PsaStatus;
 

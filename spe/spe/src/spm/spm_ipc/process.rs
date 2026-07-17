@@ -4,7 +4,7 @@
 
 use core::mem::{align_of, size_of};
 
-use psa_interface::types::{PsaStatus, ServiceHandle};
+use psa_interface::types::ServiceHandle;
 
 use super::ipc_platform::IpcProcessPlatform;
 use super::svc_call::{EXCEPTION_FRAME_WORDS, svc_call_unpriv};
@@ -205,10 +205,6 @@ impl IpcProcess for ServiceProcess {
         // SAFETY: The call_entry, stack_limit, and stack_top are provided by the
         // ServiceVectors which are guaranteed to be valid by the safety
         // contract of ServiceProcess::new.
-        #[expect(
-            clippy::cast_possible_wrap,
-            reason = "status is a valid status code within range"
-        )]
         let status = unsafe {
             svc_call_unpriv(
                 vectors.call_entry as usize,
@@ -216,7 +212,7 @@ impl IpcProcess for ServiceProcess {
                 vectors.stack_limit as usize,
                 stack_top,
             )
-        } as PsaStatus;
+        };
         match crate::StatusCode::try_from(status) {
             Ok(crate::StatusCode::_Success) => Ok(()),
             Ok(err) => Err(err),
