@@ -18,6 +18,8 @@ from binhopulsar.pulsar import Pulsar
 import binhopulsar.commands.uart.definitions as uart_defs
 
 __msg_id = 0
+fd = None
+old_term_attrs = None
 
 
 def msg_id():
@@ -26,7 +28,15 @@ def msg_id():
     return __msg_id
 
 
-def process_event(event: dict, system_msg: dict | None):
+def process_event(event: dict | None, system_msg: dict | None):
+    if event is None:
+        print(f"\r\n*** Device error/message: {system_msg} ***\r")
+        print("*** Restarting connection due to error ***\r\n")
+        dev.close()
+        if not IS_WINDOWS and fd is not None and old_term_attrs is not None:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_term_attrs)
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+        return
     if event["command"] == "SYS GET DEVICE INFO":
         if event["result"] not in [
             "SUCCESS",
