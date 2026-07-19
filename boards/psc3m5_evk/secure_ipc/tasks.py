@@ -130,6 +130,7 @@ def _build_merged(ctx: Context, nspe: str, app: str | None, debug: bool) -> Path
     elf_to_hex(ctx, secure_elf, secure_hex)
 
     from tools.build.mcuboot import patch_mcuboot_sig
+
     patch_mcuboot_sig(
         secure_hex,
         mcuboot_addr=0x32007F00,
@@ -185,6 +186,7 @@ def _build_merged(ctx: Context, nspe: str, app: str | None, debug: bool) -> Path
 def generate(ctx: Context, force=False):
     """Generate all services defined in the local service catalog."""
     from .service_catalog import CATALOG
+
     for name, spec in CATALOG.items():
         if spec.mode == "generated":
             print(f"Generating service '{spec.name}' at {spec.service_dir}")
@@ -216,6 +218,9 @@ def program(ctx: Context, nspe="test", app=None, debug=False):
     """Build, merge, and program the secure IPC image with OpenOCD."""
     merged = _build_merged(ctx, nspe, app, bool(debug))
     return program_hex(ctx, BOARD, merged)
+
+
+from boards.psc3m5_evk.common_tasks import term
 
 
 def vscode_build_targets(release: bool = False) -> list[VscodeBuildTarget]:

@@ -63,11 +63,11 @@ def _build_merged(ctx: Context, nspe: str, app: str | None, debug: bool) -> Path
     )
 
     secure_elf = cargo_build(ctx, BOARD, debug)
-    
+
     target_root = BOARD.target_root(debug)
     secure_hex = target_root / f"{BOARD.prefixed_platform}.hex"
     elf_to_hex(ctx, secure_elf, secure_hex)
-    
+
     patch_mcuboot_sig(
         secure_hex,
         mcuboot_addr=0x3200FF00,
@@ -141,6 +141,9 @@ def program(ctx: Context, nspe="test", app=None, debug=False):
     """Build, merge, and program the secure image with OpenOCD."""
     merged = _build_merged(ctx, nspe, app, bool(debug))
     return program_hex(ctx, BOARD, merged)
+
+
+from boards.psc3m5_evk.common_tasks import term  # noqa: F401
 
 
 def vscode_build_targets(release: bool = False) -> list[VscodeBuildTarget]:

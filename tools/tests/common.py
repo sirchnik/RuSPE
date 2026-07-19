@@ -9,6 +9,7 @@ import re
 import socket
 import subprocess
 import threading
+import time
 import traceback
 from pathlib import Path
 import cbor2
@@ -28,7 +29,50 @@ class QemuRunner:
         self.cwd = cwd
         self.qemu: subprocess.Popen[str] | None = None
         self.spe_done = False
-        self._thread: threading.Thread | None = None
+        self._spe_done_logged = False
+        self._threads: list[threading.Thread] = []
+        
+        self.secure_port: int | None = None
+        for i, arg in enumerate(self.cmd):
+            if arg == "-serial" and i + 1 < len(self.cmd):
+                next_arg = self.cmd[i + 1]
+                if next_arg.startswith("telnet:127.0.0.1:"):
+                    self.secure_port = int(next_arg.split(":")[2].split(",")[0])
+                    break
+
+    def _read_qemu_stdout(self) -> None:
+        if self.qemu is None or self.qemu.stdout is None:
+            return
+        for line in self.qemu.stdout:
+            if VERBOSE:
+                print("QEMU:", line.rstrip())
+            if "Init SPE done, jumping to non-secure" in line and not self._spe_done_logged:
+                self.spe_done = True
+                self._spe_done_logged = True
+                print("Init SPE done, jumping to non-secure")
+
+    def _read_secure_telnet(self) -> None:
+        if not self.secure_port:
+            return
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            time.sleep(1.0)
+            s.connect(("127.0.0.1", self.secure_port))
+            buffer = ""
+            while True:
+                data = s.recv(4096)
+                if not data:
+                    break
+                text = data.decode("utf-8", errors="ignore")
+                buffer += text
+                if VERBOSE:
+                    print("SECURE:", text.rstrip())
+                if "Init SPE done, jumping to non-secure" in buffer and not self._spe_done_logged:
+                    self.spe_done = True
+                    self._spe_done_logged = True
+                    print("Init SPE done, jumping to non-secure")
+        except Exception as e:
+            print(f"Failed to connect to secure telnet: {e}")
 
     def start(self) -> None:
         self.qemu = subprocess.Popen(
@@ -41,20 +85,14 @@ class QemuRunner:
         if VERBOSE:
             print(f"Starting QEMU: {' '.join(self.cmd)} (cwd={self.cwd})")
 
-        def read_qemu_stdout() -> None:
-            if self.qemu is None or self.qemu.stdout is None:
-                return
-            for line in self.qemu.stdout:
-                if VERBOSE:
-                    # Echo QEMU output for debugging
-                    print("QEMU:", line.rstrip())
-                if "Init SPE done, jumping to non-secure" in line:
-                    self.spe_done = True
-                    # Keep this short and always print so tests can detect progress
-                    print("Init SPE done, jumping to non-secure")
+        stdout_thread = threading.Thread(target=self._read_qemu_stdout, daemon=True)
+        stdout_thread.start()
+        self._threads.append(stdout_thread)
 
-        self._thread = threading.Thread(target=read_qemu_stdout, daemon=True)
-        self._thread.start()
+        if self.secure_port:
+            secure_thread = threading.Thread(target=self._read_secure_telnet, daemon=True)
+            secure_thread.start()
+            self._threads.append(secure_thread)
 
     def stop(self) -> None:
         if self.qemu:

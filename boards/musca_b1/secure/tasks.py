@@ -188,7 +188,7 @@ def get_qemu_cmd(
                 "-monitor",
                 "none",
                 "-serial",
-                "stdio",
+                "telnet:127.0.0.1:4322,server,nowait",
             ]
         )
         if telnet_wait:
@@ -223,6 +223,20 @@ def qemu_gdb_listen(ctx: Context, nspe="test", app=None, debug=False):
     """Build, merge, and run QEMU, waiting for a GDB connection."""
     secure_elf, non_secure_elf, _ = _build_merged(ctx, nspe, app, bool(debug))
     _run_qemu(secure_elf, non_secure_elf, gdb_listen=True)
+
+
+@build_task(help={})
+def term(ctx: Context):
+    """Open a split terminal for secure and non-secure logging."""
+    from tools.debugging.term import launch_split
+    import shutil
+
+    telnet = next((cmd for cmd in ("telnet", "nc") if shutil.which(cmd)), None)
+
+    if not telnet:
+        raise RuntimeError("No telnet or nc found!")
+
+    launch_split(f"{telnet} 127.0.0.1 4321", f"{telnet} 127.0.0.1 4322")
 
 
 def vscode_build_targets(release: bool = False) -> list[VscodeBuildTarget]:
@@ -273,7 +287,7 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
                 "-monitor",
                 "none",
                 "-serial",
-                "stdio",
+                "telnet:127.0.0.1:4322,server,nowait",
                 "-serial",
                 "telnet:127.0.0.1:4321,server,nowait",
                 "-device",
@@ -294,7 +308,7 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
                 "-monitor",
                 "none",
                 "-serial",
-                "stdio",
+                "telnet:127.0.0.1:4322,server,nowait",
                 "-serial",
                 "telnet:127.0.0.1:4321,server,nowait",
                 "-device",
