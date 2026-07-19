@@ -28,6 +28,8 @@ pub enum MpuError {
     SizeTooSmall,
     /// There are no available MPU regions to allocate.
     NoRegionsAvailable,
+    /// The requested region overlaps with an already allocated region.
+    RegionOverlap,
 }
 
 register_structs! {
@@ -254,6 +256,18 @@ impl<const N: usize> Mpu<N> {
             + MPU_RLAR::PXN::Disable
             + MPU_RLAR::ATTRINDX.val(0))
         .value;
+
+        // Overlap check
+        for i in 0..N {
+            if let Some(region) = config.regions[i] {
+                let existing_base = region.rbar & !0x1F;
+                let existing_end = (region.rlar & !0x1F) + 0x20;
+
+                if base_addr < existing_end && existing_base < end_addr {
+                    return Err(MpuError::RegionOverlap);
+                }
+            }
+        }
 
         for i in 0..N {
             if config.regions[i].is_none() {
