@@ -3,9 +3,16 @@
 # SPDX-License-Identifier: MIT
 
 import sys
-import termios
-import tty
 import os
+import signal
+
+IS_WINDOWS = os.name == "nt"
+
+if IS_WINDOWS:
+    import msvcrt
+else:
+    import termios
+    import tty
 
 from binhopulsar.pulsar import Pulsar
 import binhopulsar.commands.uart.definitions as uart_defs
@@ -79,14 +86,33 @@ res = dev.uartInit(
 if res["opcode"] != 0:
     raise Exception(f"Failed to initialize UART: {res}")
 
-print("UART initialized. Ctrl+C to exit.")
-fd = sys.stdin.fileno()
-old_term_attrs = termios.tcgetattr(fd)
+print("UART initialized. Use Ctrl+A then X to exit.")
+fd = sys.stdin.fileno() if not IS_WINDOWS else None
+old_term_attrs = termios.tcgetattr(fd) if not IS_WINDOWS else None
+old_sigint_handler = signal.getsignal(signal.SIGINT)
+
+
+def read_char() -> str:
+    if IS_WINDOWS:
+        ch = msvcrt.getwch()
+        if ch in ("\x00", "\xe0"):
+            # Ignore special-key prefix bytes on Windows.
+            msvcrt.getwch()
+            return ""
+        return ch
+    return sys.stdin.read(1)
+
+
 try:
-    tty.setcbreak(fd)
+    # Do not let Ctrl+C terminate the session; exiting is done via Ctrl+A then X.
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+    if not IS_WINDOWS:
+        tty.setcbreak(fd)
+
     escape_mode = False
     while True:
-        ch = sys.stdin.read(1)
+        ch = read_char()
         if ch == "":
             continue
 
@@ -108,7 +134,8 @@ try:
             elif ch == "\x12" or ch == "r":  # C-a C-r or C-a r
                 print("\r\n*** Restarting connection ***\r\n")
                 dev.close()
-                termios.tcsetattr(fd, termios.TCSADRAIN, old_term_attrs)
+                if not IS_WINDOWS and fd is not None and old_term_attrs is not None:
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_term_attrs)
                 os.execv(sys.executable, [sys.executable] + sys.argv)
             else:
                 print(f"\r\n*** Unknown command: {repr(ch)} ***\r\n")
@@ -124,10 +151,10 @@ try:
         )
         if send_res["opcode"] != 0:
             print(f"UART send failed: {send_res}\r")
-except KeyboardInterrupt:
-    print("\r\nExiting.\r")
 except EOFError:
     print("\r\nExiting.\r")
 finally:
-    termios.tcsetattr(fd, termios.TCSADRAIN, old_term_attrs)
+    signal.signal(signal.SIGINT, old_sigint_handler)
+    if not IS_WINDOWS and fd is not None and old_term_attrs is not None:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_term_attrs)
     dev.close()

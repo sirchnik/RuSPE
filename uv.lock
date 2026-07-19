@@ -875,6 +875,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "binhopulsar" },
     { name = "cbor2" },
+    { name = "cryptography" },
     { name = "edgeprotecttools" },
     { name = "intelhex" },
     { name = "invoke" },
@@ -887,6 +888,7 @@ dependencies = [
 requires-dist = [
     { name = "binhopulsar", specifier = "==1.2.0" },
     { name = "cbor2", specifier = ">=5.5.1" },
+    { name = "cryptography", specifier = "==46.0.7" },
     { name = "edgeprotecttools", specifier = "==1.6.1" },
     { name = "intelhex", specifier = "==2.3.0" },
     { name = "invoke", specifier = "==3.0.3" },

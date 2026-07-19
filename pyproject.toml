@@ -17,6 +17,7 @@ dependencies = [
     "ty>=0.0.53",              # type checking
     "ruff>=0.15.19",           # linting
     "cbor2>=5.5.1",            # CBOR for integration tests
+    "cryptography==46.0.7",    # e.g. mcuboot faking
     "binhopulsar==1.2.0",      # Uart adapter for non-secure
 ]
 
