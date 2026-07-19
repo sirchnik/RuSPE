@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: MIT
 
 pub mod platform;
+pub mod ppc;
 pub mod security;
 pub mod services;
 

@@ -640,11 +640,13 @@ name = "psc3"
 version = "0.1.0"
 dependencies = [
  "cortex_m",
+ "helpers",
  "infineon",
  "psa_interface",
  "psc3 0.2.3-dev",
  "spe",
  "spe_services",
+ "tock-registers",
 ]
 
 [[package]]

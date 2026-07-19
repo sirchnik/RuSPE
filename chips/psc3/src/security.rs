@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: MIT
 
 use cortex_m::sau;
-use tock_psc3::ppc;
-use tock_psc3::ppc::PpcRegion;
+
+use crate::ppc::{self, PpcRegion};
 
 const NONSECURE_PRIV: &[PpcRegion] = &[
     PpcRegion::ProtPeri0Main,
