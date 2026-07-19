@@ -19,6 +19,9 @@ use spe_driver::SpeDriver;
 set_main! {main}
 stack_size! {0x400}
 
+#[repr(align(32))]
+struct Aligned32<T>(T);
+
 #[derive(Debug)]
 enum TokenError {
     ConsoleRead,
@@ -73,8 +76,8 @@ fn parse_hex(hex_input: &[u8], output: &mut [u8]) -> usize {
 
 fn create_psa_token(writer: &mut impl Write) -> Result<(), TokenError> {
     let mut nonce_hex = [0u8; 64];
-    let mut nonce = [0u8; 32];
-    let mut token = [0u8; 512];
+    let mut nonce = Aligned32([0u8; 32]);
+    let mut token = Aligned32([0u8; 512]);
 
     loop {
         writeln!(
@@ -113,7 +116,7 @@ fn create_psa_token(writer: &mut impl Write) -> Result<(), TokenError> {
         }
 
         // Parse hex string to binary
-        let parsed_len = parse_hex(&nonce_hex[..len], &mut nonce);
+        let parsed_len = parse_hex(&nonce_hex[..len], &mut nonce.0);
         if parsed_len != 32 {
             writeln!(
                 writer,
@@ -135,21 +138,41 @@ fn create_psa_token(writer: &mut impl Write) -> Result<(), TokenError> {
         );
     }
 
-    let token_len = match SpeDriver::<TockSyscalls>::initial_attest_get_token_sync(
-        &nonce[..challenge_len],
-        &mut token,
-    ) {
-        Ok(token_len) => token_len,
-        Err(_) => {
-            return emit_json_error(
+    #[cfg(feature = "use_syscalls")]
+    {
+        let res = spe_driver::SpeDriver::<TockSyscalls>::initial_attest_get_token_sync(
+            &nonce.0[..challenge_len],
+            &mut token.0,
+        );
+        match res {
+            Ok(len) => emit_json_ok(writer, &token.0[..len], len),
+            Err(_) => emit_json_error(
                 writer,
                 "token_request_failed",
                 TokenError::TokenRequestFailed,
-            );
+            ),
         }
-    };
+    }
 
-    emit_json_ok(writer, &token[..token_len], token_len)
+    #[cfg(not(feature = "use_syscalls"))]
+    {
+        let status = psa_interface::psa_api::psa_initial_attest_get_token::<
+            psa_veneer_client::PsaVeneerClient,
+        >(&nonce.0[..challenge_len], &mut token.0);
+
+        let token_len = match status {
+            Ok(_) => 512,
+            Err(_) => {
+                return emit_json_error(
+                    writer,
+                    "token_request_failed",
+                    TokenError::TokenRequestFailed,
+                );
+            }
+        };
+
+        emit_json_ok(writer, &token.0[..token_len], token_len)
+    }
 }
 
 fn main() {
@@ -179,15 +202,25 @@ fn run_app() -> ! {
 
     #[cfg(feature = "test_loop_token")]
     {
-        let mut token = [0u8; 512];
-        let nonce = [0u8; 32];
+        let mut token = Aligned32([0u8; 512]);
+        let nonce = Aligned32([0u8; 32]);
         let mut writer = Console::writer();
         loop {
             use libtock::alarm::{Alarm, Milliseconds};
 
             writeln!(writer, "start-spe").unwrap();
-            let res =
-                SpeDriver::<TockSyscalls>::initial_attest_get_token_sync(&nonce[..32], &mut token);
+            #[cfg(feature = "use_syscalls")]
+            let res = spe_driver::SpeDriver::<TockSyscalls>::initial_attest_get_token_sync(
+                &nonce.0[..32],
+                &mut token.0,
+            );
+
+            #[cfg(not(feature = "use_syscalls"))]
+            let res = psa_interface::psa_api::psa_initial_attest_get_token::<
+                psa_veneer_client::PsaVeneerClient,
+            >(&nonce.0[..32], &mut token.0);
+
+            res.unwrap();
 
             unsafe {
                 core::arch::asm!("nop");

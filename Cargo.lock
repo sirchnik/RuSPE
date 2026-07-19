@@ -897,6 +897,8 @@ version = "0.1.0"
 dependencies = [
  "libtock",
  "libtock_build_scripts",
+ "psa_interface",
+ "psa_veneer_client",
 ]
 
 [[package]]

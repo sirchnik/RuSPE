@@ -25,6 +25,7 @@ from tools.build.invoke_support import (
 class AppConfig:
     repo_root: Path
     app_dir: Path
+    board: str
     flash_start: str
     flash_length: str
     ram_start: str
@@ -58,9 +59,18 @@ class AppConfig:
 
 
 def cargo_build_app(ctx: Context, app: AppConfig, debug: bool) -> Path:
-    command = ["cargo", "build"]
+    command = ["cargo", "rustc"]
     if not debug:
         command.append("--release")
+
+    veneer_obj = (
+        app.repo_root
+        / "target"
+        / "thumbv8m.main-none-eabi"
+        / f"{app.board}_secure-veneers.o"
+    )
+    command.extend(["--", "-C", f"link-arg={veneer_obj}"])
+
     run_command(command, cwd=app.app_dir, env=app.linker_env())
     return app.elf_image(debug)
 
@@ -99,8 +109,10 @@ def elf_to_tbf(ctx: Context, app: AppConfig, debug: bool) -> Path:
 
 APP_DIR = Path(__file__).resolve().parent
 
+
 def build(
     ctx: Context,
+    board: str,
     flash_start: str,
     flash_length: str,
     ram_start: str,
@@ -111,6 +123,7 @@ def build(
     app = AppConfig(
         repo_root=REPO_ROOT,
         app_dir=APP_DIR,
+        board=board,
         flash_start=flash_start,
         flash_length=flash_length,
         ram_start=ram_start,

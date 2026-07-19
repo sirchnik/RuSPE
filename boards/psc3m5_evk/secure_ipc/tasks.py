@@ -145,6 +145,7 @@ def _build_merged(ctx: Context, nspe: str, app: str | None, debug: bool) -> Path
         if app is None:
             app1_tbf = tock_psa_app_build.build(
                 ctx,
+                board="psc3m5",
                 flash_start="0x22036000",
                 flash_length="0x3000",
                 ram_start="0x2400A000",

@@ -10,16 +10,19 @@ edition.workspace = true
 
 [dependencies]
 libtock = { git = "https://www.github.com/tock/libtock-rs" }
+psa_interface = { path = "../../../spe/psa_interface" }
+psa_veneer_client = { path = "../../../spe/psa_veneer_client" }
 
 [build-dependencies]
 libtock_build_scripts = { git = "https://www.github.com/tock/libtock-rs" }
 
 [features]
-default = []
-# default = ["test_loop_token"]
+# default = []
+default = ["test_loop_token"]
 # default = ["test_unpriv_spe"]
 test_unpriv_spe = []
 test_loop_token = []
+use_syscalls = []
 
 [lints]
 workspace = true

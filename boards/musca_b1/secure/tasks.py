@@ -97,6 +97,7 @@ def _build_merged(
         if app is None:
             app1_tbf = tock_psa_app_build.build(
                 ctx,
+                board="musca_b1",
                 flash_start="0x00182000",
                 flash_length="0x4000",
                 ram_start="0x20035000",
