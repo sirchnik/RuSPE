@@ -203,6 +203,14 @@ impl<const N: usize> Mpu<N> {
             .write(MPU_CTRL::ENABLE::SET + MPU_CTRL::HFNMIENA::CLEAR + MPU_CTRL::PRIVDEFENA::SET);
     }
 
+    /// Disables the MPU
+    ///
+    /// # Safety
+    /// Incorrect use can endanger isolation properties.
+    pub unsafe fn disable_mpu(&self) {
+        self.registers().ctrl.write(MPU_CTRL::ENABLE::CLEAR);
+    }
+
     /// Allocates an MPU region in the provided configuration.
     ///
     /// # Errors
