@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from tools.build.invoke_support import (
     vscode_common_build_task,
     get_vscode_build_commands,
     resolve_openocd,
+    inv_executable,
 )
 from tools.build.board import (
     BoardConfig,
@@ -56,7 +58,13 @@ NSPE_HELP = "The Non-Secure Processing Environment to build (test or tock)."
 APP_HELP = "Path to a TBF application image (only for tock NSPE)."
 
 
-def _build_merged(ctx: Context, nspe: str, app: str | None, debug: bool) -> Path:
+def _build_merged(
+    ctx: Context,
+    nspe: str,
+    app: str | None,
+    debug: bool,
+    features: list[str] | None = None,
+) -> Path:
     from integrations.tock.tock_psa_app import build as tock_psa_app_build
     from integrations.tock.tock_interrupt_test_app import (
         build as tock_interrupt_test_app_build,
@@ -88,6 +96,7 @@ def _build_merged(ctx: Context, nspe: str, app: str | None, debug: bool) -> Path
                 ram_start="0x2400A000",
                 ram_length="0x3000",
                 debug=debug,
+                features=features,
             )
             app2_tbf = tock_interrupt_test_app_build.build(
                 ctx,
@@ -119,28 +128,69 @@ def _build_merged(ctx: Context, nspe: str, app: str | None, debug: bool) -> Path
 
 
 @build_task(
-    default=True, help={"nspe": NSPE_HELP, "app": APP_HELP, "debug": DEBUG_HELP}
+    default=True,
+    help={
+        "nspe": NSPE_HELP,
+        "app": APP_HELP,
+        "debug": DEBUG_HELP,
+        "features": "Comma-separated list of features for tock_psa_app.",
+    },
 )
-def build(ctx: Context, nspe: str | None = None, app=None, debug=False):
+def build(
+    ctx: Context,
+    nspe: str | None = None,
+    app=None,
+    debug=False,
+    features: str | None = None,
+):
     """Build the secure image, merge it with the non-secure kernel, and write a HEX output."""
+    features_list = [f.strip() for f in features.split(",")] if features else None
     if nspe is None:
-        _build_merged(ctx, "tock", app, bool(debug))
+        _build_merged(ctx, "tock", app, bool(debug), features=features_list)
         _build_merged(ctx, "test", app, bool(debug))
         return
-    _build_merged(ctx, nspe, app, bool(debug))
+    _build_merged(ctx, nspe, app, bool(debug), features=features_list)
 
 
-@build_task(help={"nspe": NSPE_HELP, "app": APP_HELP, "debug": DEBUG_HELP})
-def flash(ctx: Context, nspe="test", app=None, debug=False):
+@build_task(
+    help={
+        "nspe": NSPE_HELP,
+        "app": APP_HELP,
+        "debug": DEBUG_HELP,
+        "features": "Comma-separated list of features for tock_psa_app.",
+    }
+)
+def flash(
+    ctx: Context,
+    nspe="test",
+    app=None,
+    debug=False,
+    features: str | None = None,
+):
     """Build, merge, and flash the secure and non-secure images with probe-rs."""
-    merged = _build_merged(ctx, nspe, app, bool(debug))
+    features_list = [f.strip() for f in features.split(",")] if features else None
+    merged = _build_merged(ctx, nspe, app, bool(debug), features=features_list)
     return flash_hex(ctx, BOARD, merged)
 
 
-@build_task(help={"nspe": NSPE_HELP, "app": APP_HELP, "debug": DEBUG_HELP})
-def program(ctx: Context, nspe="test", app=None, debug=False):
+@build_task(
+    help={
+        "nspe": NSPE_HELP,
+        "app": APP_HELP,
+        "debug": DEBUG_HELP,
+        "features": "Comma-separated list of features for tock_psa_app.",
+    }
+)
+def program(
+    ctx: Context,
+    nspe="test",
+    app=None,
+    debug=False,
+    features: str | None = None,
+):
     """Build, merge, and program the secure image with OpenOCD."""
-    merged = _build_merged(ctx, nspe, app, bool(debug))
+    features_list = [f.strip() for f in features.split(",")] if features else None
+    merged = _build_merged(ctx, nspe, app, bool(debug), features=features_list)
     return program_hex(ctx, BOARD, merged)
 
 
@@ -151,6 +201,13 @@ def vscode_build_targets(release: bool = False) -> list[VscodeBuildTarget]:
     profile_short_snake = "_r" if release else "_d"
     build_test_cmd, build_tock_cmd = get_vscode_build_commands(release)
     common_task = vscode_common_build_task()
+
+    inv_exec = inv_executable()
+    debug_arg = "" if release else " --debug"
+    if os.name == "nt":
+        build_tock_loop_token_cmd = f'& "{inv_exec}" build{debug_arg} --nspe=tock --features=test_loop_token'
+    else:
+        build_tock_loop_token_cmd = f'"{inv_exec}" build{debug_arg} --nspe=tock --features=test_loop_token'
 
     return [
         VscodeBuildTarget(
@@ -164,6 +221,12 @@ def vscode_build_targets(release: bool = False) -> list[VscodeBuildTarget]:
             label=f"build{profile_short_snake}.psc3m5_evk_tock",
             options={"cwd": "${workspaceFolder}/boards/psc3m5_evk/secure"},
             command=build_tock_cmd,
+        ),
+        VscodeBuildTarget(
+            **common_task.to_dict(),
+            label=f"build{profile_short_snake}.psc3m5_evk_tock_loop_token",
+            options={"cwd": "${workspaceFolder}/boards/psc3m5_evk/secure"},
+            command=build_tock_loop_token_cmd,
         ),
     ]
 
@@ -206,5 +269,16 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/tock_psa_app",
             ],
             preLaunchTask=f"build{profile_short_snake}.psc3m5_evk_tock",
+        ),
+        VscodeLaunchTarget(
+            **base_conf.to_dict(),
+            name=f"Tock-PSC3 FN Loop Token {profile_short}",
+            executable=f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_kernel_merged.hex",
+            preLaunchCommands=[
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock_kernel",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/tock_psa_app",
+            ],
+            preLaunchTask=f"build{profile_short_snake}.psc3m5_evk_tock_loop_token",
         ),
     ]

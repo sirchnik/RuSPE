@@ -18,7 +18,7 @@ use spe::spm;
 use spe::spm::spm_ipc::{
     CustomMpuRegion, IpcPlatform, IpcProcessPlatform, ServiceProcess, ServiceVectors,
 };
-use tock_psc3::{chip, chip_init, gpio, icache, peri_clk, scb};
+use tock_psc3::{chip, chip_init, icache, peri_clk, scb};
 
 unsafe extern "Rust" {
     static __veneer_base: ();
@@ -146,7 +146,8 @@ unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
     chip_init::init_system();
     peri_clk::enable_scb0();
 
-    chip::init_gpio_pins();
+    chip::configure_gpio_secure_states();
+    chip::init_scb0_uart_pins();
 
     let scb0 = unsafe { static_init!(scb::Scb, scb::Scb::new_scb0()) };
 
@@ -175,29 +176,6 @@ unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
         value |= 0 << 13; // BFHFNMINS: allow hardfault, busfault, nmi handled in non-secure
         aircr.write_volatile(value);
     }
-
-    let gpio = gpio::PsocPins::new(true);
-
-    const GPIO_CONFIG: gpio::PreConfig = gpio::PreConfig {
-        out_val: 1,
-        drive_mode: gpio::DriveMode::PullUp,
-        hsiom: gpio::HsiomFunction::GPIOControlsOut,
-        int_edge: false,
-        int_mask: 0,
-        vtrip: 0,
-        fast_slew_rate: true,
-        drive_sel: gpio::DriveSelect::Half,
-        vreg_en: false,
-        ibuf_mode: 0,
-        vtrip_sel: 0,
-        vref_sel: 0,
-        voh_sel: 0,
-        non_sec: true,
-    };
-
-    gpio.get_pin(gpio::PsocPin::P8_5).preconfigure(&GPIO_CONFIG);
-    let led_pin = gpio.get_pin(gpio::PsocPin::P8_4);
-    led_pin.preconfigure(&GPIO_CONFIG);
 
     configure_security(
         NONSECURE_FLASH_START,
@@ -235,6 +213,7 @@ unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
 
     unsafe {
         let nonsecure_start_flash = NONSECURE_FLASH_START as *const [u32; 2];
+        // If this faults: Did you provision your device using edgeprotecttools?
         let [nonsecure_sp, nonsecure_reset] = nonsecure_start_flash.read_volatile();
 
         // Set non-secure main stack pointer

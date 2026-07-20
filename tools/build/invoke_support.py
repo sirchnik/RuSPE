@@ -321,7 +321,7 @@ def _rust_sysroot_objcopy_candidates(ctx: Context) -> list[Path]:
 def resolve_objcopy(ctx: Context) -> Path | None:
     candidates: list[Path] = []
 
-    for command_name in ("rust-objcopy", "llvm-objcopy"):
+    for command_name in ("arm-none-eabi-objcopy", "rust-objcopy", "llvm-objcopy"):
         candidate = resolve_cmd(command_name)
         if candidate is not None:
             candidates.append(candidate)

@@ -58,10 +58,15 @@ class AppConfig:
         }
 
 
-def cargo_build_app(ctx: Context, app: AppConfig, debug: bool) -> Path:
+def cargo_build_app(
+    ctx: Context, app: AppConfig, debug: bool, features: list[str] | None = None
+) -> Path:
     command = ["cargo", "rustc"]
     if not debug:
         command.append("--release")
+
+    if features:
+        command.extend(["--features", ",".join(features)])
 
     veneer_obj = (
         app.repo_root
@@ -75,8 +80,10 @@ def cargo_build_app(ctx: Context, app: AppConfig, debug: bool) -> Path:
     return app.elf_image(debug)
 
 
-def elf_to_tbf(ctx: Context, app: AppConfig, debug: bool) -> Path:
-    elf = cargo_build_app(ctx, app, debug)
+def elf_to_tbf(
+    ctx: Context, app: AppConfig, debug: bool, features: list[str] | None = None
+) -> Path:
+    elf = cargo_build_app(ctx, app, debug, features=features)
     if not elf.exists():
         raise BuildError(f"App ELF does not exist: {elf}")
 
@@ -118,6 +125,7 @@ def build(
     ram_start: str,
     ram_length: str,
     debug: bool = False,
+    features: list[str] | None = None,
 ) -> Path:
     """Build the Tock userland app and convert it to TBF."""
     app = AppConfig(
@@ -130,4 +138,4 @@ def build(
         ram_length=ram_length,
         app_name="tock_psa_app",
     )
-    return elf_to_tbf(ctx, app, bool(debug))
+    return elf_to_tbf(ctx, app, bool(debug), features=features)

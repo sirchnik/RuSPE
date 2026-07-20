@@ -61,6 +61,9 @@ unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
     chip_init::init_system();
     peri_clk::enable_scb0();
 
+    chip::configure_gpio_secure_states();
+    chip::init_scb0_uart_pins();
+
     let scb0 = unsafe { static_init!(scb::Scb, scb::Scb::new_scb0()) };
 
     scb0.set_standard_uart_mode();
@@ -91,10 +94,6 @@ unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
         value |= 0 << 13; // BFHFNMINS: allow hardfault, busfault, nmi handled in non-secure
         aircr.write_volatile(value);
     }
-
-    chip::configure_gpio_secure_states();
-    let peripherals = chip::Psc3DefaultPeripherals::new(tock_psc3::gpio::SecurityState::Secure);
-    peripherals.init_scb0_uart_pins();
 
     configure_security(
         NONSECURE_FLASH_START,
@@ -133,7 +132,7 @@ unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
 
     unsafe {
         let nonsecure_start_flash = NONSECURE_FLASH_START as *const [u32; 2];
-        // If this faults: Did you provision your device using edgeprotectools?
+        // If this faults: Did you provision your device using edgeprotecttools?
         let [nonsecure_sp, nonsecure_reset] = nonsecure_start_flash.read_volatile();
 
         // Set non-secure main stack pointer

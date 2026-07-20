@@ -17,8 +17,8 @@ psa_veneer_client = { path = "../../../spe/psa_veneer_client" }
 libtock_build_scripts = { git = "https://www.github.com/tock/libtock-rs" }
 
 [features]
-# default = []
-default = ["test_loop_token"]
+default = []
+# default = ["test_loop_token"]
 # default = ["test_unpriv_spe"]
 test_unpriv_spe = []
 test_loop_token = []
