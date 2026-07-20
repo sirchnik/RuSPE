@@ -71,15 +71,24 @@ def vscode_common_build_task() -> VscodeBuildTarget:
 
 
 def get_vscode_build_commands(release: bool = False) -> tuple[str, str]:
+    """Return (test_cmd, tock_cmd) build commands — kept for backwards compat."""
+    return (
+        make_vscode_build_command(release, nspe="test"),
+        make_vscode_build_command(release, nspe="tock"),
+    )
+
+
+def make_vscode_build_command(
+    release: bool, nspe: str, features: str | None = None
+) -> str:
+    """Generate a VSCode shell command string for ``inv build --nspe=...``."""
     inv_exec = inv_executable()
     debug_arg = "" if release else " --debug"
+    extra = f" --features={features}" if features else ""
+    cmd = f'"{inv_exec}" build{debug_arg} --nspe={nspe}{extra}'
     if os.name == "nt":
-        build_test_cmd = f'& "{inv_exec}" build{debug_arg} --nspe=test'
-        build_tock_cmd = f'& "{inv_exec}" build{debug_arg} --nspe=tock'
-    else:
-        build_test_cmd = f'"{inv_exec}" build{debug_arg} --nspe=test'
-        build_tock_cmd = f'"{inv_exec}" build{debug_arg} --nspe=tock'
-    return build_test_cmd, build_tock_cmd
+        cmd = "& " + cmd
+    return cmd
 
 
 class BuildError(RuntimeError):
@@ -109,6 +118,11 @@ def build_task(_func=None, **task_kwargs):
     if _func is not None:
         return task(**task_kwargs)(handle_build_errors(_func))
     return decorator
+
+
+def parse_features(features: str | None) -> list[str] | None:
+    """Parse a comma-separated features string into a list, or None."""
+    return [f.strip() for f in features.split(",")] if features else None
 
 
 def _format_command(command: list[str], shorten_args: bool = True) -> str:

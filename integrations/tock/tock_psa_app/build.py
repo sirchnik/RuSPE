@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import sys
 from pathlib import Path
 
@@ -14,105 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tools.build.invoke_support import (
-    BuildError,
-    run_command,
-    resolve_cmd,
-)
-
-
-@dataclass(frozen=True)
-class AppConfig:
-    repo_root: Path
-    app_dir: Path
-    board: str
-    flash_start: str
-    flash_length: str
-    ram_start: str
-    ram_length: str
-    app_name: str
-
-    def build_type(self, debug: bool) -> str:
-        return "debug" if debug else "release"
-
-    def target_root(self, debug: bool) -> Path:
-        return (
-            self.repo_root
-            / "target"
-            / "thumbv8m.main-none-eabi"
-            / self.build_type(debug)
-        )
-
-    def elf_image(self, debug: bool) -> Path:
-        return self.target_root(debug) / self.app_name
-
-    def tbf_image(self, debug: bool) -> Path:
-        return self.target_root(debug) / f"{self.app_name}.tbf"
-
-    def linker_env(self) -> dict[str, str]:
-        return {
-            "LIBTOCK_LINKER_FLASH": self.flash_start,
-            "LIBTOCK_LINKER_FLASH_LENGTH": self.flash_length,
-            "LIBTOCK_LINKER_RAM": self.ram_start,
-            "LIBTOCK_LINKER_RAM_LENGTH": self.ram_length,
-        }
-
-
-def cargo_build_app(
-    ctx: Context, app: AppConfig, debug: bool, features: list[str] | None = None
-) -> Path:
-    command = ["cargo", "rustc"]
-    if not debug:
-        command.append("--release")
-
-    if features:
-        command.extend(["--features", ",".join(features)])
-
-    veneer_obj = (
-        app.repo_root
-        / "target"
-        / "thumbv8m.main-none-eabi"
-        / f"{app.board}_secure-veneers.o"
-    )
-    command.extend(["--", "-C", f"link-arg={veneer_obj}"])
-
-    run_command(command, cwd=app.app_dir, env=app.linker_env())
-    return app.elf_image(debug)
-
-
-def elf_to_tbf(
-    ctx: Context, app: AppConfig, debug: bool, features: list[str] | None = None
-) -> Path:
-    elf = cargo_build_app(ctx, app, debug, features=features)
-    if not elf.exists():
-        raise BuildError(f"App ELF does not exist: {elf}")
-
-    tbf = app.tbf_image(debug)
-    tab = tbf.with_suffix(".tab")
-    elf2tab = resolve_cmd("elf2tab")
-    if elf2tab is None:
-        raise BuildError("elf2tab tool not found in PATH")
-    run_command(
-        [
-            str(elf2tab),
-            "--kernel-major",
-            "2",
-            "--kernel-minor",
-            "1",
-            "-n",
-            app.app_name,
-            "-o",
-            str(tab),
-            str(elf),
-        ],
-        cwd=app.app_dir,
-    )
-
-    if not tbf.exists():
-        raise BuildError(f"elf2tab did not produce expected TBF file: {tbf}")
-
-    return tbf
-
+from tools.build.tock_app import TockAppConfig, elf_to_tbf
 
 APP_DIR = Path(__file__).resolve().parent
 
@@ -128,14 +29,14 @@ def build(
     features: list[str] | None = None,
 ) -> Path:
     """Build the Tock userland app and convert it to TBF."""
-    app = AppConfig(
+    app = TockAppConfig(
         repo_root=REPO_ROOT,
         app_dir=APP_DIR,
-        board=board,
+        app_name="tock_psa_app",
         flash_start=flash_start,
         flash_length=flash_length,
         ram_start=ram_start,
         ram_length=ram_length,
-        app_name="tock_psa_app",
+        veneer_board=board,
     )
     return elf_to_tbf(ctx, app, bool(debug), features=features)

@@ -84,8 +84,12 @@ pub unsafe fn main() {
     // debugging works!
     chip_init::preinit_peripherals();
 
-    let peripherals =
-        unsafe { static_init!(Psc3DefaultPeripherals, Psc3DefaultPeripherals::new(psc3::gpio::SecurityState::NonSecure)) };
+    let peripherals = unsafe {
+        static_init!(
+            Psc3DefaultPeripherals,
+            Psc3DefaultPeripherals::new(psc3::gpio::SecurityState::NonSecure)
+        )
+    };
 
     peripherals.init();
 

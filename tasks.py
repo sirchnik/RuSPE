@@ -23,8 +23,8 @@ from tools.build.invoke_support import (
 from boards.psc3m5_evk.secure.tasks import (
     vscode_build_targets as psc3_build_targets,
     vscode_launch_targets as psc3_launch_targets,
-    SVD_INFO as psc3_svd,
 )
+from boards.psc3m5_evk.tasks import SVD_INFO as psc3_svd
 from boards.psc3m5_evk.secure_ipc.tasks import (
     vscode_build_targets as psc3_ipc_build_targets,
     vscode_launch_targets as psc3_ipc_launch_targets,
@@ -32,8 +32,8 @@ from boards.psc3m5_evk.secure_ipc.tasks import (
 from boards.musca_b1.secure.tasks import (
     vscode_build_targets as musca_build_targets,
     vscode_launch_targets as musca_launch_targets,
-    SVD_INFO as musca_svd,
 )
+from boards.musca_b1.tasks import SVD_INFO as musca_svd
 
 all_build_targets: list[Callable[[bool], list[VscodeBuildTarget]]] = [
     psc3_build_targets,
@@ -85,13 +85,19 @@ def _build_exclude_args(exclude_list: list[str]) -> str:
 
 def _build_task_directories() -> list[Path]:
     excluded_dirs = {".git", ".venv", "target", "tock-sub"}
-    task_files = sorted(
-        path
-        for path in REPO_ROOT.rglob(TASKS_FILE_NAME)
-        if path != REPO_ROOT / TASKS_FILE_NAME
-        and not excluded_dirs.intersection(path.relative_to(REPO_ROOT).parts)
-    )
-    return [path.parent for path in task_files]
+    task_files = []
+    for path in REPO_ROOT.rglob(TASKS_FILE_NAME):
+        if path == REPO_ROOT / TASKS_FILE_NAME:
+            continue
+        if excluded_dirs.intersection(path.relative_to(REPO_ROOT).parts):
+            continue
+        try:
+            content = path.read_text(encoding="utf-8")
+            if "def build(" in content:
+                task_files.append(path)
+        except Exception:
+            pass
+    return [path.parent for path in sorted(task_files)]
 
 
 def _write_json(path: Path, payload: object) -> None:

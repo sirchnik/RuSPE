@@ -16,26 +16,25 @@ if str(REPO_ROOT) not in sys.path:
 from tools.build.invoke_support import (
     build_task,
     run_command,
+    make_vscode_build_command,
     VscodeLaunchTarget,
     VscodeBuildTarget,
     vscode_common_build_task,
-    get_vscode_build_commands,
 )
 from tools.build.board import (
     BoardConfig,
     Manufacturer,
-    cargo_build,
-    elf_to_hex,
-    merge_secure_non_secure_hex,
 )
+from tools.build.secure_build import FirmwareResult, build_firmware
 
+from boards.musca_b1.tasks import (
+    TOCK_LAYOUT,
+    MCUBOOT,
+    QEMU_MACHINE,
+    QEMU_CPU,
+)
 from boards.musca_b1.test_nspe import build as test_nspe_build
 from boards.musca_b1.tock.kernel import build as tock_kernel_build
-
-SVD_INFO = (
-    "musca_b1.svd",
-    "https://raw.githubusercontent.com/driveraid/muscab1-pac/refs/heads/master/svd/Musca_B1.svd",
-)
 
 BOARD_DIR = Path(__file__).resolve().parent
 
@@ -47,92 +46,24 @@ SECURE_BOARD = BoardConfig(
     crate_name="musca_b1_secure",
 )
 
-QEMU_MACHINE = "musca-b1"
-QEMU_CPU = "cortex-m33"
-
 DEBUG_HELP = "Build the debug profile instead of release."
 NSPE_HELP = "The Non-Secure Processing Environment to build (test or tock)."
 APP_HELP = "Path to a TBF application image (only for tock NSPE)."
 
 
-def _build_merged(
-    ctx: Context, nspe: str, app: str | None, debug: bool
-) -> tuple[Path, Path, Path]:
-    from integrations.tock.tock_psa_app import build as tock_psa_app_build
-    from integrations.tock.tock_interrupt_test_app import (
-        build as tock_interrupt_test_app_build,
-    )
-
-    secure_elf = cargo_build(ctx, SECURE_BOARD, debug)
-
-    target_root = SECURE_BOARD.target_root(debug)
-    secure_hex = target_root / f"{SECURE_BOARD.prefixed_platform}.hex"
-    elf_to_hex(ctx, secure_elf, secure_hex)
-
-    from tools.build.mcuboot import patch_mcuboot_sig
-
-    patch_mcuboot_sig(
-        secure_hex,
-        mcuboot_addr=0x100FFF00,
-        payload_start=0x10000000,
-        payload_end=0x100FFEFF,
-    )
-
-    from intelhex import IntelHex
-
-    ih = IntelHex(str(secure_hex))
-    # Extract the MCUboot signature (76 bytes) for QEMU execution
-    mcuboot_sig_data = ih.tobinarray(start=0x100FFF00, end=0x100FFF00 + 75)
-    mcuboot_sig_bin = secure_elf.with_name(
-        f"{SECURE_BOARD.prefixed_platform}_mcuboot_sig.bin"
-    )
-    with open(mcuboot_sig_bin, "wb") as f:
-        f.write(mcuboot_sig_data)
-
-    if nspe == "test":
-        non_secure_elf = test_nspe_build.build(ctx, debug=debug)
-        nspe_board = test_nspe_build.NON_SECURE_BOARD
-    elif nspe == "tock":
-        print("TOCK on MUSCA with RuSPE is WIP state.")
-        if app is None:
-            app1_tbf = tock_psa_app_build.build(
-                ctx,
-                board="musca_b1",
-                flash_start="0x00182000",
-                flash_length="0x4000",
-                ram_start="0x20035000",
-                ram_length="0x2000",
-                debug=debug,
-            )
-            app2_tbf = tock_interrupt_test_app_build.build(
-                ctx,
-                flash_start="0x00186000",
-                flash_length="0x4000",
-                ram_start="0x20037000",
-                ram_length="0x2000",
-                debug=debug,
-            )
-            from tools.build.board import combine_tock_apps
-
-            app_path = combine_tock_apps(app1_tbf, app2_tbf, pad_len=0x4000)
-        else:
-            app_path = Path(app)
-        non_secure_elf = tock_kernel_build.build(ctx, app=app_path, debug=debug)
-        nspe_board = tock_kernel_build.NON_SECURE_BOARD
-    else:
-        raise ValueError(f"Unknown NSPE: {nspe}")
-
-    merged_hex = merge_secure_non_secure_hex(
+def _build(ctx, nspe, app, debug):
+    return build_firmware(
         ctx,
         SECURE_BOARD,
-        nspe_board,
-        secure_hex,
-        non_secure_elf,
+        nspe,
+        app,
         debug,
-        [],
+        mcuboot=MCUBOOT,
+        tock_layout=TOCK_LAYOUT,
+        test_nspe_build_module=test_nspe_build,
+        tock_kernel_build_module=tock_kernel_build,
+        extract_mcuboot_sig=True,
     )
-    print(merged_hex)
-    return secure_elf, non_secure_elf, merged_hex
 
 
 @build_task(
@@ -142,23 +73,22 @@ def build(ctx: Context, nspe: str | None = None, app=None, debug=False):
     """Build the secure image, merge it with the non-secure kernel, and write a HEX output."""
     if nspe is None:
         # WIP
-        # _build_merged(ctx, "tock", app, bool(debug))
-        _, _, merged_hex = _build_merged(ctx, "test", app, bool(debug))
-        return merged_hex
-    _, _, merged_hex = _build_merged(ctx, nspe, app, bool(debug))
-    return merged_hex
+        # _build(ctx, "tock", app, bool(debug))
+        result = _build(ctx, "test", app, bool(debug))
+        return result.merged_hex
+    result = _build(ctx, nspe, app, bool(debug))
+    return result.merged_hex
+
+
+### QEMU
 
 
 def get_qemu_cmd(
-    secure_elf: Path,
-    non_secure_elf: Path,
+    result: FirmwareResult,
     gdb_listen: bool = False,
     telnet_port: int | None = None,
     telnet_wait: bool = False,
 ) -> list[str]:
-    mcuboot_sig_bin = secure_elf.with_name(
-        f"{SECURE_BOARD.prefixed_platform}_mcuboot_sig.bin"
-    )
     cmd = [
         "qemu-system-arm",
         "-machine",
@@ -167,17 +97,17 @@ def get_qemu_cmd(
         QEMU_CPU,
         "-semihosting",
         "-kernel",
-        str(secure_elf),
+        str(result.secure_elf),
     ]
 
-    if "musca_b1_kernel-app.elf" in non_secure_elf.name:
-        noapps_bin = non_secure_elf.with_name("musca_b1_kernel-noapps.bin")
-        app_tbf = non_secure_elf.parent / "combined_apps.tbf"
-        cmd.extend(["-device", f"loader,file={noapps_bin},addr=0x00102000"])
-        if app_tbf.exists():
-            cmd.extend(["-device", f"loader,file={app_tbf},addr=0x00182000"])
+    if result.tock_noapps_bin and result.tock_noapps_bin.exists():
+        cmd.extend(["-device", f"loader,file={result.tock_noapps_bin},addr=0x00102000"])
+        if result.tock_apps_tbf and result.tock_apps_tbf.exists():
+            cmd.extend(
+                ["-device", f"loader,file={result.tock_apps_tbf},addr=0x00182000"]
+            )
     else:
-        cmd.extend(["-device", f"loader,file={non_secure_elf}"])
+        cmd.extend(["-device", f"loader,file={result.non_secure_elf}"])
 
     if telnet_port is not None:
         # Run QEMU headless when exposing a telnet serial port to avoid
@@ -199,50 +129,45 @@ def get_qemu_cmd(
     else:
         cmd.append("-nographic")
 
-    if mcuboot_sig_bin.exists():
-        cmd.extend(["-device", f"loader,file={mcuboot_sig_bin},addr=0x100FFF00"])
+    if result.mcuboot_sig_bin and result.mcuboot_sig_bin.exists():
+        cmd.extend(
+            [
+                "-device",
+                f"loader,file={result.mcuboot_sig_bin},addr={hex(MCUBOOT.mcuboot_addr)}",
+            ]
+        )
     if gdb_listen:
         cmd.extend(["-S", "-gdb", "tcp::1234"])
 
     return cmd
 
 
-def _run_qemu(secure_elf: Path, non_secure_elf: Path, gdb_listen: bool = False):
-    cmd = get_qemu_cmd(secure_elf, non_secure_elf, gdb_listen=gdb_listen)
+def _run_qemu(result: FirmwareResult, gdb_listen: bool = False):
+    cmd = get_qemu_cmd(result, gdb_listen=gdb_listen)
     run_command(cmd, cwd=SECURE_BOARD.board_dir)
 
 
 @build_task(help={"nspe": NSPE_HELP, "app": APP_HELP, "debug": DEBUG_HELP})
 def qemu(ctx: Context, nspe="test", app=None, debug=False):
     """Build, merge, and run the images in QEMU."""
-    secure_elf, non_secure_elf, _ = _build_merged(ctx, nspe, app, bool(debug))
-    _run_qemu(secure_elf, non_secure_elf, gdb_listen=False)
+    result = _build(ctx, nspe, app, bool(debug))
+    _run_qemu(result, gdb_listen=False)
 
 
 @build_task(help={"nspe": NSPE_HELP, "app": APP_HELP, "debug": DEBUG_HELP})
 def qemu_gdb_listen(ctx: Context, nspe="test", app=None, debug=False):
     """Build, merge, and run QEMU, waiting for a GDB connection."""
-    secure_elf, non_secure_elf, _ = _build_merged(ctx, nspe, app, bool(debug))
-    _run_qemu(secure_elf, non_secure_elf, gdb_listen=True)
+    result = _build(ctx, nspe, app, bool(debug))
+    _run_qemu(result, gdb_listen=True)
 
 
-@build_task(help={})
-def term(ctx: Context):
-    """Open a split terminal for secure and non-secure logging."""
-    from tools.debugging.term import launch_split
-    import shutil
+from boards.musca_b1.tasks import term  # noqa: F401
 
-    telnet = next((cmd for cmd in ("telnet", "nc") if shutil.which(cmd)), None)
-
-    if not telnet:
-        raise RuntimeError("No telnet or nc found!")
-
-    launch_split(f"{telnet} 127.0.0.1 4321", f"{telnet} 127.0.0.1 4322")
+### VSCode
 
 
 def vscode_build_targets(release: bool = False) -> list[VscodeBuildTarget]:
     profile_short_snake = "_r" if release else "_d"
-    build_test_cmd, build_tock_cmd = get_vscode_build_commands(release)
     common_task = vscode_common_build_task()
 
     return [
@@ -250,13 +175,13 @@ def vscode_build_targets(release: bool = False) -> list[VscodeBuildTarget]:
             **common_task.to_dict(),
             label=f"build{profile_short_snake}.musca_b1_test",
             options={"cwd": "${workspaceFolder}/boards/musca_b1/secure"},
-            command=build_test_cmd,
+            command=make_vscode_build_command(release, nspe="test"),
         ),
         VscodeBuildTarget(
             **common_task.to_dict(),
             label=f"build{profile_short_snake}.musca_b1_tock",
             options={"cwd": "${workspaceFolder}/boards/musca_b1/secure"},
-            command=build_tock_cmd,
+            command=make_vscode_build_command(release, nspe="tock"),
         ),
     ]
 

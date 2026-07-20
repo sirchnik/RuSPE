@@ -17,6 +17,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from boards.musca_b1.secure.tasks import get_qemu_cmd
+from tools.build.secure_build import FirmwareResult
 from tools.tests.common import (
     QemuRunner,
     collect_token_from_telnet,
@@ -25,7 +26,7 @@ from tools.tests.common import (
 )
 
 
-def build_images(debug: bool) -> tuple[Path, Path]:
+def build_images(debug: bool) -> FirmwareResult:
     print("Building images...")
     inv_path = REPO_ROOT / ".venv" / "bin" / "inv"
     cmd = [str(inv_path), "build", "--nspe=test"]
@@ -42,7 +43,13 @@ def build_images(debug: bool) -> tuple[Path, Path]:
     target_dir = REPO_ROOT / "target" / "thumbv8m.main-none-eabi" / profile
     secure_elf = target_dir / "musca_b1_secure"
     non_secure_elf = target_dir / "musca_b1_test_nspe"
-    return secure_elf, non_secure_elf
+    return FirmwareResult(
+        secure_elf=secure_elf,
+        secure_hex=target_dir / "musca_b1_secure.hex",
+        non_secure_elf=non_secure_elf,
+        merged_hex=target_dir / "musca_b1_test_nspe_merged.hex",
+        mcuboot_sig_bin=target_dir / "musca_b1_secure_mcuboot_sig.bin",
+    )
 
 
 def main() -> None:
@@ -52,13 +59,13 @@ def main() -> None:
     )
     args = parser.parse_args()
     try:
-        secure_elf, non_secure_elf = build_images(args.debug)
+        result = build_images(args.debug)
 
         PORT = 23638
 
         print("Starting QEMU...")
         qemu_cmd = get_qemu_cmd(
-            secure_elf, non_secure_elf, telnet_port=PORT, telnet_wait=True
+            result, telnet_port=PORT, telnet_wait=True
         )
 
         # Debug: print the exact QEMU command used only when verbose

@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
@@ -16,33 +15,29 @@ if str(REPO_ROOT) not in sys.path:
 
 from tools.build.invoke_support import (
     build_task,
+    parse_features,
+    make_vscode_build_command,
     VscodeLaunchTarget,
     VscodeBuildTarget,
     vscode_common_build_task,
-    get_vscode_build_commands,
     resolve_openocd,
-    inv_executable,
 )
 from tools.build.board import (
     BoardConfig,
     Manufacturer,
-    cargo_build,
     flash_hex,
-    merge_secure_non_secure_hex,
     program_hex,
-    elf_to_hex,
 )
-from tools.build.mcuboot import patch_mcuboot_sig
+from tools.build.secure_build import build_firmware
 
+from boards.psc3m5_evk.tasks import (
+    TOCK_LAYOUT,
+    MCUBOOT_SECURE,
+)
 from boards.psc3m5_evk.test_nspe import build as test_nspe_build
 from boards.psc3m5_evk.tock.kernel import build as tock_kernel_build
 
 BOARD_DIR = Path(__file__).resolve().parent
-
-SVD_INFO = (
-    "psc3.svd",
-    "https://raw.githubusercontent.com/Infineon/mtb-pdl-cat1/refs/heads/master/devices/COMPONENT_CAT1B/svd/psc3.svd",
-)
 
 BOARD = BoardConfig(
     board_dir=BOARD_DIR,
@@ -58,72 +53,18 @@ NSPE_HELP = "The Non-Secure Processing Environment to build (test or tock)."
 APP_HELP = "Path to a TBF application image (only for tock NSPE)."
 
 
-def _build_merged(
-    ctx: Context,
-    nspe: str,
-    app: str | None,
-    debug: bool,
-    features: list[str] | None = None,
-) -> Path:
-    from integrations.tock.tock_psa_app import build as tock_psa_app_build
-    from integrations.tock.tock_interrupt_test_app import (
-        build as tock_interrupt_test_app_build,
-    )
-
-    secure_elf = cargo_build(ctx, BOARD, debug)
-
-    target_root = BOARD.target_root(debug)
-    secure_hex = target_root / f"{BOARD.prefixed_platform}.hex"
-    elf_to_hex(ctx, secure_elf, secure_hex)
-
-    patch_mcuboot_sig(
-        secure_hex,
-        mcuboot_addr=0x3200FF00,
-        payload_start=0x32000000,
-        payload_end=0x3200FEFF,
-    )
-
-    if nspe == "test":
-        non_secure_elf = test_nspe_build.build(ctx, debug=debug)
-        nspe_board = test_nspe_build.NON_SECURE_BOARD
-    elif nspe == "tock":
-        if app is None:
-            app1_tbf = tock_psa_app_build.build(
-                ctx,
-                board="psc3m5",
-                flash_start="0x22036000",
-                flash_length="0x3000",
-                ram_start="0x2400A000",
-                ram_length="0x3000",
-                debug=debug,
-                features=features,
-            )
-            app2_tbf = tock_interrupt_test_app_build.build(
-                ctx,
-                flash_start="0x2203A000",
-                flash_length="0x3000",
-                ram_start="0x2400D000",
-                ram_length="0x3000",
-                debug=debug,
-            )
-            from tools.build.board import combine_tock_apps
-
-            app_path = combine_tock_apps(app1_tbf, app2_tbf, pad_len=0x4000)
-        else:
-            app_path = Path(app)
-        non_secure_elf = tock_kernel_build.build(ctx, app=app_path, debug=debug)
-        nspe_board = tock_kernel_build.NON_SECURE_BOARD
-    else:
-        raise ValueError(f"Unknown NSPE: {nspe}")
-
-    return merge_secure_non_secure_hex(
+def _build(ctx, nspe, app, debug, features=None):
+    return build_firmware(
         ctx,
         BOARD,
-        nspe_board,
-        secure_hex,
-        non_secure_elf,
+        nspe,
+        app,
         debug,
-        [],
+        mcuboot=MCUBOOT_SECURE,
+        tock_layout=TOCK_LAYOUT,
+        test_nspe_build_module=test_nspe_build,
+        tock_kernel_build_module=tock_kernel_build,
+        features=features,
     )
 
 
@@ -144,12 +85,12 @@ def build(
     features: str | None = None,
 ):
     """Build the secure image, merge it with the non-secure kernel, and write a HEX output."""
-    features_list = [f.strip() for f in features.split(",")] if features else None
+    fl = parse_features(features)
     if nspe is None:
-        _build_merged(ctx, "tock", app, bool(debug), features=features_list)
-        _build_merged(ctx, "test", app, bool(debug))
+        _build(ctx, "tock", app, bool(debug), fl)
+        _build(ctx, "test", app, bool(debug))
         return
-    _build_merged(ctx, nspe, app, bool(debug), features=features_list)
+    _build(ctx, nspe, app, bool(debug), fl)
 
 
 @build_task(
@@ -168,9 +109,8 @@ def flash(
     features: str | None = None,
 ):
     """Build, merge, and flash the secure and non-secure images with probe-rs."""
-    features_list = [f.strip() for f in features.split(",")] if features else None
-    merged = _build_merged(ctx, nspe, app, bool(debug), features=features_list)
-    return flash_hex(ctx, BOARD, merged)
+    result = _build(ctx, nspe, app, bool(debug), parse_features(features))
+    return flash_hex(ctx, BOARD, result.merged_hex)
 
 
 @build_task(
@@ -189,44 +129,37 @@ def program(
     features: str | None = None,
 ):
     """Build, merge, and program the secure image with OpenOCD."""
-    features_list = [f.strip() for f in features.split(",")] if features else None
-    merged = _build_merged(ctx, nspe, app, bool(debug), features=features_list)
-    return program_hex(ctx, BOARD, merged)
+    result = _build(ctx, nspe, app, bool(debug), parse_features(features))
+    return program_hex(ctx, BOARD, result.merged_hex)
 
 
-from boards.psc3m5_evk.common_tasks import term  # noqa: F401
+from boards.psc3m5_evk.tasks import term  # noqa: F401
 
 
 def vscode_build_targets(release: bool = False) -> list[VscodeBuildTarget]:
     profile_short_snake = "_r" if release else "_d"
-    build_test_cmd, build_tock_cmd = get_vscode_build_commands(release)
     common_task = vscode_common_build_task()
-
-    inv_exec = inv_executable()
-    debug_arg = "" if release else " --debug"
-    if os.name == "nt":
-        build_tock_loop_token_cmd = f'& "{inv_exec}" build{debug_arg} --nspe=tock --features=test_loop_token'
-    else:
-        build_tock_loop_token_cmd = f'"{inv_exec}" build{debug_arg} --nspe=tock --features=test_loop_token'
 
     return [
         VscodeBuildTarget(
             **common_task.to_dict(),
             label=f"build{profile_short_snake}.psc3m5_evk_test",
             options={"cwd": "${workspaceFolder}/boards/psc3m5_evk/secure"},
-            command=build_test_cmd,
+            command=make_vscode_build_command(release, nspe="test"),
         ),
         VscodeBuildTarget(
             **common_task.to_dict(),
             label=f"build{profile_short_snake}.psc3m5_evk_tock",
             options={"cwd": "${workspaceFolder}/boards/psc3m5_evk/secure"},
-            command=build_tock_cmd,
+            command=make_vscode_build_command(release, nspe="tock"),
         ),
         VscodeBuildTarget(
             **common_task.to_dict(),
             label=f"build{profile_short_snake}.psc3m5_evk_tock_loop_token",
             options={"cwd": "${workspaceFolder}/boards/psc3m5_evk/secure"},
-            command=build_tock_loop_token_cmd,
+            command=make_vscode_build_command(
+                release, nspe="tock", features="test_loop_token"
+            ),
         ),
     ]
 
