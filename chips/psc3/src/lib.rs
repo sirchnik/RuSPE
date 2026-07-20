@@ -4,6 +4,8 @@
 //
 // SPDX-License-Identifier: MIT
 
+pub mod cryptolite;
+pub mod efuse;
 pub mod platform;
 pub mod ppc;
 pub mod security;

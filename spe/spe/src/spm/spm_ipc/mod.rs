@@ -1,4 +1,9 @@
 #![allow(
+
+// SPDX-FileCopyrightText: Infineon Technologies AG
+//
+// SPDX-License-Identifier: MIT
+
     clippy::module_inception,
     reason = "nested modules under spm_ipc folder"
 )]

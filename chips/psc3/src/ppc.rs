@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: Infineon Technologies AG
+//
+// SPDX-License-Identifier: MIT
+
 use helpers::static_ref::StaticRef;
 use tock_registers::fields::FieldValue;
 use tock_registers::interfaces::{Readable as _, Writeable as _};

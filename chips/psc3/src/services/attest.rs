@@ -6,8 +6,8 @@ use core::cmp;
 
 use spe::libs::mutex::Mutex;
 use spe_services::attest::attest_service::{self, CERTIFICATION_REF_MAX_SIZE};
-use tock_psc3::cryptolite;
-use tock_psc3::efuse::{SyslibLcsMode, get_device_lifecycle};
+use crate::cryptolite;
+use crate::efuse::{SyslibLcsMode, get_device_lifecycle};
 
 #[repr(u32)]
 enum PsaLifecycle {
