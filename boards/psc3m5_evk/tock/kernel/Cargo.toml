@@ -29,11 +29,6 @@ psa_interface = { path = "../../../../spe/psa_interface" }
 enum_primitive = { path = "../../../../integrations/tock/tock-sub/libraries/enum_primitive" }
 tock_spe_adapter = { path = "../../../../integrations/tock/tock_spe_adapter" }
 
-[features]
-default = ["non_secure_tz"]
-# Build the kernel with non-secure trustzone world linker layout and linking to veneers.
-non_secure_tz = []
-
 [build-dependencies]
 tock_build_scripts = { path = "../../../../integrations/tock/tock-sub/boards/build_scripts" }
 

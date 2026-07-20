@@ -4,26 +4,33 @@
 
 #![no_std]
 #![no_main]
-#![deny(missing_docs)]
 
 //! Tock kernel for the PSC3M5-EVK evaluation board.
-
-use core::ptr::addr_of_mut;
-
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::led::LedsComponent;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::led::LedHigh;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::syscall::SyscallDriver;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{Kernel, capabilities, create_capability, static_init};
-use psc3::chip::{Psc3, Psc3DefaultPeripherals};
+use psc3::chip::{Psc3DefaultPeripherals, Psc3NonSecure};
 use psc3::tcpwm::Tcpwm0;
-#[allow(unused)]
-use psc3::{BASE_VECTORS, IRQS};
-use psc3::{chip_init, gpio};
+use psc3::{BASE_VECTORS_NON_SECURE, IRQS_NON_SECURE, chip_init, gpio};
+
+// used Ensures that the symbol is kept until the final binary
+// in board crate to allow reuse of chip crate
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
+#[unsafe(no_mangle)]
+pub static _BASE_VECTORS: &[unsafe extern "C" fn(); 16] = &BASE_VECTORS_NON_SECURE;
+
+// used Ensures that the symbol is kept until the final binary
+// in board crate to allow reuse of chip crate
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
+#[unsafe(no_mangle)]
+pub static _IRQS: &[unsafe extern "C" fn(); 140] = &IRQS_NON_SECURE;
 
 mod io;
 
@@ -38,12 +45,12 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
-type ChipHw = Psc3<'static, Psc3DefaultPeripherals<'static>>;
+type ChipHw = Psc3NonSecure<'static, Psc3DefaultPeripherals<'static>>;
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
-    SingleThreadValue::new(PanicResources::new());
+    SingleThreadValue::new();
 
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
@@ -64,7 +71,6 @@ pub struct Psc3Plattform {
     >,
     button: &'static capsules_core::button::Button<'static, gpio::GpioPin<'static>>,
     gpio: &'static capsules_core::gpio::GPIO<'static, gpio::GpioPin<'static>>,
-    #[cfg(feature = "non_secure_tz")]
     spe_client: &'static tock_spe_adapter::SpeAdapter,
 }
 
@@ -80,14 +86,13 @@ impl SyscallDriverLookup for Psc3Plattform {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            #[cfg(feature = "non_secure_tz")]
             tock_spe_adapter::DRIVER_NUM => f(Some(self.spe_client)),
             _ => f(None),
         }
     }
 }
 
-impl KernelResources<Psc3<'static, Psc3DefaultPeripherals<'static>>> for Psc3Plattform {
+impl KernelResources<Psc3NonSecure<'static, Psc3DefaultPeripherals<'static>>> for Psc3Plattform {
     type ContextSwitchCallback = ();
     type ProcessFault = ();
     type Scheduler = SchedulerInUse;
@@ -139,20 +144,33 @@ unsafe extern "C" {
     static _sstack: u8;
 }
 
-/// Main function called after RAM initialized.
-#[unsafe(no_mangle)]
-pub unsafe fn main() {
-    cortexm33::support::dmb();
-    // set vector-table when coming from secure world
-    unsafe {
-        cortexm33::scb::set_vector_table_offset(BASE_VECTORS.as_ptr().cast::<()>());
-    }
-
-    unsafe { cortex_m::register::set_msplim(core::ptr::addr_of!(_sstack) as u32) };
-
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+pub unsafe fn start() -> (
+    &'static kernel::Kernel,
+    Psc3Plattform,
+    &'static Psc3NonSecure<'static, Psc3DefaultPeripherals<'static>>,
+) {
     // !Only after chip_init::preinit_peripherals() was called peripheral view for
     // debugging works!
     chip_init::preinit_peripherals();
+
+    // Explicitly set vector-table. Needed when coming from secure world.
+    unsafe {
+        cortexm33::scb::set_vector_table_offset(BASE_VECTORS_NON_SECURE.as_ptr().cast::<()>());
+    }
+
+    // Set stack limit
+    unsafe {
+        core::arch::asm!(
+            "msr msplim, {0}",
+            in(reg) core::ptr::addr_of!(_sstack)
+        );
+    }
+
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<
@@ -160,10 +178,17 @@ pub unsafe fn main() {
     >();
 
     // Bind global variables to this thread.
-    PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+    let _ = PANIC_RESOURCES
+        .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            PanicResources::new(),
+        );
 
-    let peripherals =
-        unsafe { static_init!(Psc3DefaultPeripherals, Psc3DefaultPeripherals::new()) };
+    let peripherals = unsafe {
+        static_init!(
+            Psc3DefaultPeripherals,
+            Psc3DefaultPeripherals::new(gpio::SecurityState::NonSecure)
+        )
+    };
 
     peripherals.init();
 
@@ -181,18 +206,17 @@ pub unsafe fn main() {
         vtrip_sel: 0,
         vref_sel: 0,
         voh_sel: 0,
-        non_sec: true,
     };
 
-    peripherals
-        .gpio
-        .get_pin(gpio::PsocPin::P8_5)
-        .preconfigure(&GPIO_CONFIG);
+    let debug_led_pin = peripherals.gpio.get_pin(gpio::PsocPin::P8_5);
+    debug_led_pin.preconfigure(&GPIO_CONFIG);
 
-    // Set the UART used for panic
-    unsafe { (*addr_of_mut!(io::WRITER)).set_scb(&peripherals.scb3) };
-
-    let chip = unsafe { static_init!(Psc3<Psc3DefaultPeripherals>, Psc3::new(peripherals)) };
+    let chip = unsafe {
+        static_init!(
+            Psc3NonSecure<Psc3DefaultPeripherals>,
+            Psc3NonSecure::new(peripherals)
+        )
+    };
     PANIC_RESOURCES.get().map(|resources| {
         resources.chip.put(chip);
     });
@@ -340,13 +364,15 @@ pub unsafe fn main() {
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
-    #[cfg(feature = "non_secure_tz")]
-    let spe_client = static_init!(
-        tock_spe_adapter::SpeAdapter,
-        tock_spe_adapter::SpeAdapter::new(
-            board_kernel.create_grant(tock_spe_adapter::DRIVER_NUM, &memory_allocation_capability,),
+    let spe_client = unsafe {
+        static_init!(
+            tock_spe_adapter::SpeAdapter,
+            tock_spe_adapter::SpeAdapter::new(
+                board_kernel
+                    .create_grant(tock_spe_adapter::DRIVER_NUM, &memory_allocation_capability,),
+            )
         )
-    );
+    };
 
     let psc3_platform = Psc3Plattform {
         ipc: kernel::ipc::IPC::new(
@@ -357,10 +383,9 @@ pub unsafe fn main() {
         console,
         alarm,
         scheduler,
-        systick: unsafe { cortexm33::systick::SysTick::new_with_calibration(1_000_000) },
+        systick: cortexm33::systick::SysTick::new_with_calibration(1_000_000),
         led,
         button,
-        #[cfg(feature = "non_secure_tz")]
         spe_client,
         gpio,
     };
@@ -390,12 +415,14 @@ pub unsafe fn main() {
         kernel::debug!("{:?}", err);
     });
 
+    (board_kernel, psc3_platform, chip)
+}
+
+/// Main function called after RAM initialized.
+#[unsafe(no_mangle)]
+pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
-    board_kernel.kernel_loop(
-        &psc3_platform,
-        chip,
-        Some(&psc3_platform.ipc),
-        &main_loop_capability,
-    );
+    let (board_kernel, platform, chip) = unsafe { start() };
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }
