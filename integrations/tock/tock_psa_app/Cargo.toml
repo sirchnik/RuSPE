@@ -22,7 +22,7 @@ default = ["test_loop_token"]
 # default = ["test_unpriv_spe"]
 test_unpriv_spe = []
 test_loop_token = []
-use_syscalls = []
+capsule_api = []
 
 [lints]
 workspace = true

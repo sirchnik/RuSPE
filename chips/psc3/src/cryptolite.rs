@@ -396,6 +396,8 @@ const POLY_MASK: u32 = 0x7fff_ffff;
 const DEFAULT_GARO31_POLY: u32 = 0xb2d1_ab70;
 const DEFAULT_FIRO31_POLY: u32 = 0xe6b8_c3b3;
 
+// SAFETY: BASE_ADDR is the valid memory-mapped base address for Cryptolite
+// registers.
 const CRYPTOLITE_BASE: StaticRef<CryptoliteRegisters> =
     unsafe { StaticRef::new(BASE_ADDR as *const CryptoliteRegisters) };
 
@@ -408,6 +410,12 @@ impl Cryptolite {
         Self {
             registers: CRYPTOLITE_BASE,
         }
+    }
+}
+
+impl Default for Cryptolite {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -437,6 +445,10 @@ pub enum TrngRoSelect {
 
 pub type TrngBitstreamSelect = TRNG_MON_CTL::BITSTREAM_SEL::Value;
 
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "TrngConfig has multiple independent boolean options for hardware control"
+)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct TrngConfig {
     pub sample_clock_div: u8,

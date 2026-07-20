@@ -16,7 +16,8 @@ use psc3::gpio::GpioPin;
 /// occurred.
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
-    let led_kernel_pin = &GpioPin::new_with_tz_regs(gpio::PsocPin::P8_5, gpio::SecurityState::NonSecure);
+    let led_kernel_pin =
+        &GpioPin::new_with_tz_regs(gpio::PsocPin::P8_5, gpio::SecurityState::NonSecure);
     let led = &mut LedHigh::new(led_kernel_pin);
 
     unsafe {

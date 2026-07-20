@@ -93,7 +93,8 @@ unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
     }
 
     chip::configure_gpio_secure_states();
-    chip::init_scb0_uart_pins();
+    let peripherals = chip::Psc3DefaultPeripherals::new(tock_psc3::gpio::SecurityState::Secure);
+    peripherals.init_scb0_uart_pins();
 
     configure_security(
         NONSECURE_FLASH_START,

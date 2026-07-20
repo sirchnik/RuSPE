@@ -138,7 +138,7 @@ fn create_psa_token(writer: &mut impl Write) -> Result<(), TokenError> {
         );
     }
 
-    #[cfg(feature = "use_syscalls")]
+    #[cfg(feature = "capsule_api")]
     {
         let res = spe_driver::SpeDriver::<TockSyscalls>::initial_attest_get_token_sync(
             &nonce.0[..challenge_len],
@@ -154,7 +154,7 @@ fn create_psa_token(writer: &mut impl Write) -> Result<(), TokenError> {
         }
     }
 
-    #[cfg(not(feature = "use_syscalls"))]
+    #[cfg(not(feature = "capsule_api"))]
     {
         let status = psa_interface::psa_api::psa_initial_attest_get_token::<
             psa_veneer_client::PsaVeneerClient,
@@ -209,13 +209,13 @@ fn run_app() -> ! {
             use libtock::alarm::{Alarm, Milliseconds};
 
             writeln!(writer, "start-spe").unwrap();
-            #[cfg(feature = "use_syscalls")]
+            #[cfg(feature = "capsule_api")]
             let res = spe_driver::SpeDriver::<TockSyscalls>::initial_attest_get_token_sync(
                 &nonce.0[..32],
                 &mut token.0,
             );
 
-            #[cfg(not(feature = "use_syscalls"))]
+            #[cfg(not(feature = "capsule_api"))]
             let res = psa_interface::psa_api::psa_initial_attest_get_token::<
                 psa_veneer_client::PsaVeneerClient,
             >(&nonce.0[..32], &mut token.0);

@@ -6,6 +6,7 @@ use core::cmp;
 
 use spe::libs::mutex::Mutex;
 use spe_services::attest::attest_service::{self, CERTIFICATION_REF_MAX_SIZE};
+
 use crate::cryptolite;
 use crate::efuse::{SyslibLcsMode, get_device_lifecycle};
 

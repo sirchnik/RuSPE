@@ -111,8 +111,10 @@ register_bitfields![u32,
     ]
 ];
 
+// SAFETY: 0x4261_0000 is a valid memory-mapped base address for EFUSE
+// registers.
 const EFUSE_BASE: StaticRef<EfuseRegisters> =
-    unsafe { StaticRef::new(0x42610000 as *const EfuseRegisters) };
+    unsafe { StaticRef::new(0x4261_0000 as *const EfuseRegisters) };
 
 pub type SyslibLcsMode = BOOTROW::BOOT_ROW_DATA::Value;
 

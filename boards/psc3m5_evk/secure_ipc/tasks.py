@@ -221,7 +221,7 @@ def program(ctx: Context, nspe="test", app=None, debug=False):
     return program_hex(ctx, BOARD, merged)
 
 
-from boards.psc3m5_evk.common_tasks import term
+from boards.psc3m5_evk.common_tasks import term  # noqa: F401
 
 
 def vscode_build_targets(release: bool = False) -> list[VscodeBuildTarget]:

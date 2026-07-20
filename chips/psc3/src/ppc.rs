@@ -104,8 +104,9 @@ REGION_ATTR [
     ]
 ],
 ];
+// SAFETY: 0x5202_0000 is a valid memory-mapped base address for PPC registers.
 const PPC_BASE: StaticRef<PpcRegisters> =
-    unsafe { StaticRef::new(0x52020000 as *const PpcRegisters) };
+    unsafe { StaticRef::new(0x5202_0000 as *const PpcRegisters) };
 
 /// PPC region definitions
 /// Pfrom architecture reference manual
@@ -338,14 +339,14 @@ pub enum PpcRegion {
 
 /// Set access permissions for a given PPC region.
 ///
-/// Parameters:
-/// - `region`: The PPC region for which to set permissions.
-/// - `allow_non_secure`: If true, allows non-secure (and secure) access to the
-///   region.
-/// - `allow_nsec_nonpriv`: If true, allows non-secure non-privileged (and
-///   privileged) access to the region.
-/// - `allow_sec_nonpriv`: If true, allows secure non-privileged (and
-///   privileged) access to the region.
+/// # Panics
+///
+/// Panics if the region index calculated from `region` is out of bounds of the
+/// PPC non-secure attributes register array.
+#[expect(
+    clippy::similar_names,
+    reason = "allow_nsec_nonpriv and allow_sec_nonpriv are standard names for non-secure and secure non-privileged permissions"
+)]
 pub fn set_permissions(
     region: PpcRegion,
     allow_non_secure: bool,
@@ -360,17 +361,22 @@ pub fn set_permissions(
     assert!(reg_index < PPC_BASE.ppc_ns_attrs.len());
 
     let nsec_reg = &PPC_BASE.ppc_ns_attrs[reg_index];
-    nsec_reg.set((nsec_reg.get() & !(1 << bit_index)) | ((allow_non_secure as u32) << bit_index));
+    nsec_reg.set((nsec_reg.get() & !(1 << bit_index)) | (u32::from(allow_non_secure) << bit_index));
 
     let nsec_priv_reg = &PPC_BASE.ppc_ns_p_attrs[reg_index];
     nsec_priv_reg.set(
-        (nsec_priv_reg.get() & !(1 << bit_index)) | ((allow_nsec_nonpriv as u32) << bit_index),
+        (nsec_priv_reg.get() & !(1 << bit_index)) | (u32::from(allow_nsec_nonpriv) << bit_index),
     );
     let sec_priv_reg = &PPC_BASE.ppc_s_p_attrs[reg_index];
-    sec_priv_reg
-        .set((sec_priv_reg.get() & !(1 << bit_index)) | ((allow_sec_nonpriv as u32) << bit_index));
+    sec_priv_reg.set(
+        (sec_priv_reg.get() & !(1 << bit_index)) | (u32::from(allow_sec_nonpriv) << bit_index),
+    );
 }
 
+#[expect(
+    clippy::similar_names,
+    reason = "allow_nsec_nonpriv and allow_sec_nonpriv are standard names for non-secure and secure non-privileged permissions"
+)]
 pub fn get_permissions(region: PpcRegion) -> (bool, bool, bool) {
     let region_index = region as usize;
     // 32 regions per 32-bit register
@@ -391,7 +397,7 @@ pub fn set_protection_context(region: PpcRegion, context: u8) {
     let bit_index = (region_index % 4) * 8;
 
     let reg = &PPC_BASE.ppc_pc_masks[reg_index];
-    reg.set((reg.get() & !(0xFF << bit_index)) | ((context as u32) << bit_index));
+    reg.set((reg.get() & !(0xFF << bit_index)) | (u32::from(context) << bit_index));
 }
 
 pub fn lock_protection_contexts() {
