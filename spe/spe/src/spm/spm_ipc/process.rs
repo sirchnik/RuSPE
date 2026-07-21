@@ -181,6 +181,7 @@ impl IpcProcess for ServiceProcess {
 
     fn init_process<P: IpcProcessPlatform + ?Sized, S: SpmCall>(&self, _platform: &P, _spm: &S) {
         let vectors = self.vectors;
+
         // SAFETY: The init_entry, stack_limit, and stack_top are provided by the
         // ServiceVectors which are guaranteed to be valid by the safety
         // contract of ServiceProcess::new.

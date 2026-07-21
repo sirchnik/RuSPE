@@ -20,6 +20,7 @@ runs:
     - name: Install dependencies
       shell: bash
       run: |
+        sudo apt-get update && sudo apt-get install -y binutils-arm-none-eabi
         uv sync
         echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
         uv run inv install

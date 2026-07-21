@@ -163,18 +163,13 @@ unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
 
     // set msplim. There was one incident where then non-secure handled stack
     // overflow.
-    unsafe { cortex_m::register::set_msplim(core::ptr::addr_of!(_sstack) as u32) };
+    unsafe {
+        let stack_base = core::ptr::addr_of!(_sstack) as *mut u32;
+        cortex_m::register::set_msplim(stack_base as u32);
+    }
 
     unsafe {
-        let aircr = 0xe000ed0c as *mut u32;
-        let mut value = aircr.read_volatile();
-        value &= 0x0 << 16; // Clear VECTKEY
-        aircr.write_volatile(value);
-        value |= 0x5fa << 16; // VECTKEY
-        value |= 1 << 3; // SYSRESETREQS: allow reset request only from secure
-        // disallowed!
-        value |= 0 << 13; // BFHFNMINS: allow hardfault, busfault, nmi handled in non-secure
-        aircr.write_volatile(value);
+        spe::startup::configure_aircr();
     }
 
     configure_security(
@@ -211,20 +206,5 @@ unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
 
     io::debugln(format_args!("Init SPE (IPC) done, jumping to non-secure"));
 
-    unsafe {
-        let nonsecure_start_flash = NONSECURE_FLASH_START as *const [u32; 2];
-        // If this faults: Did you provision your device using edgeprotecttools?
-        let [nonsecure_sp, nonsecure_reset] = nonsecure_start_flash.read_volatile();
-
-        // Set non-secure main stack pointer
-        core::arch::asm!(
-            "msr msp_ns, {nonsecure_sp}",
-            nonsecure_sp = in(reg) nonsecure_sp,
-            options(nomem, nostack, preserves_flags),
-        );
-
-        core::mem::transmute::<*const u32, extern "cmse-nonsecure-call" fn()>(
-            nonsecure_reset as *const u32,
-        )
-    }
+    unsafe { spe::startup::jump_to_nonsecure(NONSECURE_FLASH_START) }
 }

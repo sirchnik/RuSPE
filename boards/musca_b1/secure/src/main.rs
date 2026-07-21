@@ -15,6 +15,12 @@ use cortex_m::nvic;
 use helpers::static_init;
 use ruspe_musca_b1::uart;
 
+// These symbols are defined in the linker script.
+unsafe extern "C" {
+    /// Beginning of the stack region.
+    static _sstack: u8;
+}
+
 mod io;
 mod startup;
 
@@ -55,6 +61,17 @@ unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
 
         nvic::set_interrupt_non_secure(0, 127);
         nvic::enable_all();
+    }
+
+    // Initialize MSPLIM
+    unsafe {
+        let stack_base = core::ptr::addr_of!(_sstack) as *mut u32;
+        cortex_m::register::set_msplim(stack_base as u32);
+    }
+
+    // Restrict system reset and configure exception routing
+    unsafe {
+        spe::startup::configure_aircr();
     }
 
     let sec_platform = unsafe {
@@ -182,19 +199,5 @@ unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
 
     const NONSECURE_FLASH_START: u32 = 0x0010_2000;
 
-    unsafe {
-        let nonsecure_start_flash = NONSECURE_FLASH_START as *const [u32; 2];
-        let [nonsecure_sp, nonsecure_reset] = nonsecure_start_flash.read_volatile();
-
-        // Set non-secure main stack pointer
-        core::arch::asm!(
-            "msr msp_ns, {nonsecure_sp}",
-            nonsecure_sp = in(reg) nonsecure_sp,
-            options(nomem, nostack, preserves_flags),
-        );
-
-        core::mem::transmute::<*const u32, extern "cmse-nonsecure-call" fn()>(
-            nonsecure_reset as *const u32,
-        )
-    }
+    unsafe { spe::startup::jump_to_nonsecure(NONSECURE_FLASH_START) }
 }

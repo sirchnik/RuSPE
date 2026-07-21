@@ -78,14 +78,44 @@ macro_rules! define_spm_api {
             }
         }
 
-
+        #[cfg(target_arch = "arm")]
         #[unsafe(no_mangle)]
         pub extern "cmse-nonsecure-entry" fn psa_version_veneer(service_id: u32) -> u32 {
-            psa_version(service_id)
+            $crate::veneers::enter_secure_state();
+            let res = psa_version_impl(service_id);
+            $crate::veneers::exit_secure_state();
+            res
         }
 
+        fn psa_version_impl(service_id: u32) -> u32 {
+            let handle = match psa_interface::types::ServiceHandle::try_from(service_id as i32) {
+                Ok(h) => h,
+                Err(_) => return 0,
+            };
+            $crate::spm::spm::SpmCall::version(get_spm(), handle).unwrap_or(0)
+        }
+
+        #[cfg(not(target_arch = "arm"))]
+        #[unsafe(no_mangle)]
+        pub extern "cmse-nonsecure-entry" fn psa_version_veneer(service_id: u32) -> u32 {
+            psa_version_impl(service_id)
+        }
+
+        #[cfg(target_arch = "arm")]
         #[unsafe(no_mangle)]
         pub extern "cmse-nonsecure-entry" fn psa_call_veneer(
+            handle: psa_interface::types::ServiceHandle,
+            ctrl_param: psa_interface::types::CtrlParam,
+            in_vec: *const psa_interface::types::FFInVec,
+            out_vec: *mut psa_interface::types::FFOutVec,
+        ) -> psa_interface::types::PsaStatus {
+            $crate::veneers::enter_secure_state();
+            let res = psa_call_impl(handle, ctrl_param, in_vec, out_vec);
+            $crate::veneers::exit_secure_state();
+            res
+        }
+
+        fn psa_call_impl(
             handle: psa_interface::types::ServiceHandle,
             ctrl_param: psa_interface::types::CtrlParam,
             in_vec: *const psa_interface::types::FFInVec,
@@ -105,12 +135,15 @@ macro_rules! define_spm_api {
             }
         }
 
-        fn psa_version(service_id: u32) -> u32 {
-            let handle = match psa_interface::types::ServiceHandle::try_from(service_id as i32) {
-                Ok(h) => h,
-                Err(_) => return 0,
-            };
-            $crate::spm::spm::SpmCall::version(get_spm(), handle).unwrap_or(0)
+        #[cfg(not(target_arch = "arm"))]
+        #[unsafe(no_mangle)]
+        pub extern "cmse-nonsecure-entry" fn psa_call_veneer(
+            handle: psa_interface::types::ServiceHandle,
+            ctrl_param: psa_interface::types::CtrlParam,
+            in_vec: *const psa_interface::types::FFInVec,
+            out_vec: *mut psa_interface::types::FFOutVec,
+        ) -> psa_interface::types::PsaStatus {
+            psa_call_impl(handle, ctrl_param, in_vec, out_vec)
         }
 
         pub struct InternalPsaClient;
@@ -121,7 +154,7 @@ macro_rules! define_spm_api {
             }
 
             fn psa_version(service_id: u32) -> u32 {
-                psa_version(service_id)
+                Self::psa_version(service_id)
             }
 
             fn psa_call(
