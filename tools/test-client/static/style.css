@@ -481,5 +481,17 @@ header p {
     transform: translateY(0) rotate(0);
 }
 
-
-
+.secret-dot {
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    width: 20px;
+    height: 20px;
+    background-color: #000;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    opacity: 0.1;
+    transition: all 0.3s ease;
+    z-index: 9999;
+}

@@ -152,12 +152,8 @@ document.addEventListener('DOMContentLoaded', () => {
         await activateNode(nodes.app, "Tock App receiving request over UART...");
         deactivateNode(nodes.app);
 
-        addTrailSegment(nodes.app, nodes.kernel);
-        await activateNode(nodes.kernel, "Kernel routing request to SPE...");
-        deactivateNode(nodes.kernel);
-
-        addTrailSegment(nodes.kernel, nodes.spe);
-        await activateNode(nodes.spe, "SPE delegating to Attestation Service...");
+        addTrailSegment(nodes.app, nodes.spe);
+        await activateNode(nodes.spe, "Tock App calling SPE directly...");
         deactivateNode(nodes.spe);
 
         addTrailSegment(nodes.spe, nodes.attest);
@@ -178,14 +174,10 @@ document.addEventListener('DOMContentLoaded', () => {
         deactivateNode(nodes.attest);
 
         addTrailSegment(nodes.attest, nodes.spe, true);
-        await activateNode(nodes.spe, "SPE returning token to Kernel...");
+        await activateNode(nodes.spe, "SPE returning token directly to Tock App...");
         deactivateNode(nodes.spe);
 
-        addTrailSegment(nodes.spe, nodes.kernel, true);
-        await activateNode(nodes.kernel, "Kernel passing token to User Space...");
-        deactivateNode(nodes.kernel);
-
-        addTrailSegment(nodes.kernel, nodes.app, true);
+        addTrailSegment(nodes.spe, nodes.app, true);
         await activateNode(nodes.app, "Tock App passing token over UART...");
         deactivateNode(nodes.app);
 
@@ -319,4 +311,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+
+    const secretDotBtn = document.getElementById('secret-dot-btn');
+    if (secretDotBtn) {
+        secretDotBtn.addEventListener('click', async () => {
+            try {
+                const res = await fetch('/api/switch-fake', { method: 'POST' });
+                const data = await res.json();
+                console.log(`Data source toggled to: ${data.state}`);
+            } catch (err) {
+                console.error('Failed to toggle data source via dot:', err);
+            }
+        });
+    }
 });
