@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 [package]
-name = "tock_spe_adapter"
+name = "tock_spe_mutex"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

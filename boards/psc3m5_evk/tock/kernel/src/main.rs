@@ -71,7 +71,7 @@ pub struct Psc3Plattform {
     >,
     button: &'static capsules_core::button::Button<'static, gpio::GpioPin<'static>>,
     gpio: &'static capsules_core::gpio::GPIO<'static, gpio::GpioPin<'static>>,
-    spe_client: &'static tock_spe_adapter::SpeAdapter,
+    spe_client: &'static tock_spe_mutex::SpeMutex,
 }
 
 impl SyscallDriverLookup for Psc3Plattform {
@@ -86,7 +86,7 @@ impl SyscallDriverLookup for Psc3Plattform {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            tock_spe_adapter::DRIVER_NUM => f(Some(self.spe_client)),
+            tock_spe_mutex::DRIVER_NUM => f(Some(self.spe_client)),
             _ => f(None),
         }
     }
@@ -366,11 +366,8 @@ pub unsafe fn start() -> (
 
     let spe_client = unsafe {
         static_init!(
-            tock_spe_adapter::SpeAdapter,
-            tock_spe_adapter::SpeAdapter::new(
-                board_kernel
-                    .create_grant(tock_spe_adapter::DRIVER_NUM, &memory_allocation_capability,),
-            )
+            tock_spe_mutex::SpeMutex,
+            tock_spe_mutex::SpeMutex::new()
         )
     };
 

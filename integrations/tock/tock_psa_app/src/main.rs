@@ -11,6 +11,7 @@
 use core::fmt::Write;
 
 use libtock::console::Console;
+use libtock::platform::Syscalls;
 use libtock::runtime::{TockSyscalls, set_main, stack_size};
 
 mod spe_driver;
@@ -138,68 +139,35 @@ fn create_psa_token(writer: &mut impl Write) -> Result<(), TokenError> {
         );
     }
 
-    #[cfg(feature = "capsule_api")]
-    {
-        let res = spe_driver::SpeDriver::<TockSyscalls>::initial_attest_get_token_sync(
-            &nonce.0[..challenge_len],
-            &mut token.0,
-        );
-        match res {
-            Ok(len) => emit_json_ok(writer, &token.0[..len], len),
-            Err(_) => emit_json_error(
+    while SpeDriver::<TockSyscalls>::reserve().is_err() {
+        TockSyscalls::yield_wait();
+    }
+
+    let status = psa_interface::psa_api::psa_initial_attest_get_token::<
+        psa_veneer_client::PsaVeneerClient,
+    >(&nonce.0[..challenge_len], &mut token.0);
+
+    let _ = SpeDriver::<TockSyscalls>::release();
+
+    let token_len = match status {
+        Ok(_) => 512,
+        Err(_) => {
+            return emit_json_error(
                 writer,
                 "token_request_failed",
                 TokenError::TokenRequestFailed,
-            ),
+            );
         }
-    }
+    };
 
-    #[cfg(not(feature = "capsule_api"))]
-    {
-        let status = psa_interface::psa_api::psa_initial_attest_get_token::<
-            psa_veneer_client::PsaVeneerClient,
-        >(&nonce.0[..challenge_len], &mut token.0);
-
-        let token_len = match status {
-            Ok(_) => 512,
-            Err(_) => {
-                return emit_json_error(
-                    writer,
-                    "token_request_failed",
-                    TokenError::TokenRequestFailed,
-                );
-            }
-        };
-
-        emit_json_ok(writer, &token.0[..token_len], token_len)
-    }
+    emit_json_ok(writer, &token.0[..token_len], token_len)
 }
 
 fn main() {
     run_app();
 }
 
-fn jump_to_spe() -> ! {
-    // TODO prevent jump to secure from non-privileged
-
-    unsafe { core::arch::asm!("nop") }
-
-    unsafe {
-        // with tumb bit!
-        let func: extern "C" fn() = core::mem::transmute(0x3201ff01usize);
-        func();
-    }
-    loop {
-        use libtock::platform::Syscalls;
-
-        TockSyscalls::yield_wait();
-    }
-}
-
 fn run_app() -> ! {
-    #[cfg(feature = "test_unpriv_spe")]
-    jump_to_spe();
-
     #[cfg(feature = "test_loop_token")]
     {
         let mut token = Aligned32([0u8; 512]);
@@ -209,16 +177,17 @@ fn run_app() -> ! {
             use libtock::alarm::{Alarm, Milliseconds};
 
             writeln!(writer, "start-spe").unwrap();
-            #[cfg(feature = "capsule_api")]
-            let res = spe_driver::SpeDriver::<TockSyscalls>::initial_attest_get_token_sync(
-                &nonce.0[..32],
-                &mut token.0,
-            );
+            while spe_driver::SpeDriver::<TockSyscalls>::reserve().is_err() {
+                TockSyscalls::yield_wait();
+            }
 
-            #[cfg(not(feature = "capsule_api"))]
+            libtock::alarm::Alarm::sleep_for(libtock::alarm::Milliseconds(10)).unwrap();
+
             let res = psa_interface::psa_api::psa_initial_attest_get_token::<
                 psa_veneer_client::PsaVeneerClient,
             >(&nonce.0[..32], &mut token.0);
+
+            let _ = spe_driver::SpeDriver::<TockSyscalls>::release();
 
             res.unwrap();
 
@@ -235,7 +204,7 @@ fn run_app() -> ! {
         }
     }
 
-    #[cfg(not(any(feature = "test_unpriv_spe", feature = "test_loop_token")))]
+    #[cfg(not(feature = "test_loop_token"))]
     {
         let mut writer = Console::writer();
         loop {

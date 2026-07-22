@@ -55,7 +55,7 @@ pub struct MuscaB1Plattform {
         VirtualMuxAlarm<'static, CMSDKTimer<'static>>,
     >,
     #[cfg(feature = "non_secure_tz")]
-    spe_client: &'static tock_spe_adapter::SpeAdapter,
+    spe_client: &'static tock_spe_mutex::SpeMutex,
 }
 
 impl SyscallDriverLookup for MuscaB1Plattform {
@@ -68,7 +68,7 @@ impl SyscallDriverLookup for MuscaB1Plattform {
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             #[cfg(feature = "non_secure_tz")]
-            tock_spe_adapter::DRIVER_NUM => f(Some(self.spe_client)),
+            tock_spe_mutex::DRIVER_NUM => f(Some(self.spe_client)),
             _ => f(None),
         }
     }
@@ -236,15 +236,12 @@ pub unsafe fn start() -> (
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     #[cfg(feature = "non_secure_tz")]
-    let spe_client = unsafe {
-        static_init!(
-            tock_spe_adapter::SpeAdapter,
-            tock_spe_adapter::SpeAdapter::new(
-                board_kernel
-                    .create_grant(tock_spe_adapter::DRIVER_NUM, &memory_allocation_capability,),
-            )
+    let spe_client = static_init!(
+        tock_spe_mutex::SpeMutex,
+        tock_spe_mutex::SpeMutex::new(
+            board_kernel.create_grant(tock_spe_mutex::DRIVER_NUM, &memory_allocation_capability),
         )
-    };
+    );
 
     let musca_b1_platform = MuscaB1Plattform {
         ipc: kernel::ipc::IPC::new(
