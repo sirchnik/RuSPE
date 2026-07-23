@@ -14,25 +14,25 @@ macro_rules! define_spm_api {
 
         pub struct SfnApi;
         impl $crate::spm_api::SpmApi for SfnApi {
-            fn access_invec<R>(&self, msg_handle: psa_interface::types::ServiceHandle, invec_idx: u32, f: impl FnOnce(&[u8]) -> R) -> R {
+            fn access_invec<R>(&self, msg_handle: psa_interface::types::ServiceHandle, invec_idx: u32, f: impl FnOnce(&[u8]) -> R) -> Result<R, psa_interface::status::StatusCode> {
                 let spm = get_spm();
                 $crate::spm_api::with_connection_for_handle(spm, msg_handle, |connection| {
                     $crate::spm_api::with_mapped_invec(spm, connection, invec_idx, f)
                 })
             }
 
-            fn access_outvec<R>(&self, msg_handle: psa_interface::types::ServiceHandle, outvec_idx: u32, f: impl FnOnce(&mut [u8]) -> (R, usize)) -> R {
+            fn access_outvec<R>(&self, msg_handle: psa_interface::types::ServiceHandle, outvec_idx: u32, f: impl FnOnce(&mut [u8]) -> (R, usize)) -> Result<R, psa_interface::status::StatusCode> {
                 let spm = get_spm();
                 $crate::spm_api::with_connection_for_handle(spm, msg_handle, |connection| {
                     $crate::spm_api::with_mapped_outvec(spm, connection, outvec_idx, f)
                 })
             }
 
-            fn access_invec_outvec<R>(&self, msg_handle: psa_interface::types::ServiceHandle, invec_idx: u32, outvec_idx: u32, f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize)) -> R {
+            fn access_invec_outvec<R>(&self, msg_handle: psa_interface::types::ServiceHandle, invec_idx: u32, outvec_idx: u32, f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize)) -> Result<R, psa_interface::status::StatusCode> {
                 let spm = get_spm();
                 $crate::spm_api::with_connection_for_handle(spm, msg_handle, |connection| {
-                    let (in_index, in_len, in_base) = $crate::spm_api::prepare_invec(spm, connection, invec_idx);
-                    let (out_index, out_len, out_base) = $crate::spm_api::prepare_outvec(spm, connection, outvec_idx);
+                    let (in_index, in_len, in_base) = $crate::spm_api::prepare_invec(connection, invec_idx)?;
+                    let (out_index, out_len, out_base) = $crate::spm_api::prepare_outvec(connection, outvec_idx)?;
 
                     let invec = if in_len == 0 {
                         &[]
@@ -50,11 +50,18 @@ macro_rules! define_spm_api {
                     $crate::spm_api::commit_outvec_write(connection, out_index, out_len, written_len);
                     $crate::spm_api::mark_invec_unmapped(connection, in_index);
 
-                    result
+                    Ok(result)
                 })
             }
 
-            unsafe fn call(&self, handle: psa_interface::types::ServiceHandle, ctrl_param: psa_interface::types::CtrlParam, in_vec: *const psa_interface::types::FFInVec, out_vec: *mut psa_interface::types::FFOutVec) -> Result<(), psa_interface::status::StatusCode> {
+            unsafe fn call(
+                &self,
+                handle: psa_interface::types::ServiceHandle,
+                ctrl_param: psa_interface::types::CtrlParam,
+                in_vec: *const psa_interface::types::FFInVec,
+                out_vec: *mut psa_interface::types::FFOutVec,
+                caller: $crate::spm_api::CallerAttributes,
+            ) -> Result<(), psa_interface::status::StatusCode> {
                 let spm = get_spm();
                 let (_msg_type, ivec_num, ovec_num) = $crate::spm_api::validate_call_params(ctrl_param)?;
                 $crate::spm_api::validate_vec_pointer_shape(ctrl_param.has_iovec(), ivec_num, ovec_num, in_vec, out_vec)?;
@@ -71,8 +78,7 @@ macro_rules! define_spm_api {
                     unsafe { core::slice::from_raw_parts_mut(out_vec, ovec_num) }
                 };
 
-                let caller = $crate::spm_api::CallerAttributes::SECURE_PRIVILEGED;
-                let connection = $crate::spm_api::call_from_slices(handle, ctrl_param, in_vecs, out_vecs, caller)?;
+                let connection = $crate::spm_api::call_from_slices(spm, handle, ctrl_param, in_vecs, out_vecs, caller)?;
 
                 $crate::spm::spm::SpmCall::call(spm, connection)
             }
@@ -121,18 +127,10 @@ macro_rules! define_spm_api {
             in_vec: *const psa_interface::types::FFInVec,
             out_vec: *mut psa_interface::types::FFOutVec,
         ) -> psa_interface::types::PsaStatus {
-            #[cfg(not(feature = "spm-ipc"))]
-            {
-                psa_interface::status::into_psa_status(unsafe {
-                    $crate::spm_api::SpmApi::call(&SfnApi, handle, ctrl_param, in_vec, out_vec)
-                })
-            }
-            #[cfg(feature = "spm-ipc")]
-            {
-                psa_interface::status::into_psa_status(unsafe {
-                    $crate::spm_api::SpmApi::call(&$crate::spm_api::SvcApi, handle, ctrl_param, in_vec, out_vec)
-                })
-            }
+            let caller = $crate::spm_api::CallerAttributes::NS_UNPRIVILEGED;
+            psa_interface::status::into_psa_status(unsafe {
+                $crate::spm_api::SpmApi::call(&SfnApi, handle, ctrl_param, in_vec, out_vec, caller)
+            })
         }
 
         #[cfg(not(target_arch = "arm"))]
@@ -178,13 +176,13 @@ macro_rules! define_spm_api {
                 #[cfg(not(feature = "spm-ipc"))]
                 {
                     psa_interface::status::into_psa_status(unsafe {
-                        $crate::spm_api::SpmApi::call(&SfnApi, handle, ctrl_param, in_vec_ptr, out_vec_ptr)
+                        $crate::spm_api::SpmApi::call(&SfnApi, handle, ctrl_param, in_vec_ptr, out_vec_ptr, $crate::spm_api::CallerAttributes::SECURE_PRIVILEGED)
                     })
                 }
                 #[cfg(feature = "spm-ipc")]
                 {
                     psa_interface::status::into_psa_status(unsafe {
-                        $crate::spm_api::SpmApi::call(&$crate::spm_api::SvcApi, handle, ctrl_param, in_vec_ptr, out_vec_ptr)
+                        $crate::spm_api::SpmApi::call(&$crate::spm_api::SvcApi, handle, ctrl_param, in_vec_ptr, out_vec_ptr, $crate::spm_api::CallerAttributes::SECURE_PRIVILEGED)
                     })
                 }
             }
@@ -423,7 +421,7 @@ pub trait SpmApi {
         msg_handle: ServiceHandle,
         invec_idx: u32,
         f: impl FnOnce(&[u8]) -> R,
-    ) -> R;
+    ) -> Result<R, StatusCode>;
 
     /// Executes a closure with write-only access to the specified output vector
     /// (`outvec`).
@@ -437,7 +435,7 @@ pub trait SpmApi {
         msg_handle: ServiceHandle,
         outvec_idx: u32,
         f: impl FnOnce(&mut [u8]) -> (R, usize),
-    ) -> R;
+    ) -> Result<R, StatusCode>;
 
     /// Executes a closure with simultaneous access to an input vector and an
     /// output vector.
@@ -452,7 +450,7 @@ pub trait SpmApi {
         invec_idx: u32,
         outvec_idx: u32,
         f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize),
-    ) -> R;
+    ) -> Result<R, StatusCode>;
 
     /// Calls a service via the Secure Partition Manager (SPM).
     ///
@@ -471,6 +469,7 @@ pub trait SpmApi {
         ctrl_param: CtrlParam,
         in_vec: *const FFInVec,
         out_vec: *mut FFOutVec,
+        caller: CallerAttributes,
     ) -> Result<(), StatusCode>;
 }
 

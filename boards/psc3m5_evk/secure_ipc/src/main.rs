@@ -56,47 +56,45 @@ pub struct Psc3IpcPlatform;
 impl IpcPlatform for Psc3IpcPlatform {
     fn has_permission_on_memory(
         &self,
-        _base: *const u8,
-        _len: usize,
-        _is_write: bool,
-        _caller: spe::spm_api::CallerAttributes,
+        base: *const u8,
+        len: usize,
+        is_write: bool,
+        caller: spe::spm_api::CallerAttributes,
     ) -> bool {
-        // TODO find something better
-        return true;
-        // use cortex_m::cmse;
-        //
-        // if _len == 0 {
-        // return true;
-        // }
-        //
-        // if _base.is_null() {
-        // return false;
-        // }
-        //
-        // let access_type = match (_caller.ns, _caller.privileged) {
-        // (true, false) => cmse::AccessType::NonSecureUnprivileged,
-        // (true, true) => cmse::AccessType::NonSecure,
-        // (false, false) => cmse::AccessType::Unprivileged,
-        // (false, true) => cmse::AccessType::Current,
-        // };
-        //
-        // if let Some(target) = cmse::TestTarget::check_range(_base as *mut
-        // u32, _len, access_type) { if _caller.ns {
-        // if _is_write {
-        // target.ns_read_and_writable()
-        // } else {
-        // target.ns_readable()
-        // }
-        // } else {
-        // if _is_write {
-        // target.read_and_writable()
-        // } else {
-        // target.readable()
-        // }
-        // }
-        // } else {
-        // false
-        // }
+        use cortex_m::cmse;
+
+        if len == 0 {
+            return true;
+        }
+
+        if base.is_null() {
+            return false;
+        }
+
+        let access_type = match (caller.ns, caller.privileged) {
+            (true, false) => cmse::AccessType::NonSecureUnprivileged,
+            (true, true) => cmse::AccessType::NonSecure,
+            (false, false) => cmse::AccessType::Unprivileged,
+            (false, true) => cmse::AccessType::Current,
+        };
+
+        if let Some(target) = cmse::TestTarget::check_range(base as *mut u32, len, access_type) {
+            let is_security_state_valid = if caller.ns {
+                !target.secure()
+            } else {
+                target.secure()
+            };
+
+            let has_permission = if is_write {
+                target.read_and_writable()
+            } else {
+                target.readable()
+            };
+
+            is_security_state_valid && has_permission
+        } else {
+            false
+        }
     }
 
     fn custom_mpu_regions(

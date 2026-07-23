@@ -61,21 +61,19 @@ impl<C: PsaApiCallInterface + Sync, A: SpmApi + Sync> SfnPlatform for Psc3SecPla
         };
 
         cmse::TestTarget::check_range(base as *mut u32, len, access_type).is_some_and(|target| {
-            if caller.ns {
-                // Non-Secure caller: check NS permission bits
-                if is_write {
-                    target.ns_read_and_writable()
-                } else {
-                    target.ns_readable()
-                }
+            let is_security_state_valid = if caller.ns {
+                !target.secure()
             } else {
-                // Secure caller (inter-partition): check current-state permission bits
-                if is_write {
-                    target.read_and_writable()
-                } else {
-                    target.readable()
-                }
-            }
+                target.secure()
+            };
+
+            let has_permission = if is_write {
+                target.read_and_writable()
+            } else {
+                target.readable()
+            };
+
+            is_security_state_valid && has_permission
         })
     }
 

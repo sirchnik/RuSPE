@@ -364,12 +364,8 @@ pub unsafe fn start() -> (
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
-    let spe_client = unsafe {
-        static_init!(
-            tock_spe_mutex::SpeMutex,
-            tock_spe_mutex::SpeMutex::new()
-        )
-    };
+    let spe_client =
+        unsafe { static_init!(tock_spe_mutex::SpeMutex, tock_spe_mutex::SpeMutex::new()) };
 
     let psc3_platform = Psc3Plattform {
         ipc: kernel::ipc::IPC::new(

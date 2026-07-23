@@ -325,7 +325,7 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
                     (Err(e), 0)
                 }
             }
-        })?;
+        })??;
         Ok(())
     }
 
@@ -337,7 +337,7 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
             let mut challenge_size_array = [0u8; size_of::<usize>()];
             challenge_size_array.copy_from_slice(challenge_size_buf);
             Ok(usize::from_ne_bytes(challenge_size_array))
-        })?;
+        })??;
 
         let mut boot_seed = [0u8; 32];
         self.platform.boot_seed(&mut boot_seed)?;
@@ -377,7 +377,7 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
                 outvec[..token_size_bytes.len()].copy_from_slice(&token_size_bytes);
                 (Ok(()), token_size_bytes.len())
             }
-        })?;
+        })??;
         Ok(())
     }
 }

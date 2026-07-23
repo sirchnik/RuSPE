@@ -27,11 +27,7 @@ pub fn run_test(writer: &mut dyn Write) {
 
     print_version(writer);
     run_attest(writer);
-    run_attest(writer);
-    run_attest(writer);
-    run_attest(writer);
-    run_attest(writer);
-    run_attest(writer);
+    run_attest_invalid_buffer(writer);
 }
 fn print_version(writer: &mut dyn Write) {
     let initial_attest_version =
@@ -75,6 +71,32 @@ fn run_attest(writer: &mut dyn Write) {
     }
 
     let _ = write!(writer, "\r\n");
+}
+
+unsafe extern "C" {
+    fn psa_call_veneer();
+}
+
+fn run_attest_invalid_buffer(writer: &mut dyn Write) {
+    let challenge = Aligned32([0u8; 32]);
+    // Use address derived from veneer symbol in secure memory for platform
+    // independence
+    let invalid_addr = (psa_call_veneer as *const () as usize + 0x100) as *mut u8;
+    let invalid_token_buf = unsafe { core::slice::from_raw_parts_mut(invalid_addr, 512) };
+
+    let res =
+        psa_api::psa_initial_attest_get_token::<PsaVeneerClient>(&challenge.0, invalid_token_buf);
+    if res.is_err() {
+        let _ = writeln!(
+            writer,
+            "Negative test passed: SPM correctly rejected invalid memory address\r"
+        );
+    } else {
+        let _ = writeln!(
+            writer,
+            "Negative test FAILED: SPM allowed access to invalid memory address\r"
+        );
+    }
 }
 
 pub unsafe fn set_vector_table_offset(offset: *const ()) {

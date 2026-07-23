@@ -58,7 +58,7 @@ impl<A: SpmApi> Service<A> for CryptoService {
                 return Err(StatusCode::NotSupported);
             }
             Ok(())
-        })?;
+        })??;
 
         api.access_invec_outvec(msg.handle, 1, 0, |hash, sig_buf| {
             let mut written_len = 0;
@@ -73,7 +73,8 @@ impl<A: SpmApi> Service<A> for CryptoService {
             }
 
             (result, written_len)
-        })
+        })??;
+        Ok(())
     }
 
     fn init(&mut self, _api: &A) -> Result<(), StatusCode> {

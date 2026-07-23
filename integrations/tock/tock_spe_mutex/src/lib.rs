@@ -8,8 +8,8 @@ use core::cell::Cell;
 
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
-use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::process::Error;
+use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
 
 pub const DRIVER_NUM: usize = 0xa0000;
@@ -30,7 +30,9 @@ pub struct SpeMutex {
 
 impl SpeMutex {
     pub const fn new() -> Self {
-        Self { owner: Cell::new(None) }
+        Self {
+            owner: Cell::new(None),
+        }
     }
 }
 

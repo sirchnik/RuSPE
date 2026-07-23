@@ -17,8 +17,10 @@ use libtock::runtime::{TockSyscalls, set_main, stack_size};
 mod spe_driver;
 use spe_driver::SpeDriver;
 
+const APP_STACK_SIZE: usize = 0x400;
+
 set_main! {main}
-stack_size! {0x400}
+stack_size! {APP_STACK_SIZE}
 
 #[repr(align(32))]
 struct Aligned32<T>(T);
@@ -168,20 +170,123 @@ fn main() {
 }
 
 fn run_app() -> ! {
-    #[cfg(feature = "test_loop_token")]
+    #[cfg(any(feature = "test_loop_token", feature = "test_negative"))]
     {
+        use libtock::alarm::{Alarm, Milliseconds};
+
         let mut token = Aligned32([0u8; 512]);
         let nonce = Aligned32([0u8; 32]);
         let mut writer = Console::writer();
-        loop {
-            use libtock::alarm::{Alarm, Milliseconds};
 
+        unsafe extern "C" {
+            fn psa_call_veneer();
+        }
+
+        // 1. Initial valid token request
+        writeln!(writer, "start-spe-valid").unwrap();
+        while spe_driver::SpeDriver::<TockSyscalls>::reserve().is_err() {
+            TockSyscalls::yield_wait();
+        }
+
+        Alarm::sleep_for(Milliseconds(10)).unwrap();
+
+        let res = psa_interface::psa_api::psa_initial_attest_get_token::<
+            psa_veneer_client::PsaVeneerClient,
+        >(&nonce.0[..32], &mut token.0);
+
+        let _ = spe_driver::SpeDriver::<TockSyscalls>::release();
+
+        if res.is_ok() {
+            writeln!(writer, "Valid token request succeeded").unwrap();
+            let _ = emit_json_ok(&mut writer, &token.0, 512);
+        } else {
+            writeln!(writer, "Valid token request FAILED").unwrap();
+        }
+        writeln!(writer, "end-spe-valid").unwrap();
+
+        Alarm::sleep_for(Milliseconds(100)).unwrap();
+
+        // 2. Negative test: Access secure memory (runs once)
+        writeln!(writer, "start-spe-fail-secure-mem").unwrap();
+        while spe_driver::SpeDriver::<TockSyscalls>::reserve().is_err() {
+            TockSyscalls::yield_wait();
+        }
+
+        Alarm::sleep_for(Milliseconds(10)).unwrap();
+
+        let invalid_secure_addr = (psa_call_veneer as *const () as usize + 0x100) as *mut u8;
+        let invalid_secure_buf =
+            unsafe { core::slice::from_raw_parts_mut(invalid_secure_addr, 512) };
+
+        let res_sec = psa_interface::psa_api::psa_initial_attest_get_token::<
+            psa_veneer_client::PsaVeneerClient,
+        >(&nonce.0[..32], invalid_secure_buf);
+
+        let _ = spe_driver::SpeDriver::<TockSyscalls>::release();
+
+        if res_sec.is_err() {
+            writeln!(
+                writer,
+                "Negative test (secure memory) passed: SPM correctly rejected invalid memory"
+            )
+            .unwrap();
+        } else {
+            writeln!(
+                writer,
+                "Negative test (secure memory) FAILED: SPM allowed access"
+            )
+            .unwrap();
+        }
+        writeln!(writer, "end-spe-fail-secure-mem").unwrap();
+
+        Alarm::sleep_for(Milliseconds(100)).unwrap();
+
+        // 3. Negative test: Access another process's memory (runs once)
+        writeln!(writer, "start-spe-fail-process-mem").unwrap();
+        while spe_driver::SpeDriver::<TockSyscalls>::reserve().is_err() {
+            TockSyscalls::yield_wait();
+        }
+
+        Alarm::sleep_for(Milliseconds(10)).unwrap();
+
+        let sp: usize;
+        unsafe {
+            core::arch::asm!("mov {}, sp", out(reg) sp);
+        }
+        let invalid_proc_addr = (sp + APP_STACK_SIZE) as *mut u8;
+        let invalid_proc_buf = unsafe { core::slice::from_raw_parts_mut(invalid_proc_addr, 512) };
+
+        let res_proc = psa_interface::psa_api::psa_initial_attest_get_token::<
+            psa_veneer_client::PsaVeneerClient,
+        >(&nonce.0[..32], invalid_proc_buf);
+
+        let _ = spe_driver::SpeDriver::<TockSyscalls>::release();
+
+        if res_proc.is_err() {
+            writeln!(
+                writer,
+                "Negative test (process memory) passed: SPM correctly rejected invalid memory"
+            )
+            .unwrap();
+        } else {
+            writeln!(
+                writer,
+                "Negative test (process memory) FAILED: SPM allowed access"
+            )
+            .unwrap();
+        }
+        writeln!(writer, "end-spe-fail-process-mem").unwrap();
+
+        Alarm::sleep_for(Milliseconds(250)).unwrap();
+
+        // 4. Main loop: Continuously issue valid token requests
+        loop {
             writeln!(writer, "start-spe").unwrap();
             while spe_driver::SpeDriver::<TockSyscalls>::reserve().is_err() {
                 TockSyscalls::yield_wait();
             }
 
-            libtock::alarm::Alarm::sleep_for(libtock::alarm::Milliseconds(10)).unwrap();
+            Alarm::sleep_for(Milliseconds(10)).unwrap();
 
             let res = psa_interface::psa_api::psa_initial_attest_get_token::<
                 psa_veneer_client::PsaVeneerClient,
@@ -189,22 +294,17 @@ fn run_app() -> ! {
 
             let _ = spe_driver::SpeDriver::<TockSyscalls>::release();
 
-            res.unwrap();
-
-            unsafe {
-                core::arch::asm!("nop");
+            if res.is_ok() {
+                writeln!(writer, "end-spe").unwrap();
+            } else {
+                writeln!(writer, "Request failed").unwrap();
             }
 
-            if res.is_err() {
-                writeln!(writer, "Request failed").unwrap();
-                continue;
-            };
-            writeln!(writer, "end-spe").unwrap();
             Alarm::sleep_for(Milliseconds(250)).unwrap();
         }
     }
 
-    #[cfg(not(feature = "test_loop_token"))]
+    #[cfg(not(any(feature = "test_loop_token", feature = "test_negative")))]
     {
         let mut writer = Console::writer();
         loop {

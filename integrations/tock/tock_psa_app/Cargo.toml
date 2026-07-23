@@ -20,6 +20,7 @@ libtock_build_scripts = { git = "https://www.github.com/tock/libtock-rs" }
 default = []
 # default = ["test_loop_token"]
 test_loop_token = []
+test_negative = []
 
 [lints]
 workspace = true
