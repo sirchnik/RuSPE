@@ -36,26 +36,30 @@ pub(crate) unsafe fn svc_call_unpriv(
 
     // Build a fake exception frame at (stack_top - 32).
     // Layout: [R0, R1, R2, R3, R12, LR, PC, xPSR]
+    let frame_size = EXCEPTION_FRAME_WORDS * core::mem::size_of::<usize>();
     let frame_base_addr = stack_top
-        .checked_sub(8 * core::mem::size_of::<usize>())
+        .checked_sub(frame_size)
         .expect("service stack too small for exception frame");
     assert!(
         frame_base_addr >= stack_limit,
         "service stack limit overlaps exception frame"
     );
+
+    const DUMMY_LR: usize = 0xFFFF_FFFF;
+    const THUMB_BIT_XPSR: usize = 0x0100_0000;
+
     let frame_base = frame_base_addr as *mut usize;
     // SAFETY: The frame_base is calculated to be strictly within the
     // caller-provided valid stack boundaries (`stack_top` and `stack_limit`).
-    // The memory is therefore safe to write to.
     unsafe {
-        frame_base.add(0).write_volatile(arg); // R0 = argument
-        frame_base.add(1).write_volatile(0); // R1
-        frame_base.add(2).write_volatile(0); // R2
-        frame_base.add(3).write_volatile(0); // R3
-        frame_base.add(4).write_volatile(0); // R12
-        frame_base.add(5).write_volatile(0xFFFF_FFFF); // LR = dummy return address
-        frame_base.add(6).write_volatile(fn_ptr); // PC = function entry
-        frame_base.add(7).write_volatile(0x0100_0000); // xPSR (Thumb bit)
+        frame_base.add(0).write_volatile(arg); //       R0  = argument
+        frame_base.add(1).write_volatile(0); //         R1
+        frame_base.add(2).write_volatile(0); //         R2
+        frame_base.add(3).write_volatile(0); //         R3
+        frame_base.add(4).write_volatile(0); //         R12
+        frame_base.add(5).write_volatile(DUMMY_LR); //  LR  (returning faults)
+        frame_base.add(6).write_volatile(fn_ptr); //    PC  = function entry
+        frame_base.add(7).write_volatile(THUMB_BIT_XPSR); // xPSR
     }
 
     // Point PSP at the fake frame and bound it with PSPLIM so stack growth
