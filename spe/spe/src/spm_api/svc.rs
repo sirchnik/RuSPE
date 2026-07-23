@@ -16,8 +16,8 @@ use crate::spm_api::{
     prepare_outvec_raw,
 };
 pub const SVC_PROCESS_EXIT: u8 = 0;
-pub const SVC_PSA_MAP_VEC: u8 = 1;
-pub const SVC_PSA_UNMAP_VEC: u8 = 2;
+pub const SVC_PSA_ACCESS_VEC: u8 = 1;
+pub const SVC_PSA_RELEASE_VEC: u8 = 2;
 pub const SVC_START_PROCESS: u8 = 3;
 pub const SVC_PSA_CALL: u8 = 4;
 pub const SVC_PSA_VERSION: u8 = 5;
@@ -90,7 +90,7 @@ pub fn handle_svc_with_spm<S: SpmCall, A: SpmApi>(
     };
 
     match svc_num {
-        SVC_PSA_MAP_VEC => {
+        SVC_PSA_ACCESS_VEC => {
             let is_outvec = frame.r2 != 0;
             let result = if is_outvec {
                 prepare_outvec_raw(spm, handle, frame.r1 as u32)
@@ -105,7 +105,7 @@ pub fn handle_svc_with_spm<S: SpmCall, A: SpmApi>(
                 Err(status) => set_error(frame, status),
             }
         }
-        SVC_PSA_UNMAP_VEC => {
+        SVC_PSA_RELEASE_VEC => {
             let is_outvec = frame.r2 != 0;
             let result = if is_outvec {
                 finish_outvec_raw(spm, handle, frame.r1 as u32, frame.r3)
@@ -148,13 +148,61 @@ pub fn handle_svc_with_spm<S: SpmCall, A: SpmApi>(
     true
 }
 
-fn status_from_raw(raw: usize) -> Result<(), StatusCode> {
+/// Interpret a raw register value as a PSA status code, returning `Ok(())`
+/// on success or the corresponding `StatusCode` error.
+fn check_svc_result(raw: usize) -> Result<(), StatusCode> {
     let status_val = PsaStatus::from_ne_bytes(raw.to_ne_bytes());
     match StatusCode::try_from(status_val) {
         Ok(StatusCode::_Success) => Ok(()),
         Ok(status) => Err(status),
         Err(_) => Err(StatusCode::CommunicationFailure),
     }
+}
+
+/// Issue an `ACCESS_VEC` SVC and return the input vector as a read-only slice.
+///
+/// # Safety
+/// The SPM guarantees the returned pointer/length describe valid readable memory.
+unsafe fn svc_access_invec(handle: usize, idx: usize) -> Result<&'static [u8], StatusCode> {
+    // SAFETY: The SVC transfers control to the SPM which validates arguments.
+    let (status, base, len, _) = unsafe { svc_call::<SVC_PSA_ACCESS_VEC>(handle, idx, 0, 0) };
+    check_svc_result(status)?;
+    if len == 0 {
+        Ok(&[])
+    } else {
+        // SAFETY: The SPM guarantees base/len describe valid readable memory.
+        Ok(unsafe { slice::from_raw_parts(base as *const u8, len) })
+    }
+}
+
+/// Issue an `ACCESS_VEC` SVC and return the output vector as a mutable slice.
+///
+/// # Safety
+/// The SPM guarantees the returned pointer/length describe valid writable memory.
+unsafe fn svc_access_outvec(handle: usize, idx: usize) -> Result<&'static mut [u8], StatusCode> {
+    // SAFETY: The SVC transfers control to the SPM which validates arguments.
+    let (status, base, len, _) = unsafe { svc_call::<SVC_PSA_ACCESS_VEC>(handle, idx, 1, 0) };
+    check_svc_result(status)?;
+    if len == 0 {
+        Ok(&mut [])
+    } else {
+        // SAFETY: The SPM guarantees base/len describe valid writable memory.
+        Ok(unsafe { slice::from_raw_parts_mut(base as *mut u8, len) })
+    }
+}
+
+/// Issue a `RELEASE_VEC` SVC for an input vector.
+fn svc_release_invec(handle: usize, idx: usize) -> Result<(), StatusCode> {
+    // SAFETY: Releasing a previously accessed input vector ends the access.
+    let (status, _, _, _) = unsafe { svc_call::<SVC_PSA_RELEASE_VEC>(handle, idx, 0, 0) };
+    check_svc_result(status)
+}
+
+/// Issue a `RELEASE_VEC` SVC for an output vector, committing `written_len` bytes.
+fn svc_release_outvec(handle: usize, idx: usize, written_len: usize) -> Result<(), StatusCode> {
+    // SAFETY: Releasing a previously accessed output vector commits the written data.
+    let (status, _, _, _) = unsafe { svc_call::<SVC_PSA_RELEASE_VEC>(handle, idx, 1, written_len) };
+    check_svc_result(status)
 }
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
@@ -239,26 +287,13 @@ impl SpmApi for SvcApi {
         invec_idx: u32,
         f: impl FnOnce(&[u8]) -> R,
     ) -> Result<R, StatusCode> {
-        // SAFETY: Making an SVC call to map the input vector is safe as it doesn't
-        // violate memory safety, and returns a verified memory range.
-        let (status, base, len, _) =
-            unsafe { svc_call::<SVC_PSA_MAP_VEC>(msg_handle as usize, invec_idx as usize, 0, 0) };
-        status_from_raw(status)?;
+        let handle = msg_handle as usize;
+        let idx = invec_idx as usize;
 
-        let invec = if len == 0 {
-            &[]
-        } else {
-            // SAFETY: The base pointer and length returned by the mapping SVC are
-            // guaranteed by the SPM to point to valid, read-accessible memory.
-            unsafe { slice::from_raw_parts(base as *const u8, len) }
-        };
+        // SAFETY: SPM guarantees the accessed memory is valid and readable.
+        let invec = unsafe { svc_access_invec(handle, idx)? };
         let result = f(invec);
-
-        // SAFETY: Unmapping a previously mapped input vector is safe and releases the
-        // mapped state.
-        let (status, _, _, _) =
-            unsafe { svc_call::<SVC_PSA_UNMAP_VEC>(msg_handle as usize, invec_idx as usize, 0, 0) };
-        status_from_raw(status)?;
+        svc_release_invec(handle, idx)?;
 
         Ok(result)
     }
@@ -269,26 +304,13 @@ impl SpmApi for SvcApi {
         outvec_idx: u32,
         f: impl FnOnce(&mut [u8]) -> (R, usize),
     ) -> Result<R, StatusCode> {
-        // SAFETY: Mapping the output vector via SVC is safe and returns a valid memory
-        // range.
-        let (status, base, len, _) =
-            unsafe { svc_call::<SVC_PSA_MAP_VEC>(msg_handle as usize, outvec_idx as usize, 1, 0) };
-        status_from_raw(status)?;
+        let handle = msg_handle as usize;
+        let idx = outvec_idx as usize;
 
-        let outvec = if len == 0 {
-            &mut []
-        } else {
-            // SAFETY: The base pointer and length returned by the mapping SVC are
-            // guaranteed by the SPM to point to valid, write-accessible memory.
-            unsafe { slice::from_raw_parts_mut(base as *mut u8, len) }
-        };
+        // SAFETY: SPM guarantees the accessed memory is valid and writable.
+        let outvec = unsafe { svc_access_outvec(handle, idx)? };
         let (result, written_len) = f(outvec);
-
-        // SAFETY: Unmapping and writing back the output vector via SVC is safe.
-        let (status, _, _, _) = unsafe {
-            svc_call::<SVC_PSA_UNMAP_VEC>(msg_handle as usize, outvec_idx as usize, 1, written_len)
-        };
-        status_from_raw(status)?;
+        svc_release_outvec(handle, idx, written_len)?;
 
         Ok(result)
     }
@@ -300,43 +322,19 @@ impl SpmApi for SvcApi {
         outvec_idx: u32,
         f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize),
     ) -> Result<R, StatusCode> {
-        // SAFETY: Mapping the input vector via SVC is safe.
-        let (in_status, in_base, in_len, _) =
-            unsafe { svc_call::<SVC_PSA_MAP_VEC>(msg_handle as usize, invec_idx as usize, 0, 0) };
-        status_from_raw(in_status)?;
+        let handle = msg_handle as usize;
+        let in_idx = invec_idx as usize;
+        let out_idx = outvec_idx as usize;
 
-        // SAFETY: Mapping the output vector via SVC is safe.
-        let (out_status, out_base, out_len, _) =
-            unsafe { svc_call::<SVC_PSA_MAP_VEC>(msg_handle as usize, outvec_idx as usize, 1, 0) };
-        status_from_raw(out_status)?;
-
-        let invec = if in_len == 0 {
-            &[]
-        } else {
-            // SAFETY: The input base and length returned by the SVC are guaranteed valid by
-            // the SPM.
-            unsafe { slice::from_raw_parts(in_base as *const u8, in_len) }
-        };
-        let outvec = if out_len == 0 {
-            &mut []
-        } else {
-            // SAFETY: The output base and length returned by the SVC are guaranteed valid
-            // by the SPM.
-            unsafe { slice::from_raw_parts_mut(out_base as *mut u8, out_len) }
-        };
+        // SAFETY: SPM guarantees the accessed memory regions are valid.
+        let invec = unsafe { svc_access_invec(handle, in_idx)? };
+        // SAFETY: SPM guarantees the accessed memory regions are valid.
+        let outvec = unsafe { svc_access_outvec(handle, out_idx)? };
 
         let (result, written_len) = f(invec, outvec);
 
-        // SAFETY: Unmapping the output vector via SVC is safe.
-        let (out_status, _, _, _) = unsafe {
-            svc_call::<SVC_PSA_UNMAP_VEC>(msg_handle as usize, outvec_idx as usize, 1, written_len)
-        };
-        status_from_raw(out_status)?;
-
-        // SAFETY: Unmapping the input vector via SVC is safe.
-        let (in_status, _, _, _) =
-            unsafe { svc_call::<SVC_PSA_UNMAP_VEC>(msg_handle as usize, invec_idx as usize, 0, 0) };
-        status_from_raw(in_status)?;
+        svc_release_outvec(handle, out_idx, written_len)?;
+        svc_release_invec(handle, in_idx)?;
 
         Ok(result)
     }
@@ -349,8 +347,7 @@ impl SpmApi for SvcApi {
         out_vec: *mut FFOutVec,
         _caller: CallerAttributes,
     ) -> Result<(), StatusCode> {
-        // SAFETY: Issuing an SVC call for PSA service execution is safe as parameters
-        // are verified by the SPM upon handler invocation.
+        // SAFETY: Parameters are verified by the SPM upon handler invocation.
         let (status, _, _, _) = unsafe {
             svc_call::<SVC_PSA_CALL>(
                 handle as usize,
@@ -359,7 +356,7 @@ impl SpmApi for SvcApi {
                 out_vec as usize,
             )
         };
-        status_from_raw(status)
+        check_svc_result(status)
     }
 }
 
@@ -374,7 +371,7 @@ impl PsaApiCallInterface for IpcPsaClient {
         let Ok(handle) = ServiceHandle::try_from(service_id.cast_signed()) else {
             return 0;
         };
-        // SAFETY: Querying the service version via SVC is safe.
+        // SAFETY: Querying the service version is a read-only operation.
         let (version, _, _, _) = unsafe { svc_call::<SVC_PSA_VERSION>(handle as usize, 0, 0, 0) };
         version as u32
     }
@@ -408,5 +405,257 @@ impl PsaApiCallInterface for IpcPsaClient {
                 CallerAttributes::SECURE_UNPRIVILEGED,
             )
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use psa_interface::status::StatusCode;
+    use psa_interface::types::{CtrlParam, FFInVec, FFOutVec, ServiceHandle};
+
+    use crate::spm::spm::{Connection, SpmCall, SpmError};
+    use crate::spm_api::{CallerAttributes, RawVec, SpmApi};
+
+    use super::*;
+
+    // --- check_svc_result tests ---
+
+    #[test]
+    fn test_check_svc_result_success() {
+        // StatusCode::_Success is 0
+        assert_eq!(check_svc_result(0), Ok(()));
+    }
+
+    #[test]
+    fn test_check_svc_result_known_error() {
+        // ProgrammerError is a known negative status code
+        let raw = (StatusCode::ProgrammerError as PsaStatus).cast_unsigned();
+        assert_eq!(check_svc_result(raw), Err(StatusCode::ProgrammerError));
+    }
+
+    #[test]
+    fn test_check_svc_result_unknown_code() {
+        // An arbitrary value not matching any StatusCode
+        let raw = 0x7FFF_ABCD_usize;
+        assert_eq!(check_svc_result(raw), Err(StatusCode::CommunicationFailure));
+    }
+
+    // --- service_handle_from_raw tests ---
+
+    #[test]
+    fn test_service_handle_from_raw_crypto() {
+        let raw = ServiceHandle::Crypto as usize;
+        assert_eq!(service_handle_from_raw(raw), Ok(ServiceHandle::Crypto));
+    }
+
+    #[test]
+    fn test_service_handle_from_raw_its() {
+        let raw = ServiceHandle::InternalTrustedStorageService as usize;
+        assert_eq!(
+            service_handle_from_raw(raw),
+            Ok(ServiceHandle::InternalTrustedStorageService)
+        );
+    }
+
+    #[test]
+    fn test_service_handle_from_raw_attestation() {
+        let raw = ServiceHandle::AttestationService as usize;
+        assert_eq!(
+            service_handle_from_raw(raw),
+            Ok(ServiceHandle::AttestationService)
+        );
+    }
+
+    #[test]
+    fn test_service_handle_from_raw_invalid() {
+        assert_eq!(
+            service_handle_from_raw(0xDEAD_BEEF),
+            Err(StatusCode::InvalidHandle)
+        );
+    }
+
+    // --- Mock SPM for handle_svc_with_spm tests ---
+
+    struct MockSpm {
+        version_val: Option<u32>,
+    }
+
+    impl MockSpm {
+        const fn new() -> Self {
+            Self {
+                version_val: Some(1),
+            }
+        }
+    }
+
+    // SAFETY: Test-only mock, single-threaded.
+    unsafe impl Sync for MockSpm {}
+
+    impl SpmCall for MockSpm {
+        fn call(&self, _connection: Connection) -> Result<(), StatusCode> {
+            Ok(())
+        }
+
+        fn with_active_connection<F: FnMut(&mut Connection)>(
+            &self,
+            _f: F,
+        ) -> Result<(), SpmError> {
+            Err(SpmError::NoActiveConnection)
+        }
+
+        fn has_real_permission(
+            &self,
+            _base: *const u8,
+            _len: usize,
+            _is_write: bool,
+            _caller: CallerAttributes,
+        ) -> bool {
+            true
+        }
+
+        fn map_vec(&self, _is_outvec: bool, _vec_idx: u32, _base: *const u8, _size: usize) {}
+        fn unmap_vec(&self, _is_outvec: bool, _vec_idx: u32) {}
+
+        fn version(&self, _handle: ServiceHandle) -> Option<u32> {
+            self.version_val
+        }
+    }
+
+    struct MockSfnApi;
+
+    impl SpmApi for MockSfnApi {
+        fn access_invec<R>(
+            &self,
+            _msg_handle: ServiceHandle,
+            _invec_idx: u32,
+            _f: impl FnOnce(&[u8]) -> R,
+        ) -> Result<R, StatusCode> {
+            Err(StatusCode::CommunicationFailure)
+        }
+
+        fn access_outvec<R>(
+            &self,
+            _msg_handle: ServiceHandle,
+            _outvec_idx: u32,
+            _f: impl FnOnce(&mut [u8]) -> (R, usize),
+        ) -> Result<R, StatusCode> {
+            Err(StatusCode::CommunicationFailure)
+        }
+
+        fn access_invec_outvec<R>(
+            &self,
+            _msg_handle: ServiceHandle,
+            _invec_idx: u32,
+            _outvec_idx: u32,
+            _f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize),
+        ) -> Result<R, StatusCode> {
+            Err(StatusCode::CommunicationFailure)
+        }
+
+        unsafe fn call(
+            &self,
+            _handle: ServiceHandle,
+            _ctrl_param: CtrlParam,
+            _in_vec: *const FFInVec,
+            _out_vec: *mut FFOutVec,
+            _caller: CallerAttributes,
+        ) -> Result<(), StatusCode> {
+            Ok(())
+        }
+    }
+
+    fn make_frame(r0: usize, r1: usize, r2: usize, r3: usize) -> SvcStackFrame {
+        SvcStackFrame {
+            r0,
+            r1,
+            r2,
+            r3,
+            r12: 0,
+            lr: 0,
+            pc: 0,
+            xpsr: 0,
+        }
+    }
+
+    // --- handle_svc_with_spm tests ---
+
+    #[test]
+    fn test_handle_svc_invalid_handle_returns_error() {
+        let spm = MockSpm::new();
+        let sfn = MockSfnApi;
+        let mut frame = make_frame(0xDEAD_BEEF, 0, 0, 0);
+
+        let handled = handle_svc_with_spm(SVC_PSA_VERSION, &mut frame, &spm, &sfn);
+
+        assert!(handled);
+        // Invalid handle sets error status in r0
+        let status = frame.r0 as i32;
+        assert_eq!(status, StatusCode::InvalidHandle as i32);
+    }
+
+    #[test]
+    fn test_handle_svc_version_returns_version() {
+        let spm = MockSpm::new();
+        let sfn = MockSfnApi;
+        let mut frame = make_frame(ServiceHandle::Crypto as usize, 0, 0, 0);
+
+        let handled = handle_svc_with_spm(SVC_PSA_VERSION, &mut frame, &spm, &sfn);
+
+        assert!(handled);
+        assert_eq!(frame.r0, 1); // version_val = Some(1)
+    }
+
+    #[test]
+    fn test_handle_svc_unknown_svc_returns_false() {
+        let spm = MockSpm::new();
+        let sfn = MockSfnApi;
+        let mut frame = make_frame(ServiceHandle::Crypto as usize, 0, 0, 0);
+
+        let handled = handle_svc_with_spm(0xFF, &mut frame, &spm, &sfn);
+
+        assert!(!handled);
+    }
+
+    #[test]
+    fn test_handle_svc_call_success() {
+        let spm = MockSpm::new();
+        let sfn = MockSfnApi;
+        let ctrl = CtrlParam::new(1, 0, false, 0, false);
+        let ctrl_raw = unsafe { mem::transmute::<CtrlParam, u32>(ctrl) } as usize;
+        let mut frame = make_frame(ServiceHandle::Crypto as usize, ctrl_raw, 0, 0);
+
+        let handled = handle_svc_with_spm(SVC_PSA_CALL, &mut frame, &spm, &sfn);
+
+        assert!(handled);
+        // Success = 0
+        assert_eq!(frame.r0 as i32, 0);
+    }
+
+    // --- SvcStackFrame helper tests ---
+
+    #[test]
+    fn test_set_error_clears_registers() {
+        let mut frame = make_frame(0, 0x11, 0x22, 0x33);
+        set_error(&mut frame, StatusCode::ProgrammerError);
+        assert_eq!(frame.r1, 0);
+        assert_eq!(frame.r2, 0);
+        assert_eq!(frame.r3, 0);
+        assert_eq!(frame.r0 as i32, StatusCode::ProgrammerError as i32);
+    }
+
+    #[test]
+    fn test_set_raw_vec_populates_frame() {
+        let mut buf = [0u8; 16];
+        let raw = RawVec {
+            base: buf.as_mut_ptr(),
+            len: 16,
+        };
+        let mut frame = make_frame(0xFF, 0xFF, 0xFF, 0xFF);
+        set_raw_vec(&mut frame, raw);
+
+        assert_eq!(frame.r0 as i32, 0); // success
+        assert_eq!(frame.r1, buf.as_ptr() as usize);
+        assert_eq!(frame.r2, 16);
+        assert_eq!(frame.r3, 0);
     }
 }
