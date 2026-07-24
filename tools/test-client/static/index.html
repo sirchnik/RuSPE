@@ -6,6 +6,7 @@ SPDX-License-Identifier: MIT
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,10 +15,10 @@ SPDX-License-Identifier: MIT
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
+
 <body>
     <div class="app-container">
         <header>
-            <h1>RuSPE Token Inspector</h1>
             <button id="secret-dot-btn" class="secret-dot" title="Toggle Data Source"></button>
         </header>
 
@@ -25,14 +26,14 @@ SPDX-License-Identifier: MIT
             <section class="animation-section">
                 <div class="system-container" id="system-container">
                     <svg id="trail-svg"></svg>
-                    
+
                     <div class="pc-box">
                         <div class="node pc-node" id="node-pc">
                             <div class="icon"><i class="fa-solid fa-desktop"></i></div>
                             <span>PC</span>
                         </div>
                     </div>
-                    
+
                     <div class="uart-channel">
                         <div class="uart-label">UART</div>
                         <div class="uart-anim-line tx-line" id="uart-tx"></div>
@@ -44,49 +45,51 @@ SPDX-License-Identifier: MIT
                         <div class="chip-label">CHIP</div>
                         <div class="arch-diagram" id="arch-diagram">
                             <div class="rich-world">
-                            <div class="apps-row">
-                                <div class="node app-node" id="node-app">
-                                    <div class="icon"><i class="fa-solid fa-mobile-screen"></i></div>
-                                    <span>Tock App</span>
+                                <div class="apps-row">
+                                    <div class="node app-node" id="node-app">
+                                        <div class="icon"><i class="fa-solid fa-mobile-screen"></i></div>
+                                        <span>Tock App</span>
+                                    </div>
+                                    <div class="node app-node placeholder">
+                                        <span>App 2</span>
+                                    </div>
+                                    <div class="node app-node placeholder">
+                                        <span>App 3</span>
+                                    </div>
                                 </div>
-                                <div class="node app-node placeholder">
-                                    <span>App 2</span>
-                                </div>
-                                <div class="node app-node placeholder">
-                                    <span>App 3</span>
-                                </div>
-                            </div>
-                            <div class="node os-node" id="node-kernel">
-                                <div class="icon"><i class="fa-solid fa-gear"></i></div>
-                                <span>Kernel (Rich OS)</span>
-                            </div>
-                        </div>
-                        <div class="world-divider"></div>
-                        <div class="secure-world">
-                            <div class="apps-row">
-                                <div class="node service-node" id="node-attest">
-                                    <div class="icon"><i class="fa-solid fa-file-signature"></i></div>
-                                    <span>Attest Service</span>
-                                </div>
-                                <div class="node service-node" id="node-crypto">
-                                    <div class="icon"><i class="fa-solid fa-key"></i></div>
-                                    <span>Crypto Service</span>
+                                <div class="node os-node" id="node-kernel">
+                                    <div class="icon"><i class="fa-solid fa-gear"></i></div>
+                                    <span>Kernel (Rich OS)</span>
                                 </div>
                             </div>
-                            <div class="node os-node" id="node-spe">
-                                <div class="icon"><i class="fa-solid fa-shield-halved"></i></div>
-                                <span>RuSPE (Secure OS)</span>
+                            <div class="world-divider"></div>
+                            <div class="secure-world">
+                                <div class="apps-row">
+                                    <div class="node service-node" id="node-attest">
+                                        <div class="icon"><i class="fa-solid fa-file-signature"></i></div>
+                                        <span>Attest Service</span>
+                                    </div>
+                                    <div class="node service-node" id="node-crypto">
+                                        <div class="icon"><i class="fa-solid fa-key"></i></div>
+                                        <span>Crypto Service</span>
+                                    </div>
+                                </div>
+                                <div class="node os-node" id="node-spe">
+                                    <div class="icon"><i class="fa-solid fa-shield-halved"></i></div>
+                                    <span>RuSPE (Secure OS)</span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
                 <div class="controls">
                     <div class="nonce-inline-group">
                         <label for="nonce-input">Nonce:</label>
-                        <input type="text" id="nonce-input" placeholder="Nonce (64-hex)..." class="text-input-small" maxlength="64" />
-                        <button id="regen-nonce-btn" class="action-button-small" title="Generate Random Nonce"><i class="fa-solid fa-rotate-right"></i></button>
+                        <input type="text" id="nonce-input" placeholder="Nonce (64-hex)..." class="text-input-small"
+                            maxlength="64" />
+                        <button id="regen-nonce-btn" class="action-button-small" title="Generate Random Nonce"><i
+                                class="fa-solid fa-rotate-right"></i></button>
                     </div>
                     <button id="fetch-btn" class="glow-button">Fetch & Verify Token</button>
                     <div id="status-text" class="status-text">Ready</div>
@@ -117,4 +120,5 @@ SPDX-License-Identifier: MIT
     </div>
     <script src="app.js"></script>
 </body>
+
 </html>
