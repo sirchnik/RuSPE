@@ -17,7 +17,8 @@ use sha2::{Digest, Sha256};
 
 /// PSA / EAT claim labels per RFC 9783 Section 6.
 #[repr(u32)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum IatClaim {
     Nonce = 10,
     InstanceId = 256,
@@ -35,14 +36,16 @@ pub enum IatClaim {
 ///
 /// Fields are emitted in the order used by the RFC examples:
 /// signer-id (5), measurement-value (2), measurement-type (1).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SwComponent<'a> {
     pub measurement_type: Option<&'a str>,
     pub measurement_value: &'a [u8],
     pub signer_id: &'a [u8],
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum AttestClaimValue<'a> {
     Bytes(&'a [u8]),
     Text(&'a str),
@@ -51,7 +54,8 @@ pub enum AttestClaimValue<'a> {
     SwComponents(&'a [SwComponent<'a>]),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct AttestClaim<'a> {
     pub key: IatClaim,
     pub value: AttestClaimValue<'a>,

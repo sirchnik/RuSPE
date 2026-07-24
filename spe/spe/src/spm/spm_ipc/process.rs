@@ -16,7 +16,7 @@ use crate::spm_api::PsaMsg;
 // ---------------------------------------------------------------------------
 
 #[repr(C)]
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ServiceVectors {
     pub version: u32,
     pub init_entry: unsafe extern "C" fn(),
@@ -41,7 +41,8 @@ pub struct ServiceVectors {
 // are immutable for the lifetime of the program.
 unsafe impl Sync for ServiceVectors {}
 
-#[derive(Clone, Copy, Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Copy)]
 pub struct MemoryRegion {
     pub base: *const u8,
     pub size: u32,
@@ -83,7 +84,8 @@ pub trait IpcProcess: Sync {
     ) -> Result<(), crate::StatusCode>;
 }
 
-#[derive(Clone, Copy, Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Copy)]
 pub struct ServiceProcess {
     pub handle: ServiceHandle,
     pub vectors: &'static ServiceVectors,
@@ -147,7 +149,6 @@ impl ServiceProcess {
         );
 
         let offset = stack_top - mailbox_addr;
-        #[expect(clippy::cast_ptr_alignment, reason = "pointers are aligned via checks")]
         let mailbox = vectors
             .stack_top
             .wrapping_sub(offset)

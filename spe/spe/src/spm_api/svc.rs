@@ -162,7 +162,8 @@ fn check_svc_result(raw: usize) -> Result<(), StatusCode> {
 /// Issue an `ACCESS_VEC` SVC and return the input vector as a read-only slice.
 ///
 /// # Safety
-/// The SPM guarantees the returned pointer/length describe valid readable memory.
+/// The SPM guarantees the returned pointer/length describe valid readable
+/// memory.
 unsafe fn svc_access_invec(handle: usize, idx: usize) -> Result<&'static [u8], StatusCode> {
     // SAFETY: The SVC transfers control to the SPM which validates arguments.
     let (status, base, len, _) = unsafe { svc_call::<SVC_PSA_ACCESS_VEC>(handle, idx, 0, 0) };
@@ -178,7 +179,8 @@ unsafe fn svc_access_invec(handle: usize, idx: usize) -> Result<&'static [u8], S
 /// Issue an `ACCESS_VEC` SVC and return the output vector as a mutable slice.
 ///
 /// # Safety
-/// The SPM guarantees the returned pointer/length describe valid writable memory.
+/// The SPM guarantees the returned pointer/length describe valid writable
+/// memory.
 unsafe fn svc_access_outvec(handle: usize, idx: usize) -> Result<&'static mut [u8], StatusCode> {
     // SAFETY: The SVC transfers control to the SPM which validates arguments.
     let (status, base, len, _) = unsafe { svc_call::<SVC_PSA_ACCESS_VEC>(handle, idx, 1, 0) };
@@ -198,9 +200,11 @@ fn svc_release_invec(handle: usize, idx: usize) -> Result<(), StatusCode> {
     check_svc_result(status)
 }
 
-/// Issue a `RELEASE_VEC` SVC for an output vector, committing `written_len` bytes.
+/// Issue a `RELEASE_VEC` SVC for an output vector, committing `written_len`
+/// bytes.
 fn svc_release_outvec(handle: usize, idx: usize, written_len: usize) -> Result<(), StatusCode> {
-    // SAFETY: Releasing a previously accessed output vector commits the written data.
+    // SAFETY: Releasing a previously accessed output vector commits the written
+    // data.
     let (status, _, _, _) = unsafe { svc_call::<SVC_PSA_RELEASE_VEC>(handle, idx, 1, written_len) };
     check_svc_result(status)
 }
@@ -413,10 +417,9 @@ mod tests {
     use psa_interface::status::StatusCode;
     use psa_interface::types::{CtrlParam, FFInVec, FFOutVec, ServiceHandle};
 
+    use super::*;
     use crate::spm::spm::{Connection, SpmCall, SpmError};
     use crate::spm_api::{CallerAttributes, RawVec, SpmApi};
-
-    use super::*;
 
     // --- check_svc_result tests ---
 
@@ -496,10 +499,7 @@ mod tests {
             Ok(())
         }
 
-        fn with_active_connection<F: FnMut(&mut Connection)>(
-            &self,
-            _f: F,
-        ) -> Result<(), SpmError> {
+        fn with_active_connection<F: FnMut(&mut Connection)>(&self, _f: F) -> Result<(), SpmError> {
             Err(SpmError::NoActiveConnection)
         }
 
@@ -514,6 +514,7 @@ mod tests {
         }
 
         fn map_vec(&self, _is_outvec: bool, _vec_idx: u32, _base: *const u8, _size: usize) {}
+
         fn unmap_vec(&self, _is_outvec: bool, _vec_idx: u32) {}
 
         fn version(&self, _handle: ServiceHandle) -> Option<u32> {

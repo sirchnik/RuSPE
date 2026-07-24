@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 use core::cell::Cell;
+#[cfg(debug_assertions)]
 use core::fmt::Write;
 use core::panic::PanicInfo;
 
@@ -18,6 +19,7 @@ impl Writer {
     }
 }
 
+#[cfg(debug_assertions)]
 impl core::fmt::Write for Writer {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         self.serial
@@ -34,8 +36,10 @@ pub static mut WRITER: Writer = Writer {
 /// This function is called on panic, and it will attempt to print the panic
 /// message to the serial port. It also blinks the LED to indicate a panic has
 /// occurred.
+#[cfg(debug_assertions)]
 #[panic_handler]
 pub fn panic_fmt(pi: &PanicInfo) -> ! {
+    use core::fmt::Write;
     use core::ptr::addr_of_mut;
     let writer = unsafe { &mut *addr_of_mut!(WRITER) };
 
@@ -44,7 +48,15 @@ pub fn panic_fmt(pi: &PanicInfo) -> ! {
     loop {}
 }
 
+#[cfg(not(debug_assertions))]
+#[panic_handler]
+pub fn panic_fmt(_pi: &PanicInfo) -> ! {
+    loop {}
+}
+
+#[cfg(debug_assertions)]
 pub fn debugln(args: core::fmt::Arguments) {
+    use core::fmt::Write;
     use core::ptr::addr_of_mut;
     let writer = unsafe { &mut *addr_of_mut!(WRITER) };
 

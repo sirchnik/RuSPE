@@ -146,7 +146,7 @@ mod tests {
     fn drop_calls_destructor() {
         static DROP_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-        #[derive(Debug)]
+        #[cfg_attr(debug_assertions, derive(Debug))]
         struct DropCounter;
         impl Drop for DropCounter {
             fn drop(&mut self) {

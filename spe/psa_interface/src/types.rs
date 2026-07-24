@@ -6,7 +6,8 @@ use core::convert::TryFrom;
 
 use bytemuck::{CheckedBitPattern, NoUninit, Pod, Zeroable};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, CheckedBitPattern, NoUninit)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Copy, PartialEq, Eq, CheckedBitPattern, NoUninit)]
 #[repr(C)]
 pub enum ServiceHandle {
     InternalTrustedStorageService = 0x4000_0102,
@@ -47,14 +48,16 @@ pub enum CryptoServiceType {
 /// FFI status integer used at the SPE/NSPE veneer boundary.
 pub type PsaStatus = isize;
 
-#[derive(Clone, Copy, Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Copy)]
 #[repr(C)]
 pub struct FFInVec {
     pub base: *const u8,
     pub len: usize,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Copy)]
 #[repr(C)]
 pub struct FFOutVec {
     pub base: *mut u8,
@@ -149,7 +152,8 @@ pub type PsaAlgorithm = u32;
 pub const PSA_ALG_ECDSA_SHA256: PsaAlgorithm = 0x0600_0609;
 
 /// Packed AEAD nonce input, matches TF-M `struct tfm_crypto_aead_pack_input`.
-#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
 pub struct TfmCryptoAeadPackInput {
     pub nonce: [u8; 16],
@@ -159,7 +163,8 @@ pub struct TfmCryptoAeadPackInput {
 /// Non-pointer parameters packed into `invec[0]` for every TF-M crypto call.
 ///
 /// Binary-compatible with TF-M `struct tfm_crypto_pack_iovec`.
-#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
 pub struct TfmCryptoPackIovec {
     pub key_id: PsaKeyId,

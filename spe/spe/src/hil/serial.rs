@@ -4,7 +4,8 @@
 
 //! Serial trait
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub enum SerialError {
     Busy,
     Size,

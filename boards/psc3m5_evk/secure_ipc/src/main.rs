@@ -202,6 +202,7 @@ unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
 
     let _ = global_spm_api::SPM.try_set(spm);
 
+    #[cfg(debug_assertions)]
     io::debugln(format_args!("Init SPE (IPC) done, jumping to non-secure"));
 
     unsafe { spe::startup::jump_to_nonsecure(NONSECURE_FLASH_START) }

@@ -381,7 +381,8 @@ pub fn with_mapped_outvec<S: SpmCall, R>(
     Ok(result)
 }
 
-#[derive(Clone, Copy, Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Copy)]
 #[repr(C)]
 pub struct RawVec {
     pub base: *mut u8,
@@ -620,11 +621,7 @@ mod tests {
     }
 
     fn make_test_connection(in_len: usize, out_len: usize) -> Connection {
-        let msg = PsaMsg::new(
-            ServiceHandle::Crypto,
-            1,
-            CallerAttributes::NS_UNPRIVILEGED,
-        );
+        let msg = PsaMsg::new(ServiceHandle::Crypto, 1, CallerAttributes::NS_UNPRIVILEGED);
         let mut conn = Connection {
             msg,
             invec_base: [ptr::null(); PSA_MAX_IOVEC],

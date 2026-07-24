@@ -10,7 +10,7 @@ use core::sync::atomic::{AtomicBool, Ordering};
 #[derive(Debug, Eq, PartialEq)]
 pub struct TryLockError;
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Mutex<T> {
     lock: AtomicBool,
     value: UnsafeCell<T>,

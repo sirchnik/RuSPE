@@ -5,7 +5,8 @@
 use crate::StatusCode;
 
 /// Flash errors returned in the callbacks.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum Error {
     /// An error occurred during the flash operation.
     FlashError,

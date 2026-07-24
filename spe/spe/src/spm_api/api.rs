@@ -473,7 +473,8 @@ pub trait SpmApi {
     ) -> Result<(), StatusCode>;
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, bytemuck::CheckedBitPattern, bytemuck::NoUninit)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Copy, PartialEq, Eq, bytemuck::CheckedBitPattern, bytemuck::NoUninit)]
 #[repr(C)]
 pub struct CallerAttributes {
     /// Caller is from the Non-Secure world.
@@ -501,7 +502,8 @@ impl CallerAttributes {
     };
 }
 
-#[derive(Clone, Copy, Debug, bytemuck::CheckedBitPattern)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Copy, bytemuck::CheckedBitPattern)]
 #[repr(C)]
 pub struct PsaMsg {
     pub handle: ServiceHandle,
