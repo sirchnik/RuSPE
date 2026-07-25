@@ -11,8 +11,6 @@
 
 #[cfg(target_arch = "arm")]
 pub mod faults;
-pub mod hil;
-pub mod internal_trusted_storage;
 pub mod libs;
 
 pub mod service;
