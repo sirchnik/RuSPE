@@ -266,10 +266,15 @@ pub fn process_exit(status: PsaStatus) -> ! {
 
 /// # Panics
 ///
-/// Panics on invalid state.
+/// Panics on non-ARM bare-metal targets.
 #[cfg(not(all(target_arch = "arm", target_os = "none")))]
+#[allow(
+    clippy::empty_loop,
+    clippy::missing_const_for_fn,
+    reason = "non-ARM target fallback spin loop"
+)]
 pub fn process_exit(_status: PsaStatus) -> ! {
-    panic!("process_exit is only available on ARM bare-metal targets");
+    loop {}
 }
 
 #[cfg(not(all(target_arch = "arm", target_os = "none")))]
@@ -280,7 +285,7 @@ unsafe fn svc_call<const SVC_NUM: u8>(
     _: usize,
 ) -> (usize, usize, usize, usize) {
     let _ = SVC_NUM;
-    panic!("SVC PSA bridge is only available on ARM bare-metal targets")
+    (StatusCode::NotSupported as usize, 0, 0, 0)
 }
 
 pub struct SvcApi;

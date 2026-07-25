@@ -233,15 +233,15 @@ const NONSECURE_PRIV: &[PpcRegion] = &[
 
 /// Configures the security settings for the platform.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if the SAU region configuration fails.
+/// Returns `Err(SauError)` if SAU region configuration fails.
 pub fn configure_security(
     nonsecure_flash_start: u32,
     nonsecure_flash_limit: u32,
     nonsecure_ram_start: u32,
     nonsecure_ram_limit: u32,
-) {
+) -> Result<(), sau::SauError> {
     let nsc_start = nonsecure_flash_start
         .wrapping_add(0x1000_0000)
         .wrapping_sub(0x100);
@@ -273,8 +273,7 @@ pub fn configure_security(
                 limit_address: nonsecure_flash_limit,
                 attribute: sau::SauRegionAttribute::NonSecure,
             },
-        )
-        .unwrap();
+        )?;
 
         sau.set_region(
             1,
@@ -283,8 +282,7 @@ pub fn configure_security(
                 limit_address: nsc_start + 0xFF,
                 attribute: sau::SauRegionAttribute::NonSecureCallable,
             },
-        )
-        .unwrap();
+        )?;
 
         sau.set_region(
             2,
@@ -293,8 +291,7 @@ pub fn configure_security(
                 limit_address: nonsecure_ram_limit,
                 attribute: sau::SauRegionAttribute::NonSecure,
             },
-        )
-        .unwrap();
+        )?;
 
         sau.set_region(
             3,
@@ -303,8 +300,7 @@ pub fn configure_security(
                 limit_address: 0x2400_FFFF,
                 attribute: sau::SauRegionAttribute::NonSecure,
             },
-        )
-        .unwrap();
+        )?;
 
         sau.set_region(
             4,
@@ -313,8 +309,7 @@ pub fn configure_security(
                 limit_address: 0x4FFF_FFFF,
                 attribute: sau::SauRegionAttribute::NonSecure,
             },
-        )
-        .unwrap();
+        )?;
 
         sau.set_region(
             5,
@@ -323,8 +318,7 @@ pub fn configure_security(
                 limit_address: 0x5202_637F,
                 attribute: sau::SauRegionAttribute::Secure,
             },
-        )
-        .unwrap();
+        )?;
 
         sau.set_region(
             6,
@@ -333,9 +327,10 @@ pub fn configure_security(
                 limit_address: 0x5282_0FDF,
                 attribute: sau::SauRegionAttribute::Secure,
             },
-        )
-        .unwrap();
+        )?;
 
         sau.enable();
     }
+
+    Ok(())
 }

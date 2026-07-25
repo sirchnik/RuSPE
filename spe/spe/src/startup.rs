@@ -38,6 +38,7 @@ pub unsafe fn configure_aircr() {
 /// This function is unsafe because it performs raw pointer dereferences,
 /// sets the non-secure main stack pointer (`MSP_NS`), and transmutes the
 /// non-secure reset handler address to an executable function pointer.
+#[cfg(target_arch = "arm")]
 pub unsafe fn jump_to_nonsecure(nonsecure_flash_start: u32) -> NsResetFn {
     // SAFETY: Caller guarantees the non-secure vector table pointer is valid;
     // this block performs required privileged operations.
@@ -54,9 +55,11 @@ pub unsafe fn jump_to_nonsecure(nonsecure_flash_start: u32) -> NsResetFn {
             options(nomem, nostack, preserves_flags),
         );
 
-        #[cfg(not(target_arch = "arm"))]
-        let _ = nonsecure_sp;
-
         core::mem::transmute::<*const u32, NsResetFn>(nonsecure_reset as *const u32)
     }
+}
+
+#[cfg(not(target_arch = "arm"))]
+pub unsafe fn jump_to_nonsecure(nonsecure_flash_start: u32) -> NsResetFn {
+    unimplemented!("Only implemented for ARM architectures");
 }

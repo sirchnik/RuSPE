@@ -130,22 +130,24 @@ impl IpcProcessPlatform for Psc3IpcPlatform {}
 
 #[unsafe(no_mangle)]
 pub unsafe fn main() {
-    let nonsecure_reset = unsafe { start() };
-    nonsecure_reset();
+    match unsafe { start() } {
+        Ok(nonsecure_reset) => nonsecure_reset(),
+        Err(_) => loop {},
+    }
 }
 
 /// Separated initialization function to ensure its stack frame is popped
 /// before jumping to the non-secure entry point in `main`.
 /// Returns the non-secure reset handler address.
 #[inline(never)]
-unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
+unsafe fn start() -> Result<extern "cmse-nonsecure-call" fn(), ()> {
     icache::sys_init_enable_cache();
     chip_init::preinit_peripherals();
-    chip_init::init_system();
+    chip_init::init_system()?;
     peri_clk::enable_scb0();
 
-    chip::configure_gpio_secure_states();
-    chip::init_scb0_uart_pins();
+    chip::configure_gpio_secure_states()?;
+    chip::init_scb0_uart_pins()?;
 
     let scb0 = unsafe { static_init!(scb::Scb, scb::Scb::new_scb0()) };
 
@@ -170,12 +172,16 @@ unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
         spe::startup::configure_aircr();
     }
 
-    configure_security(
+    if configure_security(
         NONSECURE_FLASH_START,
         NONSECURE_FLASH_LIMIT,
         NONSECURE_RAM_START,
         NONSECURE_RAM_LIMIT,
-    );
+    )
+    .is_err()
+    {
+        return Err(());
+    }
 
     // Service binaries are placed in dedicated secure flash slots.
     // Vector tables (ServiceVectors) are at the start of each service's ROM region.
@@ -205,5 +211,5 @@ unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
     #[cfg(debug_assertions)]
     io::debugln(format_args!("Init SPE (IPC) done, jumping to non-secure"));
 
-    unsafe { spe::startup::jump_to_nonsecure(NONSECURE_FLASH_START) }
+    Ok(unsafe { spe::startup::jump_to_nonsecure(NONSECURE_FLASH_START) })
 }

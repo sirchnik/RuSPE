@@ -54,46 +54,68 @@ impl ConnectionArray {
         }
     }
 
-    pub(crate) const fn add_connection(&mut self, connection: Connection) -> Result<(), SpmError> {
+    pub(crate) fn add_connection(&mut self, connection: Connection) -> Result<(), SpmError> {
         if self.top_connection >= MAX_CONNECTIONS {
             return Err(SpmError::ConnectionStackFull);
         }
 
-        self.connections[self.top_connection].write(connection);
-        self.present[self.top_connection] = true;
+        let Some(slot) = self.connections.get_mut(self.top_connection) else {
+            return Err(SpmError::ConnectionStackFull);
+        };
+        let Some(present) = self.present.get_mut(self.top_connection) else {
+            return Err(SpmError::ConnectionStackFull);
+        };
+        slot.write(connection);
+        *present = true;
         self.top_connection += 1;
 
         Ok(())
     }
 
-    pub(crate) const fn take_active_connection(&mut self) -> Result<(usize, Connection), SpmError> {
+    pub(crate) fn take_active_connection(&mut self) -> Result<(usize, Connection), SpmError> {
         if self.top_connection == 0 {
             return Err(SpmError::NoActiveConnection);
         }
 
         let index = self.top_connection - 1;
-        if !self.present[index] {
+        let Some(present) = self.present.get_mut(index) else {
+            return Err(SpmError::CorruptedConnectionStack);
+        };
+        if !*present {
             return Err(SpmError::CorruptedConnectionStack);
         }
 
-        // SAFETY: We checked `present[index]` which guarantees it was initialized.
-        let connection = unsafe { self.connections[index].assume_init_read() };
-        self.present[index] = false;
+        let Some(slot) = self.connections.get(index) else {
+            return Err(SpmError::CorruptedConnectionStack);
+        };
+        // SAFETY: We checked `present` which guarantees it was initialized.
+        let connection = unsafe { slot.assume_init_read() };
+        *present = false;
 
         Ok((index, connection))
     }
 
-    pub(crate) const fn restore_active_connection(
+    pub(crate) fn restore_active_connection(
         &mut self,
         index: usize,
         connection: Connection,
     ) -> Result<(), SpmError> {
-        if index >= MAX_CONNECTIONS || self.present[index] {
+        if index >= MAX_CONNECTIONS {
             return Err(SpmError::CorruptedConnectionStack);
         }
 
-        self.connections[index].write(connection);
-        self.present[index] = true;
+        let Some(present) = self.present.get_mut(index) else {
+            return Err(SpmError::CorruptedConnectionStack);
+        };
+        if *present {
+            return Err(SpmError::CorruptedConnectionStack);
+        }
+
+        let Some(slot) = self.connections.get_mut(index) else {
+            return Err(SpmError::CorruptedConnectionStack);
+        };
+        slot.write(connection);
+        *present = true;
 
         Ok(())
     }
@@ -101,22 +123,33 @@ impl ConnectionArray {
     pub(crate) fn pop_connection(&mut self) {
         if self.top_connection > 0 {
             self.top_connection -= 1;
-            if self.present[self.top_connection] {
-                // SAFETY: We checked `present` is true, so it is initialized.
-                unsafe { self.connections[self.top_connection].assume_init_drop() };
-                self.present[self.top_connection] = false;
+            let index = self.top_connection;
+            if let Some(present) = self.present.get_mut(index)
+                && *present
+            {
+                if let Some(slot) = self.connections.get_mut(index) {
+                    // SAFETY: We checked `present` is true, so it is initialized.
+                    unsafe { slot.assume_init_drop() };
+                }
+                *present = false;
             }
         }
     }
 
-    pub(crate) const fn peek_active_connection(&self) -> Result<&Connection, SpmError> {
+    pub(crate) fn peek_active_connection(&self) -> Result<&Connection, SpmError> {
         if self.top_connection == 0 {
             return Err(SpmError::EmptyConnectionStack);
         }
         let index = self.top_connection - 1;
-        if self.present[index] {
-            // SAFETY: We checked `present[index]` which guarantees it was initialized.
-            Ok(unsafe { self.connections[index].assume_init_ref() })
+        let Some(present) = self.present.get(index) else {
+            return Err(SpmError::CorruptedConnectionStack);
+        };
+        if *present {
+            let Some(slot) = self.connections.get(index) else {
+                return Err(SpmError::CorruptedConnectionStack);
+            };
+            // SAFETY: We checked `present` which guarantees it was initialized.
+            Ok(unsafe { slot.assume_init_ref() })
         } else {
             Err(SpmError::CorruptedConnectionStack)
         }

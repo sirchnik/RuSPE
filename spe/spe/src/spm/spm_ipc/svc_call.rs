@@ -37,13 +37,16 @@ pub(crate) unsafe fn svc_call_unpriv(
     // Build a fake exception frame at (stack_top - 32).
     // Layout: [R0, R1, R2, R3, R12, LR, PC, xPSR]
     let frame_size = EXCEPTION_FRAME_WORDS * core::mem::size_of::<usize>();
-    let frame_base_addr = stack_top
-        .checked_sub(frame_size)
-        .expect("service stack too small for exception frame");
-    assert!(
-        frame_base_addr >= stack_limit,
-        "service stack limit overlaps exception frame"
-    );
+    let Some(frame_base_addr) = stack_top.checked_sub(frame_size) else {
+        return (psa_interface::status::StatusCode::InsufficientMemory
+            as psa_interface::types::PsaStatus)
+            .cast_unsigned();
+    };
+    if frame_base_addr < stack_limit {
+        return (psa_interface::status::StatusCode::InsufficientMemory
+            as psa_interface::types::PsaStatus)
+            .cast_unsigned();
+    }
 
     const DUMMY_LR: usize = 0xFFFF_FFFF;
     const THUMB_BIT_XPSR: usize = 0x0100_0000;
@@ -106,7 +109,7 @@ pub unsafe fn svc_call_unpriv(
     _stack_limit: usize,
     _stack_top: usize,
 ) -> usize {
-    unimplemented!("svc_call_unpriv is only implemented for ARM architectures");
+    unimplemented!("Only implemented for ARM architectures");
 }
 
 pub const EXCEPTION_FRAME_WORDS: usize = 8;

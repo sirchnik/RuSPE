@@ -119,34 +119,34 @@ impl ServiceProcess {
     ///                  |  Remaining Stack  |
     /// stack_limit  --> +-------------------+
     /// ```
-    fn stage_msg_mailbox(vectors: &ServiceVectors, msg: PsaMsg) -> (*const PsaMsg, usize) {
+    fn stage_msg_mailbox(
+        vectors: &ServiceVectors,
+        msg: PsaMsg,
+    ) -> Result<(*const PsaMsg, usize), crate::StatusCode> {
         let stack_top = vectors.stack_top as usize;
         let stack_limit = vectors.stack_limit as usize;
         let msg_align = core::cmp::max(align_of::<PsaMsg>(), 8);
         let msg_size = size_of::<PsaMsg>();
         let frame_size = EXCEPTION_FRAME_WORDS * size_of::<usize>();
 
-        let mailbox_addr = Self::align_down(
-            stack_top
-                .checked_sub(msg_size)
-                .expect("service stack too small for staged message"),
-            msg_align,
-        );
+        let sub_top = stack_top
+            .checked_sub(msg_size)
+            .ok_or(crate::StatusCode::InsufficientMemory)?;
+        let mailbox_addr = Self::align_down(sub_top, msg_align);
 
         let frame_base = mailbox_addr
             .checked_sub(frame_size)
-            .expect("service stack too small for staged message frame");
-        assert!(
-            frame_base >= stack_limit,
-            "service stack limit overlaps staged message and exception frame"
-        );
+            .ok_or(crate::StatusCode::InsufficientMemory)?;
+
+        if frame_base < stack_limit {
+            return Err(crate::StatusCode::InsufficientMemory);
+        }
 
         let ram_start = vectors.ram_start as usize;
         let ram_limit = vectors.ram_limit as usize;
-        assert!(
-            mailbox_addr >= ram_start && mailbox_addr + msg_size <= ram_limit,
-            "staged message mailbox must remain within service RAM"
-        );
+        if mailbox_addr < ram_start || mailbox_addr + msg_size > ram_limit {
+            return Err(crate::StatusCode::ProgrammerError);
+        }
 
         let offset = stack_top - mailbox_addr;
         let mailbox = vectors
@@ -160,7 +160,7 @@ impl ServiceProcess {
             mailbox.write(msg);
         }
 
-        (mailbox.cast_const(), mailbox_addr)
+        Ok((mailbox.cast_const(), mailbox_addr))
     }
 }
 
@@ -203,7 +203,7 @@ impl IpcProcess for ServiceProcess {
         msg: PsaMsg,
     ) -> Result<(), crate::StatusCode> {
         let vectors = self.vectors;
-        let (staged_msg, stack_top) = Self::stage_msg_mailbox(vectors, msg);
+        let (staged_msg, stack_top) = Self::stage_msg_mailbox(vectors, msg)?;
         // SAFETY: The call_entry, stack_limit, and stack_top are provided by the
         // ServiceVectors which are guaranteed to be valid by the safety
         // contract of ServiceProcess::new.
@@ -277,7 +277,7 @@ mod tests {
             stack_top,
         };
 
-        let (msg_ptr, msg_addr) = ServiceProcess::stage_msg_mailbox(&vectors, msg);
+        let (msg_ptr, msg_addr) = ServiceProcess::stage_msg_mailbox(&vectors, msg).unwrap();
 
         // Assertions
         assert_eq!(msg_addr, msg_ptr as usize);

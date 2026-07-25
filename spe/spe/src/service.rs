@@ -83,5 +83,5 @@ pub unsafe extern "C" fn init() {
 /// This function is unsafe.
 #[cfg(not(target_arch = "arm"))]
 pub unsafe extern "C" fn init() {
-    unimplemented!("init is only implemented for ARM architectures");
+    unimplemented!("Only implemented for ARM architectures");
 }

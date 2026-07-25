@@ -43,19 +43,15 @@ impl<P: SfnPlatform + 'static> SpmFn<P> {
             .map_or(Err(SpmError::MutexBusy), |result| result)
     }
 
-    /// # Panics
-    ///
-    /// Panics on invalid state.
     pub fn call(&self, connection: Connection) -> Result<(), crate::StatusCode> {
         let msg = connection.msg;
-        assert!(
-            self.add_connection(connection).is_ok(),
-            "SPM connection stack exhausted"
-        );
+        if self.add_connection(connection).is_err() {
+            return Err(crate::StatusCode::ConnectionBusy);
+        }
         let result = self.platform.call(msg);
-        self.connections
-            .try_lock(super::spm::ConnectionArray::pop_connection)
-            .unwrap();
+        let _ = self
+            .connections
+            .try_lock(super::spm::ConnectionArray::pop_connection);
         result
     }
 

@@ -88,20 +88,32 @@ unsafe extern "C" fn fault_handler_real(
     stack_overflow: u32,
     kind: u32,
 ) -> ! {
-    let pc = unsafe { *_faulting_stack.add(6) };
-    let lr = unsafe { *_faulting_stack.add(5) };
-    let r0 = unsafe { *_faulting_stack.add(0) };
-    let r1 = unsafe { *_faulting_stack.add(1) };
-    panic!(
-        "Fault {} ISR {} stk_ovf {}\nPC: {:#010X}, LR: {:#010X}\nR0: {:#010X}, R1: {:#010X}",
-        kind,
-        interrupt_number & 0x1ff,
-        stack_overflow,
-        pc,
-        lr,
-        r0,
-        r1
-    );
+    #[cfg(debug_assertions)]
+    {
+        let pc = unsafe { *_faulting_stack.add(6) };
+        let lr = unsafe { *_faulting_stack.add(5) };
+        let r0 = unsafe { *_faulting_stack.add(0) };
+        let r1 = unsafe { *_faulting_stack.add(1) };
+        panic!(
+            "Fault {} ISR {} stk_ovf {}\nPC: {:#010X}, LR: {:#010X}\nR0: {:#010X}, R1: {:#010X}",
+            kind,
+            interrupt_number & 0x1ff,
+            stack_overflow,
+            pc,
+            lr,
+            r0,
+            r1
+        );
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = (_faulting_stack, interrupt_number, stack_overflow, kind);
+        #[allow(
+            clippy::empty_loop,
+            reason = "infinite loop for non-debug fault handler"
+        )]
+        loop {}
+    }
 }
 
 pub unsafe extern "C" fn unhandled_interrupt() {
@@ -122,5 +134,16 @@ pub unsafe extern "C" fn unhandled_interrupt() {
 
     interrupt_number &= 0x1ff;
 
+    #[cfg(debug_assertions)]
     panic!("Unhandled Interrupt. ISR {} is active.", interrupt_number);
+
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = interrupt_number;
+        #[allow(
+            clippy::empty_loop,
+            reason = "infinite loop for non-debug fault handler"
+        )]
+        loop {}
+    }
 }

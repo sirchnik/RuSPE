@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use core::{panic, ptr, slice};
+use core::{ptr, slice};
 
 use psa_interface::status::StatusCode;
 use psa_interface::types::{CtrlParam, FFInVec, FFOutVec, ServiceHandle};
@@ -16,25 +16,27 @@ use crate::spm_api::{CallerAttributes, MaybeUsize, PsaMsg};
 fn with_validated_connection<S: SpmCall, R>(
     spm: &S,
     msg_handle: ServiceHandle,
-    f: impl FnOnce(&mut Connection) -> R,
+    f: impl FnOnce(&mut Connection) -> Result<R, StatusCode>,
 ) -> Result<R, StatusCode> {
-    let mut result: Option<R> = None;
+    let mut result: Result<R, StatusCode> = Err(StatusCode::CommunicationFailure);
     let mut f = Some(f);
 
     let access_result = spm.with_active_connection(|connection: &mut Connection| {
-        assert!(
-            (connection.msg.handle as isize) == (msg_handle as isize),
-            "invalid message handle for active connection"
-        );
-        assert!(
-            connection.msg.msg_type >= 0,
-            "message handle does not refer to a request message"
-        );
-        result = Some(f.take().unwrap()(connection));
+        if (connection.msg.handle as isize) != (msg_handle as isize) {
+            result = Err(StatusCode::InvalidHandle);
+            return;
+        }
+        if connection.msg.msg_type < 0 {
+            result = Err(StatusCode::ProgrammerError);
+            return;
+        }
+        if let Some(func) = f.take() {
+            result = func(connection);
+        }
     });
 
     match access_result {
-        Ok(()) => Ok(result.expect("closure did not execute")),
+        Ok(()) => result,
         Err(_) => Err(StatusCode::CommunicationFailure),
     }
 }
@@ -103,12 +105,16 @@ pub fn validate_invec_payload_nonoverlap(in_vecs: &[FFInVec]) -> Result<(), Stat
     }
 
     for i in 0..(in_vecs.len() - 1) {
-        let left_base = in_vecs[i].base as usize;
+        let Some(left_vec) = in_vecs.get(i) else {
+            return Err(StatusCode::ProgrammerError);
+        };
+        let left_base = left_vec.base as usize;
         let left_end = left_base
-            .checked_add(in_vecs[i].len)
+            .checked_add(left_vec.len)
             .ok_or(StatusCode::ProgrammerError)?;
 
-        for right in &in_vecs[(i + 1)..] {
+        let slice_rest = in_vecs.get((i + 1)..).unwrap_or(&[]);
+        for right in slice_rest {
             let right_base = right.base as usize;
             let right_end = right_base
                 .checked_add(right.len)
@@ -150,18 +156,30 @@ pub fn call_from_slices<S: SpmCall>(
     let mut outvec_written = [0; PSA_MAX_IOVEC];
 
     for (idx, in_vec) in in_vecs.iter().enumerate() {
-        invec_base[idx] = in_vec.base;
-        invec_accessed[idx] = 0;
-        msg.in_size[idx] = MaybeUsize::some(in_vec.len);
+        if let Some(slot) = invec_base.get_mut(idx) {
+            *slot = in_vec.base;
+        }
+        if let Some(slot) = invec_accessed.get_mut(idx) {
+            *slot = 0;
+        }
+        if let Some(slot) = msg.in_size.get_mut(idx) {
+            *slot = MaybeUsize::some(in_vec.len);
+        }
 
         validate_pointer_range(in_vec.base, in_vec.len)?;
         validate_memory_permission(spm, in_vec.base, in_vec.len, false, caller)?;
     }
 
     for (idx, out_vec) in out_vecs.iter_mut().enumerate() {
-        outvec_base[idx] = out_vec.base;
-        outvec_written[idx] = 0;
-        msg.out_size[idx] = MaybeUsize::some(out_vec.len);
+        if let Some(slot) = outvec_base.get_mut(idx) {
+            *slot = out_vec.base;
+        }
+        if let Some(slot) = outvec_written.get_mut(idx) {
+            *slot = 0;
+        }
+        if let Some(slot) = msg.out_size.get_mut(idx) {
+            *slot = MaybeUsize::some(out_vec.len);
+        }
 
         validate_pointer_range(out_vec.base, out_vec.len)?;
         validate_memory_permission(spm, out_vec.base, out_vec.len, true, caller)?;
@@ -225,25 +243,18 @@ pub fn validate_memory_permission<S: SpmCall>(
     }
 }
 
-/// # Panics
-///
-/// Panics if no active connection exists or `handle`/`msg_type` are invalid.
 pub fn with_connection_for_handle<S: SpmCall, R>(
     spm: &S,
     msg_handle: ServiceHandle,
-    f: impl FnOnce(&mut Connection) -> R,
-) -> R {
+    f: impl FnOnce(&mut Connection) -> Result<R, StatusCode>,
+) -> Result<R, StatusCode> {
     with_validated_connection(spm, msg_handle, f)
-        .unwrap_or_else(|_| panic!("no active SPM connection"))
 }
 
 /// # Errors
 ///
 /// See `StatusCode` for error conditions.
-/// # Panics
-///
-/// Panics on invalid state.
-pub const fn prepare_invec(
+pub fn prepare_invec(
     connection: &mut Connection,
     invec_idx: u32,
 ) -> Result<(usize, usize, *const u8), StatusCode> {
@@ -252,38 +263,51 @@ pub const fn prepare_invec(
         return Err(StatusCode::ProgrammerError);
     }
 
-    let in_len = connection.msg.in_size[index].unwrap_or(0);
+    let in_len = connection
+        .msg
+        .in_size
+        .get(index)
+        .map_or(0, |m| m.unwrap_or(0));
 
-    if connection.invec_mapped[index] || connection.invec_accessed[index] != 0 {
+    let is_mapped = match connection.invec_mapped.get(index) {
+        Some(&b) => b,
+        None => true,
+    };
+    let is_accessed = match connection.invec_accessed.get(index) {
+        Some(&val) => val != 0,
+        None => true,
+    };
+
+    if is_mapped || is_accessed {
         return Err(StatusCode::ProgrammerError);
     }
 
-    let base = connection.invec_base[index];
+    let Some(&base) = connection.invec_base.get(index) else {
+        return Err(StatusCode::ProgrammerError);
+    };
 
-    connection.invec_mapped[index] = true;
+    if let Some(mapped) = connection.invec_mapped.get_mut(index) {
+        *mapped = true;
+    }
 
     Ok((index, in_len, base))
 }
 
-/// # Panics
-///
-/// Panics on invalid state.
-pub fn mark_invec_unmapped(connection: &mut Connection, index: usize) {
-    assert!(
-        !connection.invec_unmapped[index],
-        "input vector is already unmapped"
-    );
-
-    connection.invec_unmapped[index] = true;
+pub fn mark_invec_unmapped(connection: &mut Connection, index: usize) -> Result<(), StatusCode> {
+    let Some(slot) = connection.invec_unmapped.get_mut(index) else {
+        return Err(StatusCode::ProgrammerError);
+    };
+    if *slot {
+        return Err(StatusCode::ProgrammerError);
+    }
+    *slot = true;
+    Ok(())
 }
 
 /// # Errors
 ///
 /// See `StatusCode` for error conditions.
-/// # Panics
-///
-/// Panics on invalid state.
-pub const fn prepare_outvec(
+pub fn prepare_outvec(
     connection: &mut Connection,
     outvec_idx: u32,
 ) -> Result<(usize, usize, *mut u8), StatusCode> {
@@ -292,41 +316,57 @@ pub const fn prepare_outvec(
         return Err(StatusCode::ProgrammerError);
     }
 
-    let out_len = connection.msg.out_size[index].unwrap_or(0);
+    let out_len = connection
+        .msg
+        .out_size
+        .get(index)
+        .map_or(0, |m| m.unwrap_or(0));
 
-    if connection.outvec_mapped[index] || connection.outvec_written[index] != 0 {
+    let is_mapped = match connection.outvec_mapped.get(index) {
+        Some(&b) => b,
+        None => true,
+    };
+    let is_written = match connection.outvec_written.get(index) {
+        Some(&val) => val != 0,
+        None => true,
+    };
+
+    if is_mapped || is_written {
         return Err(StatusCode::ProgrammerError);
     }
 
-    let base = connection.outvec_base[index];
+    let Some(&base) = connection.outvec_base.get(index) else {
+        return Err(StatusCode::ProgrammerError);
+    };
 
-    connection.outvec_mapped[index] = true;
+    if let Some(mapped) = connection.outvec_mapped.get_mut(index) {
+        *mapped = true;
+    }
 
     Ok((index, out_len, base))
 }
 
-/// # Panics
-///
-/// Panics on invalid state.
 pub fn commit_outvec_write(
     connection: &mut Connection,
     out_index: usize,
     out_len: usize,
     written_len: usize,
-) {
-    assert!(
-        !connection.outvec_unmapped[out_index],
-        "output vector is already unmapped"
-    );
+) -> Result<(), StatusCode> {
+    let Some(unmapped) = connection.outvec_unmapped.get_mut(out_index) else {
+        return Err(StatusCode::ProgrammerError);
+    };
+    if *unmapped || written_len > out_len {
+        return Err(StatusCode::ProgrammerError);
+    }
 
-    assert!(
-        written_len <= out_len,
-        "written length exceeds output vector capacity"
-    );
-
-    connection.outvec_written[out_index] = written_len;
-    connection.msg.out_size[out_index] = MaybeUsize::some(written_len);
-    connection.outvec_unmapped[out_index] = true;
+    if let Some(w) = connection.outvec_written.get_mut(out_index) {
+        *w = written_len;
+    }
+    if let Some(size) = connection.msg.out_size.get_mut(out_index) {
+        *size = MaybeUsize::some(written_len);
+    }
+    *unmapped = true;
+    Ok(())
 }
 
 /// # Errors
@@ -350,7 +390,7 @@ pub fn with_mapped_invec<S: SpmCall, R>(
     };
     let result = f(invec);
 
-    mark_invec_unmapped(connection, index);
+    mark_invec_unmapped(connection, index)?;
 
     Ok(result)
 }
@@ -376,7 +416,7 @@ pub fn with_mapped_outvec<S: SpmCall, R>(
     };
     let (result, written_len) = f(outvec);
 
-    commit_outvec_write(connection, index, out_len, written_len);
+    commit_outvec_write(connection, index, out_len, written_len)?;
 
     Ok(result)
 }
@@ -392,9 +432,6 @@ pub struct RawVec {
 /// # Errors
 ///
 /// See `StatusCode` for error conditions.
-/// # Panics
-///
-/// Panics on invalid state.
 pub fn prepare_invec_raw<S: SpmCall>(
     spm: &S,
     msg_handle: ServiceHandle,
@@ -406,31 +443,25 @@ pub fn prepare_invec_raw<S: SpmCall>(
             base: base.cast_mut(),
             len: in_len,
         })
-    })?
-}
-
-/// # Errors
-///
-/// See `StatusCode` for error conditions.
-/// # Panics
-///
-/// Panics on invalid state.
-pub fn finish_invec_raw<S: SpmCall>(
-    spm: &S,
-    msg_handle: ServiceHandle,
-    invec_idx: u32,
-) -> Result<(), StatusCode> {
-    with_validated_connection(spm, msg_handle, |connection| {
-        mark_invec_unmapped(connection, invec_idx as usize);
     })
 }
 
 /// # Errors
 ///
 /// See `StatusCode` for error conditions.
-/// # Panics
+pub fn finish_invec_raw<S: SpmCall>(
+    spm: &S,
+    msg_handle: ServiceHandle,
+    invec_idx: u32,
+) -> Result<(), StatusCode> {
+    with_validated_connection(spm, msg_handle, |connection| {
+        mark_invec_unmapped(connection, invec_idx as usize)
+    })
+}
+
+/// # Errors
 ///
-/// Panics on invalid state.
+/// See `StatusCode` for error conditions.
 pub fn prepare_outvec_raw<S: SpmCall>(
     spm: &S,
     msg_handle: ServiceHandle,
@@ -439,15 +470,12 @@ pub fn prepare_outvec_raw<S: SpmCall>(
     with_validated_connection(spm, msg_handle, |connection| {
         let (_, out_len, base) = prepare_outvec(connection, outvec_idx)?;
         Ok(RawVec { base, len: out_len })
-    })?
+    })
 }
 
 /// # Errors
 ///
 /// See `StatusCode` for error conditions.
-/// # Panics
-///
-/// Panics on invalid state.
 pub fn finish_outvec_raw<S: SpmCall>(
     spm: &S,
     msg_handle: ServiceHandle,
@@ -456,8 +484,12 @@ pub fn finish_outvec_raw<S: SpmCall>(
 ) -> Result<(), StatusCode> {
     with_validated_connection(spm, msg_handle, |connection| {
         let index = outvec_idx as usize;
-        let out_len = connection.msg.out_size[index].unwrap_or(0);
-        commit_outvec_write(connection, index, out_len, written_len);
+        let out_len = connection
+            .msg
+            .out_size
+            .get(index)
+            .map_or(0, |m| m.unwrap_or(0));
+        commit_outvec_write(connection, index, out_len, written_len)
     })
 }
 
@@ -712,34 +744,40 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "input vector is already unmapped")]
-    fn test_mark_invec_unmapped_double_panics() {
+    fn test_mark_invec_unmapped_double_returns_error() {
         let mut conn = make_test_connection(16, 0);
         conn.invec_unmapped[0] = true;
-        mark_invec_unmapped(&mut conn, 0);
+        assert_eq!(
+            mark_invec_unmapped(&mut conn, 0),
+            Err(StatusCode::ProgrammerError)
+        );
     }
 
     #[test]
     fn test_commit_outvec_write_valid() {
         let mut conn = make_test_connection(0, 32);
-        commit_outvec_write(&mut conn, 0, 32, 10);
+        assert_eq!(commit_outvec_write(&mut conn, 0, 32, 10), Ok(()));
         assert_eq!(conn.outvec_written[0], 10);
         assert_eq!(conn.msg.out_size[0], MaybeUsize::some(10));
         assert!(conn.outvec_unmapped[0]);
     }
 
     #[test]
-    #[should_panic(expected = "written length exceeds output vector capacity")]
-    fn test_commit_outvec_write_overflow_panics() {
+    fn test_commit_outvec_write_overflow_returns_error() {
         let mut conn = make_test_connection(0, 32);
-        commit_outvec_write(&mut conn, 0, 32, 33);
+        assert_eq!(
+            commit_outvec_write(&mut conn, 0, 32, 33),
+            Err(StatusCode::ProgrammerError)
+        );
     }
 
     #[test]
-    #[should_panic(expected = "output vector is already unmapped")]
-    fn test_commit_outvec_write_already_unmapped_panics() {
+    fn test_commit_outvec_write_already_unmapped_returns_error() {
         let mut conn = make_test_connection(0, 32);
         conn.outvec_unmapped[0] = true;
-        commit_outvec_write(&mut conn, 0, 32, 10);
+        assert_eq!(
+            commit_outvec_write(&mut conn, 0, 32, 10),
+            Err(StatusCode::ProgrammerError)
+        );
     }
 }

@@ -43,7 +43,7 @@ pub fn panic_fmt(pi: &PanicInfo) -> ! {
     use core::ptr::addr_of_mut;
     let writer = unsafe { &mut *addr_of_mut!(WRITER) };
 
-    writer.write_fmt(format_args!("\r\n{}\r\n", pi)).unwrap();
+    let _ = writer.write_fmt(format_args!("\r\n{}\r\n", pi));
 
     loop {}
 }
@@ -60,5 +60,5 @@ pub fn debugln(args: core::fmt::Arguments) {
     use core::ptr::addr_of_mut;
     let writer = unsafe { &mut *addr_of_mut!(WRITER) };
 
-    writer.write_fmt(args).unwrap();
+    let _ = writer.write_fmt(args);
 }

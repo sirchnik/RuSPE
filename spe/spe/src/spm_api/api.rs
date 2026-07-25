@@ -7,29 +7,37 @@ macro_rules! define_spm_api {
     ($SpmType:ty) => {
         pub static SPM: $crate::libs::once_lock::OnceLock<&'static $SpmType> = $crate::libs::once_lock::OnceLock::new();
 
+        pub fn try_get_spm() -> Result<&'static $SpmType, $crate::StatusCode> {
+            SPM.try_get()
+                .copied()
+                .map_err(|_| $crate::StatusCode::BadState)
+        }
+
         pub fn get_spm() -> &'static $SpmType {
-            *SPM.try_get()
-                .expect("SPM must be initialized with set_spm() before SPM API use")
+            match SPM.try_get() {
+                Ok(&spm) => spm,
+                Err(_) => loop {},
+            }
         }
 
         pub struct SfnApi;
         impl $crate::spm_api::SpmApi for SfnApi {
             fn access_invec<R>(&self, msg_handle: psa_interface::types::ServiceHandle, invec_idx: u32, f: impl FnOnce(&[u8]) -> R) -> Result<R, psa_interface::status::StatusCode> {
-                let spm = get_spm();
+                let spm = try_get_spm()?;
                 $crate::spm_api::with_connection_for_handle(spm, msg_handle, |connection| {
                     $crate::spm_api::with_mapped_invec(spm, connection, invec_idx, f)
                 })
             }
 
             fn access_outvec<R>(&self, msg_handle: psa_interface::types::ServiceHandle, outvec_idx: u32, f: impl FnOnce(&mut [u8]) -> (R, usize)) -> Result<R, psa_interface::status::StatusCode> {
-                let spm = get_spm();
+                let spm = try_get_spm()?;
                 $crate::spm_api::with_connection_for_handle(spm, msg_handle, |connection| {
                     $crate::spm_api::with_mapped_outvec(spm, connection, outvec_idx, f)
                 })
             }
 
             fn access_invec_outvec<R>(&self, msg_handle: psa_interface::types::ServiceHandle, invec_idx: u32, outvec_idx: u32, f: impl FnOnce(&[u8], &mut [u8]) -> (R, usize)) -> Result<R, psa_interface::status::StatusCode> {
-                let spm = get_spm();
+                let spm = try_get_spm()?;
                 $crate::spm_api::with_connection_for_handle(spm, msg_handle, |connection| {
                     let (in_index, in_len, in_base) = $crate::spm_api::prepare_invec(connection, invec_idx)?;
                     let (out_index, out_len, out_base) = $crate::spm_api::prepare_outvec(connection, outvec_idx)?;
@@ -47,8 +55,8 @@ macro_rules! define_spm_api {
 
                     let (result, written_len) = f(invec, outvec);
 
-                    $crate::spm_api::commit_outvec_write(connection, out_index, out_len, written_len);
-                    $crate::spm_api::mark_invec_unmapped(connection, in_index);
+                    $crate::spm_api::commit_outvec_write(connection, out_index, out_len, written_len)?;
+                    $crate::spm_api::mark_invec_unmapped(connection, in_index)?;
 
                     Ok(result)
                 })
@@ -62,7 +70,7 @@ macro_rules! define_spm_api {
                 out_vec: *mut psa_interface::types::FFOutVec,
                 caller: $crate::spm_api::CallerAttributes,
             ) -> Result<(), psa_interface::status::StatusCode> {
-                let spm = get_spm();
+                let spm = try_get_spm()?;
                 let (_msg_type, ivec_num, ovec_num) = $crate::spm_api::validate_call_params(ctrl_param)?;
                 $crate::spm_api::validate_vec_pointer_shape(ctrl_param.has_iovec(), ivec_num, ovec_num, in_vec, out_vec)?;
 
@@ -87,7 +95,9 @@ macro_rules! define_spm_api {
         #[cfg(target_arch = "arm")]
         #[unsafe(no_mangle)]
         pub extern "cmse-nonsecure-entry" fn psa_version_veneer(service_id: u32) -> u32 {
-            $crate::veneers::enter_secure_state();
+            if $crate::veneers::enter_secure_state().is_err() {
+                return 0;
+            }
             let res = psa_version_impl(service_id);
             $crate::veneers::exit_secure_state();
             res
@@ -98,13 +108,17 @@ macro_rules! define_spm_api {
                 Ok(h) => h,
                 Err(_) => return 0,
             };
-            $crate::spm::spm::SpmCall::version(get_spm(), handle).unwrap_or(0)
+            let spm = match try_get_spm() {
+                Ok(s) => s,
+                Err(_) => return 0,
+            };
+            $crate::spm::spm::SpmCall::version(spm, handle).unwrap_or(0)
         }
 
         #[cfg(not(target_arch = "arm"))]
         #[unsafe(no_mangle)]
         pub extern "cmse-nonsecure-entry" fn psa_version_veneer(service_id: u32) -> u32 {
-            psa_version_impl(service_id)
+            unimplemented!("Only implemented for ARM architectures");
         }
 
         #[cfg(target_arch = "arm")]
@@ -115,7 +129,9 @@ macro_rules! define_spm_api {
             in_vec: *const psa_interface::types::FFInVec,
             out_vec: *mut psa_interface::types::FFOutVec,
         ) -> psa_interface::types::PsaStatus {
-            $crate::veneers::enter_secure_state();
+            if $crate::veneers::enter_secure_state().is_err() {
+                return psa_interface::status::into_psa_status(Err($crate::StatusCode::ProgrammerError));
+            }
             let res = psa_call_impl(handle, ctrl_param, in_vec, out_vec);
             $crate::veneers::exit_secure_state();
             res
@@ -141,7 +157,7 @@ macro_rules! define_spm_api {
             in_vec: *const psa_interface::types::FFInVec,
             out_vec: *mut psa_interface::types::FFOutVec,
         ) -> psa_interface::types::PsaStatus {
-            psa_call_impl(handle, ctrl_param, in_vec, out_vec)
+            unimplemented!("Only implemented for ARM architectures");
         }
 
         pub struct InternalPsaClient;
@@ -189,15 +205,23 @@ macro_rules! define_spm_api {
         }
 
         pub fn handle_svc(svc_num: u8, frame: &mut $crate::spm_api::SvcStackFrame) -> bool {
-            $crate::spm_api::handle_svc_with_spm(svc_num, frame, get_spm(), &SfnApi)
+            let Ok(spm) = try_get_spm() else {
+                frame.r0 = (psa_interface::status::StatusCode::BadState as psa_interface::types::PsaStatus).cast_unsigned();
+                return true;
+            };
+            $crate::spm_api::handle_svc_with_spm(svc_num, frame, spm, &SfnApi)
         }
 
         unsafe extern "C" fn svc_handler_dispatch(frame: *mut $crate::spm_api::SvcStackFrame, svc_num: u32) {
             let frame_ref = unsafe { &mut *frame };
-            if $crate::spm_api::handle_svc_with_spm(svc_num as u8, frame_ref, get_spm(), &SfnApi) {
+            let Ok(spm) = try_get_spm() else {
+                frame_ref.r0 = (psa_interface::status::StatusCode::BadState as psa_interface::types::PsaStatus).cast_unsigned();
+                return;
+            };
+            if $crate::spm_api::handle_svc_with_spm(svc_num as u8, frame_ref, spm, &SfnApi) {
                 return;
             }
-            panic!("unhandled svc {svc_num}");
+            frame_ref.r0 = (psa_interface::status::StatusCode::NotSupported as psa_interface::types::PsaStatus).cast_unsigned();
         }
 
         #[cfg(target_arch = "arm")]
@@ -353,7 +377,7 @@ macro_rules! define_spm_api {
 
         #[cfg(not(target_arch = "arm"))]
         pub unsafe extern "C" fn svc_handler() {
-            unimplemented!("svc_handler is only available on ARM targets")
+            unimplemented!("Only implemented for ARM architectures");
         }
 
         #[cfg(all(target_arch = "arm", target_os = "none"))]
@@ -399,7 +423,7 @@ macro_rules! define_spm_api {
             _in_vec: usize,
             _out_vec: usize,
         ) -> ! {
-            panic!("psa_call_thunk only available on ARM");
+            loop {}
         }
     };
 }
@@ -558,17 +582,6 @@ impl MaybeUsize {
 
     pub const fn unwrap_or(&self, default: usize) -> usize {
         if self.is_some() { self.0 } else { default }
-    }
-
-    /// # Panics
-    ///
-    /// Panics on invalid state.
-    pub fn unwrap(&self) -> usize {
-        if self.is_some() {
-            self.0
-        } else {
-            panic!("called `MaybeUsize::unwrap()` on a None value")
-        }
     }
 }
 

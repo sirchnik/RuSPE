@@ -82,16 +82,16 @@ pub unsafe fn main() {
 
     // !Only after chip_init::preinit_peripherals() was called peripheral view for
     // debugging works!
-    chip_init::preinit_peripherals();
+    let _ = chip_init::preinit_peripherals();
 
     let peripherals = unsafe {
         static_init!(
             Psc3DefaultPeripherals,
-            Psc3DefaultPeripherals::new(psc3::gpio::SecurityState::NonSecure)
+            Psc3DefaultPeripherals::new(psc3::gpio::SecurityState::NonSecure).unwrap()
         )
     };
 
-    peripherals.init();
+    let _ = peripherals.init();
 
     // Set the UART used for panic
     unsafe { (*addr_of_mut!(io::WRITER)).set_scb(&peripherals.scb3) };

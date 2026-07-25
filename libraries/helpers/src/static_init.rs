@@ -69,10 +69,10 @@ pub fn static_buf_check_used(used: &mut bool) {
     // has, then this is a repeated `static_buf!()` call which is an error
     // as it will alias the same `BUF`.
     if *used {
-        // panic, this buf has already been declared and initialized.
-        // NOTE: To save 144 bytes of code size, use loop {} instead of this
-        // panic.
+        #[cfg(debug_assertions)]
         panic!("Error! Single static_buf!() called twice.");
+        #[cfg(not(debug_assertions))]
+        loop {}
     } else {
         // Otherwise, mark our uninitialized buffer as used.
         *used = true;
