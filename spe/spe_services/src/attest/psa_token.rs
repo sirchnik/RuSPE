@@ -74,16 +74,15 @@ fn encode_sw_components<W: Write>(
 ) -> Result<(), Error<W::Error>> {
     enc.array(components.len() as u64)?;
     for comp in components {
-        let entries = if comp.measurement_type.is_some() {
+        enc.map(if comp.measurement_type.is_some() {
             3
         } else {
             2
-        };
-        enc.map(entries)?
-            .u8(5)?
-            .bytes(comp.signer_id)?
-            .u8(2)?
-            .bytes(comp.measurement_value)?;
+        })?
+        .u8(5)?
+        .bytes(comp.signer_id)?
+        .u8(2)?
+        .bytes(comp.measurement_value)?;
         if let Some(mt) = comp.measurement_type {
             enc.u8(1)?.str(mt)?;
         }
@@ -96,19 +95,11 @@ fn encode_claim_value<W: Write>(
     value: AttestClaimValue<'_>,
 ) -> Result<(), Error<W::Error>> {
     match value {
-        AttestClaimValue::Bytes(bytes) => {
-            enc.bytes(bytes)?;
-        }
-        AttestClaimValue::Text(text) => {
-            enc.str(text)?;
-        }
-        AttestClaimValue::Unsigned(value) => {
-            enc.u64(value)?;
-        }
-        AttestClaimValue::Signed(value) => {
-            enc.i64(value)?;
-        }
-        AttestClaimValue::SwComponents(components) => encode_sw_components(enc, components)?,
+        AttestClaimValue::Bytes(b) => { enc.bytes(b)?; }
+        AttestClaimValue::Text(t) => { enc.str(t)?; }
+        AttestClaimValue::Unsigned(u) => { enc.u64(u)?; }
+        AttestClaimValue::Signed(s) => { enc.i64(s)?; }
+        AttestClaimValue::SwComponents(c) => encode_sw_components(enc, c)?,
     }
     Ok(())
 }
@@ -155,18 +146,9 @@ impl<C: PsaApiCallInterface> CoseCrypto for PsaCryptoBackend<C> {
     fn sign_es256_prehash(&self, digest: &[u8; 32]) -> Result<[u8; 64], CoseSign1Error> {
         let mut signature = [0u8; 64];
         match psa_sign_hash::<C>(self.key_id, PSA_ALG_ECDSA_SHA256, digest, &mut signature) {
-            Ok(written_len) => {
-                if written_len == signature.len() {
-                    return Ok(signature);
-                }
-                Err(CoseSign1Error::BufferTooSmall)
-            }
-            Err(status) => {
-                if status == StatusCode::BufferTooSmall {
-                    return Err(CoseSign1Error::BufferTooSmall);
-                }
-                Err(CoseSign1Error::Unknown)
-            }
+            Ok(64) => Ok(signature),
+            Ok(_) | Err(StatusCode::BufferTooSmall) => Err(CoseSign1Error::BufferTooSmall),
+            Err(_) => Err(CoseSign1Error::Unknown),
         }
     }
 }
@@ -206,6 +188,8 @@ impl Write for SizeCounter {
     }
 }
 
+/// Computes the exact encoded size of an initial attestation token for given
+/// claims.
 pub fn compute_initial_attestation_token_size(
     claims: &[AttestClaim<'_>],
     _key_id: u32,
@@ -217,29 +201,16 @@ pub fn compute_initial_attestation_token_size(
     let payload_len = counter.len;
 
     // CBOR bstr header length for the payload
-    let bstr_header_len = if payload_len <= 23 {
-        1
-    } else if payload_len <= 0xff {
-        2
-    } else if payload_len <= 0xffff {
-        3
-    } else if payload_len <= 0xffff_ffff {
-        5
-    } else {
-        9
+    let bstr_header_len = match payload_len {
+        0..=23 => 1,
+        24..=0xff => 2,
+        0x100..=0xffff => 3,
+        _ => 5,
     };
 
-    let payload_bstr_len = payload_len
-        .checked_add(bstr_header_len)
-        .ok_or(StatusCode::BufferTooSmall)?;
-
-    // COSE_Sign1 overhead without kid (tag 18 + array + protected + unprotected +
-    // signature + sig bstr header) = 73 bytes
-    let total_len = payload_bstr_len
-        .checked_add(73)
-        .ok_or(StatusCode::BufferTooSmall)?;
-
-    Ok(total_len)
+    payload_len
+        .checked_add(bstr_header_len + 73)
+        .ok_or(StatusCode::BufferTooSmall)
 }
 
 #[cfg(test)]

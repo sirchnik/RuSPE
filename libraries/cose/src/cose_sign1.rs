@@ -153,6 +153,8 @@ pub struct CoseSign1<'a, C: CoseCrypto> {
     external_aad: &'a [u8],
 }
 
+const PROTECTED_HEADERS_ES256: &[u8] = &[0xa1, 0x01, 0x26];
+
 impl<'a, C: CoseCrypto> CoseSign1<'a, C> {
     /// Creates a signer configured for ES256 using a raw 32-byte P-256 private
     /// key.
@@ -196,12 +198,9 @@ impl<'a, C: CoseCrypto> CoseSign1<'a, C> {
     ) -> Result<EncodedParameters, CoseSign1Error> {
         validate_payload_bstr(payload_bstr)?;
 
-        let (protected_headers_buf, protected_headers_len) = encode_protected_headers()?;
-        let protected_headers = &protected_headers_buf[..protected_headers_len];
-
         let digest = hash_sig_structure(
             &self.crypto,
-            protected_headers,
+            PROTECTED_HEADERS_ES256,
             self.external_aad,
             payload_bstr,
         );
@@ -212,7 +211,7 @@ impl<'a, C: CoseCrypto> CoseSign1<'a, C> {
             sign1_enc.tag(Tag::new(CBOR_TAG_COSE_SIGN1))?;
         }
 
-        sign1_enc.array(4)?.bytes(protected_headers)?;
+        sign1_enc.array(4)?.bytes(PROTECTED_HEADERS_ES256)?;
 
         if let Some(kid) = self.key_id {
             sign1_enc
@@ -241,26 +240,11 @@ impl<'a, C: CoseCrypto> CoseSign1<'a, C> {
     }
 }
 
-fn encode_protected_headers() -> Result<([u8; 16], usize), CoseSign1Error> {
-    let mut protected_headers = [0u8; 16];
-    let mut protected_headers_enc = Encoder::new(Cursor::new(&mut protected_headers[..]));
-    protected_headers_enc
-        .map(1)?
-        .u8(CoseHeaderLabels::Alg as u8)?
-        .i32(COSE_ALGORITHM_ES256)?;
-    let protected_headers_len = protected_headers_enc.writer().position();
-    Ok((protected_headers, protected_headers_len))
-}
-
 fn validate_payload_bstr(encoded_payload_bstr: &[u8]) -> Result<(), CoseSign1Error> {
     let mut decoder = Decoder::new(encoded_payload_bstr);
-    decoder
-        .bytes()
-        .map_err(|_| CoseSign1Error::InvalidPayload)?;
-    if decoder.position() != encoded_payload_bstr.len() {
-        return Err(CoseSign1Error::InvalidPayload);
-    }
-    Ok(())
+    (decoder.bytes().is_ok() && decoder.position() == encoded_payload_bstr.len())
+        .then_some(())
+        .ok_or(CoseSign1Error::InvalidPayload)
 }
 
 fn hash_sig_structure(
@@ -271,18 +255,13 @@ fn hash_sig_structure(
 ) -> [u8; 32] {
     let mut hasher = crypto.hasher_sha256();
 
-    hasher.update(&[0x84]);
-    hash_cbor_text(&mut hasher, SIG_CONTEXT_STRING.as_bytes());
+    hasher.update(&[0x84, 0x6a]);
+    hasher.update(SIG_CONTEXT_STRING.as_bytes());
     hash_cbor_bstr(&mut hasher, protected_headers);
     hash_cbor_bstr(&mut hasher, external_aad);
     hasher.update(payload_bstr);
 
     hasher.finalize()
-}
-
-fn hash_cbor_text(hasher: &mut impl CoseHasher, value: &[u8]) {
-    hash_cbor_major_len(hasher, 3, value.len());
-    hasher.update(value);
 }
 
 fn hash_cbor_bstr(hasher: &mut impl CoseHasher, value: &[u8]) {
@@ -298,25 +277,32 @@ fn hash_cbor_major_len(hasher: &mut impl CoseHasher, major: u8, len: usize) {
 
 #[expect(clippy::cast_possible_truncation, reason = "len fits in expected type")]
 fn encode_cbor_major_len_header(major: u8, len: usize, header: &mut [u8; 9]) -> usize {
-    if len <= 23 {
-        header[0] = (major << 5) | (len as u8);
-        1
-    } else if len <= 0xff {
-        header[0] = (major << 5) | 0x18;
-        header[1] = len as u8;
-        2
-    } else if len <= 0xffff {
-        header[0] = (major << 5) | 0x19;
-        header[1..3].copy_from_slice(&(len as u16).to_be_bytes());
-        3
-    } else if len <= 0xffff_ffff {
-        header[0] = (major << 5) | 0x1a;
-        header[1..5].copy_from_slice(&(len as u32).to_be_bytes());
-        5
-    } else {
-        header[0] = (major << 5) | 0x1b;
-        header[1..9].copy_from_slice(&(len as u64).to_be_bytes());
-        9
+    let tag = major << 5;
+    match len {
+        0..=23 => {
+            header[0] = tag | (len as u8);
+            1
+        }
+        24..=0xff => {
+            header[0] = tag | 0x18;
+            header[1] = len as u8;
+            2
+        }
+        0x100..=0xffff => {
+            header[0] = tag | 0x19;
+            header[1..3].copy_from_slice(&(len as u16).to_be_bytes());
+            3
+        }
+        0x10000..=0xffff_ffff => {
+            header[0] = tag | 0x1a;
+            header[1..5].copy_from_slice(&(len as u32).to_be_bytes());
+            5
+        }
+        _ => {
+            header[0] = tag | 0x1b;
+            header[1..9].copy_from_slice(&(len as u64).to_be_bytes());
+            9
+        }
     }
 }
 
