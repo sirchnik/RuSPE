@@ -11,13 +11,6 @@ unsafe extern "C" {
     static _erelocate: *const u32;
 }
 
-#[cfg_attr(
-    all(target_arch = "arm", target_os = "none"),
-    unsafe(link_section = ".stack_buffer")
-)]
-#[unsafe(no_mangle)]
-static mut STACK_MEMORY: [u8; 0x3000] = [0; 0x3000];
-
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn sec_initialize_ram_jump_to_main() {

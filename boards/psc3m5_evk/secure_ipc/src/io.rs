@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: MIT
 
 use core::cell::Cell;
-#[cfg(debug_assertions)]
-use core::fmt::Write;
 use core::panic::PanicInfo;
 
 use tock_psc3::scb;

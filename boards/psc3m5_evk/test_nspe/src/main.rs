@@ -5,7 +5,7 @@
 #![no_std]
 #![no_main]
 
-//! Tock kernel for the PSC3M5-EVK evaluation board.
+//! Non-secure test firmware for the PSC3M5-EVK evaluation board.
 
 use core::fmt::Write;
 use core::ptr::addr_of_mut;
@@ -52,11 +52,6 @@ pub static IRQS: [unsafe extern "C" fn(); 140] = [unhandled_interrupt; 140];
 use helpers::static_init;
 
 mod io;
-
-// Allocate memory for the stack
-#[unsafe(link_section = ".stack_buffer")]
-#[unsafe(no_mangle)]
-static mut STACK_MEMORY: [u8; 0x3000] = [0; 0x3000];
 
 // These symbols are defined in the linker script.
 unsafe extern "C" {

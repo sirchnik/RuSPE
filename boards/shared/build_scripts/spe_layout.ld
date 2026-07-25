@@ -23,13 +23,12 @@ SECTIONS
          *
          * The first 16 entries in the ARM vector table are defined by ARM and
          * are common among all ARM chips. The remaining entries are
-         * chip-specific, which Tock defines in a separate .irqs section
+         * chip-specific and are defined in the separate .irqs section.
          *
          * http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/BABIFJFG.html
          */
 		KEEP(*(.vectors .vectors.*))
 		KEEP(*(.irqs))
-		KEEP(*(.tock.attr.*))
         /* .text and .rodata hold most program code and immutable constants.
          * .gnu.linkonce hold C++ elements with vague linkage.
          * https://gcc.gnu.org/onlinedocs/gcc/Vague-Linkage.html
@@ -45,8 +44,7 @@ SECTIONS
         /* glue_7 and glue_7t hold helper functions emitted by the compiler to
          * support interworking (linking between functions in ARM and THUMB
          * mode). Note that Cortex-M's do not support ARM mode, but this is left
-         * here to save someone headache if they ever attempt to port Tock to a
-         * Cortex-A core.
+         * here to ease future portability.
          */
         *(.glue_7t) *(.glue_7)
 
@@ -140,34 +138,13 @@ SECTIONS
 
     /* Kernel data that must be relocated. This is program data that is
      * expected to live in SRAM, but is initialized with a value. This data is
-     * physically placed into flash and is copied into SRAM by Tock. The
-     * symbols here will be defined with addresses in SRAM.
-     *
-     * Tock assumes the relocation section follows all static elements and will
-     * copy (_erelocate - _srelocate) bytes from _etext to _srelocate.
+     * physically placed into flash and copied into SRAM during startup. The
+     * symbols here are defined with addresses in SRAM.
      */
     .relocate : AT (_etext)
     {
         . = ALIGN(4);
         _srelocate = .;
-
-        /* The Global Pointer is used by the RISC-V architecture to provide
-         * "gp-relative" addressing. The global pointer is set to the gp
-         * register once on boot, and the linker can then take advantage of this
-         * when emitting instructions by using offsets relative to this known
-         * value. Since RISC-V has only 12 bit immediates, this can help reduce
-         * code size.
-         *
-         * The standard is to set the global pointer to 0x800 past the beginning
-         * of the data section in RAM. This allows instructions to use 12 bit
-         * immediates to access the first 4KB of data memory. In theory the GP
-         * can be set to any value, but it should be placed near actual data for
-         * the compiler to actually be able to use it.
-         *
-         * Per convention, the variable _must_ be called __global_pointer$ for
-         * the linker to actually take advantage of it.
-         */
-        PROVIDE(__global_pointer$ = . + 0x800);
 
         *(.ramfunc .ramfunc.*);
         *(.sdata .sdata.* .gnu.linkonce.r.*)
@@ -176,24 +153,6 @@ SECTIONS
         . = ALIGN(4);
         _erelocate = .;
     } > ram
-
-    .stack (NOLOAD) :
-    {
-        /* Kernel stack.
-         *
-         * Tock places the kernel stack at the bottom of (the lowest address in)
-         * SRAM. This is to ensure that when the kernel stack grows from
-         * `_estack` down towards `_sstack` and ultimately overflows the
-         * latter, it overflows into unmapped / inaccessible memory. This causes
-         * the hardware to trigger a memory fault if the kernel exceeds its
-         * stack depth, rather than silently overwriting valuable data.
-         */
-        . = ALIGN(8);
-        _sstack = .;
-        KEEP(*(.stack_buffer))
-        . = ALIGN(8);
-        _estack = .;
-    } > ram AT> ram
 
 	.bss (NOLOAD) :
 	{
@@ -204,4 +163,12 @@ SECTIONS
 		. = ALIGN(4);
 		_ezero = .;
 	} > ram
+
+        /* No fixed stack reservation: stack starts after static RAM sections and
+         * grows down from the top of RAM.
+         */
+        . = ALIGN(8);
+        _sstack = .;
+        _estack = ORIGIN(ram) + LENGTH(ram);
+        ASSERT(_sstack <= _estack, "RAM overflow: no space left for stack")
 }

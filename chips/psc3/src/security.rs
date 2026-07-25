@@ -15,7 +15,8 @@ const REGIONS_PER_ATTR_REG: usize = 32;
 const REGIONS_PER_PC_MASK_REG: usize = 4;
 const FULL_PC_CONTEXT_MASK: u8 = 0xFF;
 
-// Policy: all regions are non-secure except this allowlist of secure-only regions.
+// Policy: all regions are non-secure except this allowlist of secure-only
+// regions.
 const NS_SECURE_ONLY_REGIONS: [RegionId; 1] = [PpcRegion::ProtScb0 as RegionId];
 // Policy: only these non-secure regions are non-privileged.
 const NS_UNPRIVILEGED_REGIONS: [RegionId; 2] = [

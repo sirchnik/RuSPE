@@ -404,7 +404,8 @@ pub fn lock_protection_contexts() {
     PPC_BASE.ppc_lock_mask.set(0xFF);
 }
 
-/// Write precomputed bitmasks directly to PPC ns_attrs and ns_p_attrs registers.
+/// Write precomputed bitmasks directly to PPC ns_attrs and ns_p_attrs
+/// registers.
 pub fn configure_bulk_ns_attrs(ns_attrs: &[u32; 7], ns_p_attrs: &[u32; 7]) {
     for (i, &val) in ns_attrs.iter().enumerate() {
         PPC_BASE.ppc_ns_attrs[i].set(val);
@@ -414,7 +415,8 @@ pub fn configure_bulk_ns_attrs(ns_attrs: &[u32; 7], ns_p_attrs: &[u32; 7]) {
     }
 }
 
-/// Write precomputed protection context masks directly to PPC pc_masks registers.
+/// Write precomputed protection context masks directly to PPC pc_masks
+/// registers.
 pub fn configure_bulk_pc_masks(pc_masks: &[u32; 56]) {
     for (i, &val) in pc_masks.iter().enumerate() {
         PPC_BASE.ppc_pc_masks[i].set(val);
@@ -422,7 +424,8 @@ pub fn configure_bulk_pc_masks(pc_masks: &[u32; 56]) {
 }
 
 /// Set protection context mask for a range of regions, excluding specific ones.
-/// Each region's 8-bit slot is set to `pc_mask`, except for regions in `exclude`.
+/// Each region's 8-bit slot is set to `pc_mask`, except for regions in
+/// `exclude`.
 pub fn set_pc_masks_range(start: usize, end: usize, pc_mask: u8, exclude: &[u16]) {
     let full_word = u32::from_ne_bytes([pc_mask, pc_mask, pc_mask, pc_mask]);
 
