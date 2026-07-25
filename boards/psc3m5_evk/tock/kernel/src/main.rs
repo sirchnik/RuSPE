@@ -144,6 +144,7 @@ unsafe extern "C" {
     static _sstack: u8;
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum InitError {
     PeripheralsNew,
     PeripheralsInit,

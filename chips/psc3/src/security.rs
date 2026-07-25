@@ -6,236 +6,132 @@ use cortex_m::sau;
 
 use crate::ppc::{self, PpcRegion};
 
-const NONSECURE_PRIV: &[PpcRegion] = &[
-    PpcRegion::ProtPeri0Main,
-    PpcRegion::ProtPeri0Gr0Group,
-    PpcRegion::ProtPeri0Gr1Group,
-    PpcRegion::ProtPeri0Gr2Group,
-    PpcRegion::ProtPeri0Gr3Group,
-    PpcRegion::ProtPeri0Gr4Group,
-    PpcRegion::ProtPeri0Gr5Group,
-    PpcRegion::ProtPeri0Gr0Boot,
-    PpcRegion::ProtPeri0Gr1Boot,
-    PpcRegion::ProtPeri0Gr2Boot,
-    PpcRegion::ProtPeri0Gr3Boot,
-    PpcRegion::ProtPeri0Gr4Boot,
-    PpcRegion::ProtPeri0Gr5Boot,
-    PpcRegion::ProtPeri0Tr,
-    PpcRegion::ProtPpc0PpcPpcSecure,
-    PpcRegion::ProtPpc0PpcPpcNonsecure,
-    PpcRegion::ProtPeriPclk0Main,
-    PpcRegion::ProtCpuss,
-    PpcRegion::ProtRamc0Cm33,
-    PpcRegion::ProtRamc0Boot,
-    PpcRegion::ProtRamc0RamPwr,
-    PpcRegion::ProtRamc0Mpc0PpcMpcMain,
-    PpcRegion::ProtRamc0Mpc0PpcMpcPc,
-    PpcRegion::ProtRamc0Mpc0PpcMpcRot,
-    PpcRegion::ProtPromcCm33,
-    PpcRegion::ProtPromcMpc0PpcMpcMain,
-    PpcRegion::ProtPromcMpc0PpcMpcPc,
-    PpcRegion::ProtPromcMpc0PpcMpcRot,
-    PpcRegion::ProtFlashcBoot,
-    PpcRegion::ProtFlashcBoot1,
-    PpcRegion::ProtFlashcMain,
-    PpcRegion::ProtFlashcDft,
-    PpcRegion::ProtFlashcEcc,
-    PpcRegion::ProtFlashcMpc0PpcMpcMain,
-    PpcRegion::ProtFlashcMpc0PpcMpcPc,
-    PpcRegion::ProtFlashcMpc0PpcMpcRot,
-    PpcRegion::ProtFlashcFmCtlFmDft,
-    PpcRegion::ProtFlashcFmCtlFmBoot,
-    PpcRegion::ProtFlashcFmCtlFmMain,
-    PpcRegion::ProtMxcm33Cm33,
-    PpcRegion::ProtMxcm33Cm33S,
-    PpcRegion::ProtMxcm33Cm33Ns,
-    PpcRegion::ProtMxcm33BootPc0,
-    PpcRegion::ProtMxcm33BootPc1,
-    PpcRegion::ProtMxcm33BootPc2,
-    PpcRegion::ProtMxcm33BootPc3,
-    PpcRegion::ProtMxcm33Boot,
-    PpcRegion::ProtMxcm33Cm33Int,
-    PpcRegion::ProtDw0Dw,
-    PpcRegion::ProtDw1Dw,
-    PpcRegion::ProtDw0DwCrc,
-    PpcRegion::ProtDw1DwCrc,
-    PpcRegion::ProtDw0ChStruct0Ch,
-    PpcRegion::ProtDw0ChStruct1Ch,
-    PpcRegion::ProtDw0ChStruct2Ch,
-    PpcRegion::ProtDw0ChStruct3Ch,
-    PpcRegion::ProtDw0ChStruct4Ch,
-    PpcRegion::ProtDw0ChStruct5Ch,
-    PpcRegion::ProtDw0ChStruct6Ch,
-    PpcRegion::ProtDw0ChStruct7Ch,
-    PpcRegion::ProtDw0ChStruct8Ch,
-    PpcRegion::ProtDw0ChStruct9Ch,
-    PpcRegion::ProtDw0ChStruct10Ch,
-    PpcRegion::ProtDw0ChStruct11Ch,
-    PpcRegion::ProtDw0ChStruct12Ch,
-    PpcRegion::ProtDw0ChStruct13Ch,
-    PpcRegion::ProtDw0ChStruct14Ch,
-    PpcRegion::ProtDw0ChStruct15Ch,
-    PpcRegion::ProtDw1ChStruct0Ch,
-    PpcRegion::ProtDw1ChStruct1Ch,
-    PpcRegion::ProtDw1ChStruct2Ch,
-    PpcRegion::ProtDw1ChStruct3Ch,
-    PpcRegion::ProtDw1ChStruct4Ch,
-    PpcRegion::ProtDw1ChStruct5Ch,
-    PpcRegion::ProtDw1ChStruct6Ch,
-    PpcRegion::ProtDw1ChStruct7Ch,
-    PpcRegion::ProtDw1ChStruct8Ch,
-    PpcRegion::ProtDw1ChStruct9Ch,
-    PpcRegion::ProtDw1ChStruct10Ch,
-    PpcRegion::ProtDw1ChStruct11Ch,
-    PpcRegion::ProtDw1ChStruct12Ch,
-    PpcRegion::ProtDw1ChStruct13Ch,
-    PpcRegion::ProtDw1ChStruct14Ch,
-    PpcRegion::ProtDw1ChStruct15Ch,
-    PpcRegion::ProtCpussAllPc,
-    PpcRegion::ProtCpussDdft,
-    PpcRegion::ProtCpussCm33S,
-    PpcRegion::ProtCpussCm33Ns,
-    PpcRegion::ProtCpussMscInt,
-    PpcRegion::ProtCpussAp,
-    PpcRegion::ProtCpussBoot,
-    PpcRegion::ProtMs0Main,
-    PpcRegion::ProtMs4Main,
-    PpcRegion::ProtMs5Main,
-    PpcRegion::ProtMs7Main,
-    PpcRegion::ProtMs31Main,
-    PpcRegion::ProtMsPc0Priv,
-    PpcRegion::ProtMsPc31Priv,
-    PpcRegion::ProtMsPc0PrivMir,
-    PpcRegion::ProtMsPc31PrivMir,
-    PpcRegion::ProtMscAcg,
-    PpcRegion::ProtCpussSlCtlGroup,
-    PpcRegion::ProtIpcStruct0Ipc,
-    PpcRegion::ProtIpcStruct1Ipc,
-    PpcRegion::ProtIpcStruct2Ipc,
-    PpcRegion::ProtIpcStruct3Ipc,
-    PpcRegion::ProtIpcIntrStruct0Intr,
-    PpcRegion::ProtIpcIntrStruct1Intr,
-    PpcRegion::ProtFaultStruct0Main,
-    PpcRegion::ProtSrssGeneral,
-    PpcRegion::ProtSrssGeneral2,
-    PpcRegion::ProtSrssHibData,
-    PpcRegion::ProtSrssMain,
-    PpcRegion::ProtSrssSecure,
-    PpcRegion::ProtRamTrimSrssSram,
-    PpcRegion::ProtSrssDpll,
-    PpcRegion::ProtSrssWdt,
-    PpcRegion::ProtMain,
-    PpcRegion::ProtPwrmodePwrmode,
-    PpcRegion::ProtBackupBackup,
-    PpcRegion::ProtBackupBBreg0,
-    PpcRegion::ProtBackupBBreg1,
-    PpcRegion::ProtBackupBBreg2,
-    PpcRegion::ProtBackupBBreg3,
-    PpcRegion::ProtBackupBackupSecure,
-    PpcRegion::ProtCryptoliteMain,
-    // PpcRegion::ProtCryptoliteTrng, // used for bootseed in attest service
-    PpcRegion::ProtMxcordic10,
-    PpcRegion::ProtDebug600Debug600,
-    PpcRegion::ProtHsiomPrt0Prt,
-    PpcRegion::ProtHsiomPrt1Prt,
-    PpcRegion::ProtHsiomPrt2Prt,
-    PpcRegion::ProtHsiomPrt3Prt,
-    PpcRegion::ProtHsiomPrt4Prt,
-    PpcRegion::ProtHsiomPrt5Prt,
-    PpcRegion::ProtHsiomPrt6Prt,
-    PpcRegion::ProtHsiomPrt7Prt,
-    PpcRegion::ProtHsiomPrt8Prt,
-    PpcRegion::ProtHsiomPrt9Prt,
-    PpcRegion::ProtHsiomSecurePrt0SecurePrt,
-    PpcRegion::ProtHsiomSecurePrt1SecurePrt,
-    PpcRegion::ProtHsiomSecurePrt2SecurePrt,
-    PpcRegion::ProtHsiomSecurePrt3SecurePrt,
-    PpcRegion::ProtHsiomSecurePrt4SecurePrt,
-    PpcRegion::ProtHsiomSecurePrt5SecurePrt,
-    PpcRegion::ProtHsiomSecurePrt6SecurePrt,
-    PpcRegion::ProtHsiomSecurePrt7SecurePrt,
-    PpcRegion::ProtHsiomSecurePrt8SecurePrt,
-    PpcRegion::ProtHsiomSecurePrt9SecurePrt,
-    PpcRegion::ProtHsiomAmux,
-    PpcRegion::ProtHsiomMon,
-    PpcRegion::ProtGpioPrt0Prt,
-    PpcRegion::ProtGpioPrt1Prt,
-    PpcRegion::ProtGpioPrt2Prt,
-    PpcRegion::ProtGpioPrt3Prt,
-    PpcRegion::ProtGpioPrt4Prt,
-    PpcRegion::ProtGpioPrt5Prt,
-    PpcRegion::ProtGpioPrt6Prt,
-    PpcRegion::ProtGpioPrt7Prt,
-    PpcRegion::ProtGpioPrt8Prt,
-    PpcRegion::ProtGpioPrt9Prt,
-    PpcRegion::ProtGpioPrt0Cfg,
-    PpcRegion::ProtGpioPrt1Cfg,
-    PpcRegion::ProtGpioPrt2Cfg,
-    PpcRegion::ProtGpioPrt3Cfg,
-    PpcRegion::ProtGpioPrt4Cfg,
-    PpcRegion::ProtGpioPrt5Cfg,
-    PpcRegion::ProtGpioPrt6Cfg,
-    PpcRegion::ProtGpioPrt7Cfg,
-    PpcRegion::ProtGpioPrt8Cfg,
-    PpcRegion::ProtGpioPrt9Cfg,
-    PpcRegion::ProtGpioSecGpio,
-    PpcRegion::ProtGpioGpio,
-    PpcRegion::ProtGpioTest,
-    PpcRegion::ProtSmartioPrt0Prt,
-    PpcRegion::ProtSmartioPrt1Prt,
-    PpcRegion::ProtSmartioPrt2Prt,
-    PpcRegion::ProtSmartioPrt3Prt,
-    PpcRegion::ProtSmartioPrt5Prt,
-    PpcRegion::ProtSmartioPrt6Prt,
-    PpcRegion::ProtSmartioPrt9Prt,
-    PpcRegion::ProtLpcomp,
-    PpcRegion::ProtDft,
-    PpcRegion::ProtEfuseCtl1,
-    PpcRegion::ProtEfuseCtl2,
-    // PpcRegion::ProtEfuseCtl3, // used for lifecycle state in attest service
-    PpcRegion::ProtEfuseDataBoot1,
-    PpcRegion::ProtCanfd0Ch0Ch,
-    PpcRegion::ProtCanfd0Ch1Ch,
-    PpcRegion::ProtCanfd0Main,
-    PpcRegion::ProtCanfd0Buf,
-    // PpcRegion::ProtScb0, // used as secure uart
-    PpcRegion::ProtScb1,
-    PpcRegion::ProtScb2,
-    PpcRegion::ProtScb3,
-    PpcRegion::ProtScb4,
-    PpcRegion::ProtScb5,
-    PpcRegion::ProtTcpwm0Grp0Cnt0Cnt,
-    PpcRegion::ProtTcpwm0Grp0Cnt1Cnt,
-    PpcRegion::ProtTcpwm0Grp0Cnt2Cnt,
-    PpcRegion::ProtTcpwm0Grp0Cnt3Cnt,
-    PpcRegion::ProtTcpwm0Grp1Cnt0Cnt,
-    PpcRegion::ProtTcpwm0Grp1Cnt1Cnt,
-    PpcRegion::ProtTcpwm0Grp1Cnt2Cnt,
-    PpcRegion::ProtTcpwm0Grp1Cnt3Cnt,
-    PpcRegion::ProtTcpwm0Grp1Cnt4Cnt,
-    PpcRegion::ProtTcpwm0Grp1Cnt5Cnt,
-    PpcRegion::ProtTcpwm0Grp1Cnt6Cnt,
-    PpcRegion::ProtTcpwm0Grp1Cnt7Cnt,
-    PpcRegion::ProtTcpwm0Grp2Cnt0Cnt,
-    PpcRegion::ProtTcpwm0Grp2Cnt1Cnt,
-    PpcRegion::ProtTcpwm0Grp2Cnt2Cnt,
-    PpcRegion::ProtTcpwm0Grp2Cnt3Cnt,
-    PpcRegion::ProtTcpwm0Grp2Cnt4Cnt,
-    PpcRegion::ProtTcpwm0Grp2Cnt5Cnt,
-    PpcRegion::ProtTcpwm0Grp2Cnt6Cnt,
-    PpcRegion::ProtTcpwm0Grp2Cnt7Cnt,
-    PpcRegion::ProtTcpwm0TrAllGfTrAllGf,
-    PpcRegion::ProtTcpwm0TrAllSyncBypassTrAllSynBypass,
-    PpcRegion::ProtTcpwm0Boot,
-    PpcRegion::ProtTcpwm0MotifGrp1Motif0Motif,
-    PpcRegion::ProtMcpass,
+type RegionId = u16;
+
+const PPC_REGION_COUNT: usize = 222;
+const NS_ATTR_REG_COUNT: usize = PPC_REGION_COUNT.div_ceil(32);
+const PC_MASK_REG_COUNT: usize = PPC_REGION_COUNT.div_ceil(4);
+const REGIONS_PER_ATTR_REG: usize = 32;
+const REGIONS_PER_PC_MASK_REG: usize = 4;
+const FULL_PC_CONTEXT_MASK: u8 = 0xFF;
+
+// Policy: all regions are non-secure except this allowlist of secure-only regions.
+const NS_SECURE_ONLY_REGIONS: [RegionId; 1] = [PpcRegion::ProtScb0 as RegionId];
+// Policy: only these non-secure regions are non-privileged.
+const NS_UNPRIVILEGED_REGIONS: [RegionId; 2] = [
+    PpcRegion::ProtCryptoliteTrng as RegionId,
+    PpcRegion::ProtEfuseCtl3 as RegionId,
 ];
+// Policy: all regions get PC=0xFF except these exclusions.
+const PC_MASK_EXCLUDED_REGIONS: [RegionId; 3] = [
+    PpcRegion::ProtCryptoliteTrng as RegionId,
+    PpcRegion::ProtEfuseCtl3 as RegionId,
+    PpcRegion::ProtScb0 as RegionId,
+];
+
+const fn contains_region(values: &[RegionId], needle: RegionId) -> bool {
+    let mut i = 0;
+    while i < values.len() {
+        if values[i] == needle {
+            return true;
+        }
+        i += 1;
+    }
+    false
+}
+
+const fn set_region_bit(mask: &mut [u32; NS_ATTR_REG_COUNT], region: RegionId) {
+    let idx = region as usize;
+    if idx < PPC_REGION_COUNT {
+        let reg = idx / REGIONS_PER_ATTR_REG;
+        let bit = idx % REGIONS_PER_ATTR_REG;
+        mask[reg] |= 1u32 << bit;
+    }
+}
+
+const fn clear_region_bit(mask: &mut [u32; NS_ATTR_REG_COUNT], region: RegionId) {
+    let idx = region as usize;
+    if idx < PPC_REGION_COUNT {
+        let reg = idx / REGIONS_PER_ATTR_REG;
+        let bit = idx % REGIONS_PER_ATTR_REG;
+        mask[reg] &= !(1u32 << bit);
+    }
+}
+
+const fn build_full_ns_attr_mask() -> [u32; NS_ATTR_REG_COUNT] {
+    let mut attrs = [0u32; NS_ATTR_REG_COUNT];
+    let mut region = 0;
+    while region < PPC_REGION_COUNT {
+        set_region_bit(&mut attrs, region as RegionId);
+        region += 1;
+    }
+    attrs
+}
+
+const fn build_ns_attrs() -> [u32; NS_ATTR_REG_COUNT] {
+    let mut attrs = build_full_ns_attr_mask();
+
+    let mut i = 0;
+    while i < NS_SECURE_ONLY_REGIONS.len() {
+        clear_region_bit(&mut attrs, NS_SECURE_ONLY_REGIONS[i]);
+        i += 1;
+    }
+
+    attrs
+}
+
+const fn build_ns_p_attrs() -> [u32; NS_ATTR_REG_COUNT] {
+    let mut attrs = [0u32; NS_ATTR_REG_COUNT];
+    let mut i = 0;
+    while i < NS_UNPRIVILEGED_REGIONS.len() {
+        set_region_bit(&mut attrs, NS_UNPRIVILEGED_REGIONS[i]);
+        i += 1;
+    }
+    attrs
+}
+
+const fn build_pc_masks() -> [u32; PC_MASK_REG_COUNT] {
+    let mut masks = [0u32; PC_MASK_REG_COUNT];
+    let full_word = u32::from_ne_bytes([
+        FULL_PC_CONTEXT_MASK,
+        FULL_PC_CONTEXT_MASK,
+        FULL_PC_CONTEXT_MASK,
+        FULL_PC_CONTEXT_MASK,
+    ]);
+
+    let mut reg_idx = 0;
+    while reg_idx < PC_MASK_REG_COUNT {
+        let mut value = full_word;
+        let mut slot = 0;
+        while slot < REGIONS_PER_PC_MASK_REG {
+            let region = reg_idx * REGIONS_PER_PC_MASK_REG + slot;
+            if region >= PPC_REGION_COUNT
+                || contains_region(&PC_MASK_EXCLUDED_REGIONS, region as RegionId)
+            {
+                value &= !(0xFFu32 << (slot * 8));
+            }
+            slot += 1;
+        }
+        masks[reg_idx] = value;
+        reg_idx += 1;
+    }
+
+    masks
+}
+
+/// Precomputed at compile time from the region constants above.
+const NS_ATTRS: [u32; NS_ATTR_REG_COUNT] = build_ns_attrs();
+/// Precomputed at compile time from the region constants above.
+const NS_P_ATTRS: [u32; NS_ATTR_REG_COUNT] = build_ns_p_attrs();
+/// Precomputed at compile time from the region constants above.
+const PC_MASKS: [u32; PC_MASK_REG_COUNT] = build_pc_masks();
 
 /// Configures the security settings for the platform.
 ///
 /// # Errors
 ///
 /// Returns `Err(SauError)` if SAU region configuration fails.
+#[inline(never)]
 pub fn configure_security(
     nonsecure_flash_start: u32,
     nonsecure_flash_limit: u32,
@@ -250,14 +146,8 @@ pub fn configure_security(
     // hangs. Change to RZWI then.
     ppc::set_viloation_response(ppc::PPC_CTL::RESP_CFG::BUS_ERROR);
 
-    for region in NONSECURE_PRIV.iter().copied() {
-        ppc::set_permissions(region, true, false, false);
-        ppc::set_protection_context(region, 0xFF);
-    }
-
-    // TODO should be inverted
-    ppc::set_permissions(PpcRegion::ProtCryptoliteTrng, true, true, false);
-    ppc::set_permissions(PpcRegion::ProtEfuseCtl3, true, true, false);
+    ppc::configure_bulk_ns_attrs(&NS_ATTRS, &NS_P_ATTRS);
+    ppc::configure_bulk_pc_masks(&PC_MASKS);
 
     ppc::lock_protection_contexts();
 

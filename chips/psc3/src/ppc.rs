@@ -404,6 +404,45 @@ pub fn lock_protection_contexts() {
     PPC_BASE.ppc_lock_mask.set(0xFF);
 }
 
+/// Write precomputed bitmasks directly to PPC ns_attrs and ns_p_attrs registers.
+pub fn configure_bulk_ns_attrs(ns_attrs: &[u32; 7], ns_p_attrs: &[u32; 7]) {
+    for (i, &val) in ns_attrs.iter().enumerate() {
+        PPC_BASE.ppc_ns_attrs[i].set(val);
+    }
+    for (i, &val) in ns_p_attrs.iter().enumerate() {
+        PPC_BASE.ppc_ns_p_attrs[i].set(val);
+    }
+}
+
+/// Write precomputed protection context masks directly to PPC pc_masks registers.
+pub fn configure_bulk_pc_masks(pc_masks: &[u32; 56]) {
+    for (i, &val) in pc_masks.iter().enumerate() {
+        PPC_BASE.ppc_pc_masks[i].set(val);
+    }
+}
+
+/// Set protection context mask for a range of regions, excluding specific ones.
+/// Each region's 8-bit slot is set to `pc_mask`, except for regions in `exclude`.
+pub fn set_pc_masks_range(start: usize, end: usize, pc_mask: u8, exclude: &[u16]) {
+    let full_word = u32::from_ne_bytes([pc_mask, pc_mask, pc_mask, pc_mask]);
+
+    // Process in groups of 4 (one register at a time)
+    let start_reg = start / 4;
+    let end_reg = (end + 3) / 4;
+
+    for reg_idx in start_reg..end_reg {
+        let mut val = full_word;
+        for slot in 0..4u32 {
+            let region = reg_idx * 4 + slot as usize;
+            if region >= end || exclude.contains(&(region as u16)) {
+                // Clear this slot
+                val &= !(0xFF << (slot * 8));
+            }
+        }
+        PPC_BASE.ppc_pc_masks[reg_idx].set(val);
+    }
+}
+
 pub fn set_viloation_response(cfg: FieldValue<u32, PPC_CTL::Register>) {
     PPC_BASE.ppc_ctl.write(cfg);
 }
