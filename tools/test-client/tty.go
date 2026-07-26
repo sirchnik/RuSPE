@@ -13,9 +13,40 @@ import (
 	"time"
 
 	"go.bug.st/serial"
+	"go.bug.st/serial/enumerator"
 )
 
 // --- TTY ---
+
+func getCypressPort() (string, error) {
+	ports, err := enumerator.GetDetailedPortsList()
+	if err == nil {
+		for _, port := range ports {
+			vidUpper := strings.ToUpper(port.VID)
+			prodLower := strings.ToLower(port.Product)
+			nameLower := strings.ToLower(port.Name)
+			if strings.Contains(prodLower, "cypress") ||
+				strings.Contains(nameLower, "cypress") ||
+				vidUpper == "04B4" {
+				return port.Name, nil
+			}
+		}
+	}
+
+	// if runtime.GOOS != "windows" {
+	// 	matches, err := filepath.Glob("/dev/serial/by-id/*")
+	// 	if err == nil {
+	// 		for _, m := range matches {
+	// 			mLower := strings.ToLower(m)
+	// 			if strings.Contains(mLower, "cypress") || strings.Contains(mLower, "04b4") {
+	// 				return m, nil
+	// 			}
+	// 		}
+	// 	}
+	// }
+
+	return "", fmt.Errorf("could not find Cypress serial port for non-secure terminal")
+}
 
 type tokenResponse struct {
 	Type     string `json:"type"`

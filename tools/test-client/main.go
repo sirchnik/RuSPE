@@ -26,6 +26,9 @@ const (
 )
 
 func defaultTTY() string {
+	if port, err := getCypressPort(); err == nil && port != "" {
+		return port
+	}
 	switch runtime.GOOS {
 	case "windows":
 		return "COM10"
