@@ -65,7 +65,45 @@ body {
 
 header {
     text-align: center;
-    padding: 1rem 0;
+    padding: 0.5rem 0;
+    position: relative;
+}
+
+.ws-status-bar {
+    position: fixed;
+    top: 15px;
+    left: 15px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    padding: 0.4rem 0.85rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    z-index: 9999;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: #94a3b8;
+    transition: background-color 0.3s ease;
+}
+
+.status-dot.connected {
+    background-color: #10b981;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+}
+
+.status-dot.disconnected {
+    background-color: #ef4444;
 }
 
 header h1 {

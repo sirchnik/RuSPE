@@ -23,21 +23,41 @@ const tfmToken = "d28443a10126a0590100a81901005821010202020202020202020202020202
 const (
 	defaultPubKeyX = "hfymlL5b64lewHwPcn8S--u7Av9MKSy8rUiCnahzd3A"
 	defaultPubKeyY = "mGMp76ud1btPVE8SlFEf4-NUXQBPPp0Vxq6rsuw6VNw"
+	tfmPubKeyX     = "Tl4iCZ47zrRbRG0TVf0dw7VFlHtv18HInYhnmMNybo8"
+	tfmPubKeyY     = "gNcLhAslaqw0pi7eEEM2TwRAlfADR0uR4Bggkq-xPy4"
 )
 
 func defaultTTY() string {
 	if port, err := getCypressPort(); err == nil && port != "" {
 		return port
 	}
-	switch runtime.GOOS {
-	case "windows":
-		return "COM10"
-	case "darwin":
+	if runtime.GOOS == "darwin" {
 		fmt.Println("Warning: default TTY path for macOS is untested, may need adjustment")
-		return "/dev/ttyACM0"
-	default:
-		return "/dev/ttyACM0"
 	}
+	if runtime.GOOS == "windows" {
+		return "COM10"
+	}
+	return "/dev/ttyACM0"
+}
+
+func getPubKey(tokenSrc, pubKeyX, pubKeyY string) (string, string) {
+	x, y := defaultPubKeyX, defaultPubKeyY
+	if tokenSrc == "tfm" {
+		x, y = tfmPubKeyX, tfmPubKeyY
+	}
+	if pubKeyX != "" {
+		x = pubKeyX
+	}
+	if pubKeyY != "" {
+		y = pubKeyY
+	}
+	return x, y
+}
+
+func generateNonce() string {
+	b := make([]byte, 32)
+	_ = randRead(b)
+	return hex.EncodeToString(b)
 }
 
 func main() {
@@ -55,17 +75,11 @@ func main() {
 		genPrintKey()
 		return
 	}
-
 	if *gui {
-		cfg := GUIConfig{
-			TokenSrc: *tokenSrc,
-			TtyPath:  *ttyPath,
-			BaudRate: *baudRate,
-			Nonce:    *nonce,
-			PubKeyX:  *pubKeyX,
-			PubKeyY:  *pubKeyY,
-		}
-		startGUI(cfg)
+		startGUI(GUIConfig{
+			TokenSrc: *tokenSrc, TtyPath: *ttyPath, BaudRate: *baudRate,
+			Nonce: *nonce, PubKeyX: *pubKeyX, PubKeyY: *pubKeyY,
+		})
 		return
 	}
 
@@ -74,9 +88,7 @@ func main() {
 	case "tty":
 		println("Requesting token from TTY...")
 		if *nonce == "" {
-			b := make([]byte, 32)
-			must("generate nonce", randRead(b))
-			*nonce = hex.EncodeToString(b)
+			*nonce = generateNonce()
 		} else if len(*nonce) != 64 {
 			fmt.Println("Invalid nonce length")
 			os.Exit(1)
@@ -94,25 +106,12 @@ func main() {
 		tokenHex = *tokenSrc
 	}
 
-	xCoord := defaultPubKeyX
-	yCoord := defaultPubKeyY
-	if *tokenSrc == "tfm" {
-		xCoord = "Tl4iCZ47zrRbRG0TVf0dw7VFlHtv18HInYhnmMNybo8"
-		yCoord = "gNcLhAslaqw0pi7eEEM2TwRAlfADR0uR4Bggkq-xPy4"
-	}
-	if *pubKeyX != "" {
-		xCoord = *pubKeyX
-	}
-	if *pubKeyY != "" {
-		yCoord = *pubKeyY
-	}
+	xCoord, yCoord := getPubKey(*tokenSrc, *pubKeyX, *pubKeyY)
 	fmt.Printf("Debug: Using Public Key X: %s\n", xCoord)
 	fmt.Printf("Debug: Using Public Key Y: %s\n", yCoord)
 
 	decodeAndVerifyToken(tokenHex, xCoord, yCoord)
 }
-
-// --- Helpers ---
 
 func cleanHex(s string) ([]byte, error) {
 	s = strings.TrimSpace(s)
@@ -129,16 +128,17 @@ func genPrintKey() {
 	ecdhPub, err := key.PublicKey.ECDH()
 	must("convert public key", err)
 	pubBytes := ecdhPub.Bytes()
-	// Uncompressed point: 0x04 || X (32 bytes) || Y (32 bytes)
-	xBytes := pubBytes[1:33]
-	yBytes := pubBytes[33:65]
-	fmt.Println("Private key (base64url):")
+	xBytes, yBytes := pubBytes[1:33], pubBytes[33:65]
+
 	privBytes, err := key.Bytes()
 	must("encode private key", err)
-	fmt.Printf("  D: %s\n", base64.RawURLEncoding.EncodeToString(privBytes))
+
+	enc := base64.RawURLEncoding.EncodeToString
+	fmt.Println("Private key (base64url):")
+	fmt.Printf("  D: %s\n", enc(privBytes))
 	fmt.Println("Public key (base64url):")
-	fmt.Printf("  X: %s\n", base64.RawURLEncoding.EncodeToString(xBytes))
-	fmt.Printf("  Y: %s\n", base64.RawURLEncoding.EncodeToString(yBytes))
+	fmt.Printf("  X: %s\n", enc(xBytes))
+	fmt.Printf("  Y: %s\n", enc(yBytes))
 	fmt.Println("\nRust byte arrays:")
 	fmt.Printf("const PRIVATE_KEY: [u8; %d] = [%s];\n", len(privBytes), rustHex(privBytes))
 	fmt.Printf("const PUBLIC_KEY_X: [u8; %d] = [%s];\n", len(xBytes), rustHex(xBytes))

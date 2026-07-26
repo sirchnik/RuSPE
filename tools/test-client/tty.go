@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -22,29 +23,11 @@ func getCypressPort() (string, error) {
 	ports, err := enumerator.GetDetailedPortsList()
 	if err == nil {
 		for _, port := range ports {
-			vidUpper := strings.ToUpper(port.VID)
-			prodLower := strings.ToLower(port.Product)
-			nameLower := strings.ToLower(port.Name)
-			if strings.Contains(prodLower, "cypress") ||
-				strings.Contains(nameLower, "cypress") ||
-				vidUpper == "04B4" {
+			if strings.Contains(strings.ToLower(port.Product+port.Name), "cypress") || strings.ToUpper(port.VID) == "04B4" {
 				return port.Name, nil
 			}
 		}
 	}
-
-	// if runtime.GOOS != "windows" {
-	// 	matches, err := filepath.Glob("/dev/serial/by-id/*")
-	// 	if err == nil {
-	// 		for _, m := range matches {
-	// 			mLower := strings.ToLower(m)
-	// 			if strings.Contains(mLower, "cypress") || strings.Contains(mLower, "04b4") {
-	// 				return m, nil
-	// 			}
-	// 		}
-	// 	}
-	// }
-
 	return "", fmt.Errorf("could not find Cypress serial port for non-secure terminal")
 }
 
@@ -67,15 +50,16 @@ func sendNonceSlowly(port io.Writer, nonceHex string) error {
 }
 
 func requestTokenFromTTY(ttyPath string, baudRate int, nonceHex string) (string, error) {
+	return requestTokenFromTTYContext(context.Background(), ttyPath, baudRate, nonceHex)
+}
+
+func requestTokenFromTTYContext(ctx context.Context, ttyPath string, baudRate int, nonceHex string) (string, error) {
 	fmt.Printf("Debug: Requesting token with nonce '%s' from %s at %d baud...\n", nonceHex, ttyPath, baudRate)
-	mode := &serial.Mode{
-		BaudRate: baudRate,
-	}
-	port, err := serial.Open(ttyPath, mode)
+	port, err := serial.Open(ttyPath, &serial.Mode{BaudRate: baudRate})
 	if err != nil {
 		return "", err
 	}
-	if err := port.SetReadTimeout(5 * time.Second); err != nil {
+	if err := port.SetReadTimeout(500 * time.Millisecond); err != nil {
 		port.Close()
 		return "", fmt.Errorf("failed to set read timeout: %w", err)
 	}
@@ -89,23 +73,26 @@ func requestTokenFromTTY(ttyPath string, baudRate int, nonceHex string) (string,
 
 	fmt.Println("Debug: waiting for newline...")
 	for {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		default:
+		}
+
 		n, err := port.Read(buf)
 		if n > 0 {
 			fmt.Printf("Debug: Read %d bytes from serial\n", n)
 			accum += string(buf[:n])
 		}
 		if err != nil {
-			if err == io.EOF {
-				// Read timeout or EOF, continue to retry
-				if n == 0 {
-					// Timeout occurred. Send a newline to trigger a re-prompt just in case the device is stuck.
-					fmt.Println("Debug: Read timeout, sending newline to unblock device...")
-					if _, wErr := io.WriteString(port, "\n"); wErr != nil {
-						return "", fmt.Errorf("serial write (reset): %w", wErr)
-					}
-					continue
+			if err == io.EOF && n == 0 {
+				fmt.Println("Debug: Read timeout, sending newline to unblock device...")
+				if _, wErr := io.WriteString(port, "\n"); wErr != nil {
+					return "", fmt.Errorf("serial write (reset): %w", wErr)
 				}
-			} else {
+				continue
+			}
+			if err != io.EOF {
 				return "", fmt.Errorf("serial read: %w", err)
 			}
 		}
@@ -149,7 +136,6 @@ func requestTokenFromTTY(ttyPath string, baudRate int, nonceHex string) (string,
 				if _, wErr := io.WriteString(port, "\n"); wErr != nil {
 					return "", fmt.Errorf("serial write (reset): %w", wErr)
 				}
-				continue
 			}
 		}
 	}
