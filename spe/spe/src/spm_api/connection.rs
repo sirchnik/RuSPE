@@ -739,7 +739,7 @@ mod tests {
     #[test]
     fn test_mark_invec_unmapped() {
         let mut conn = make_test_connection(16, 0);
-        mark_invec_unmapped(&mut conn, 0);
+        mark_invec_unmapped(&mut conn, 0).unwrap();
         assert!(conn.invec_unmapped[0]);
     }
 
