@@ -88,6 +88,53 @@ pub fn psa_initial_attest_get_token_size<T: PsaApiCallInterface>(
     Ok(usize::from_ne_bytes(token_size_bytes))
 }
 
+/// PSA Crypto `psa_hash_compute` - calculate the hash of a message.
+///
+/// Matches the TF-M iovec layout:
+///   invec\[0\] = `TfmCryptoPackIovec` (`function_id`, `alg`)
+///   invec\[1\] = input data
+///   outvec\[0\] = hash output buffer
+///
+/// On success, returns the number of bytes written to `hash`.
+///
+/// # Errors
+/// Returns `StatusCode` on failure.
+pub fn psa_hash_compute<T: PsaApiCallInterface>(
+    alg: types::PsaAlgorithm,
+    input: &[u8],
+    hash: &mut [u8],
+) -> Result<usize, StatusCode> {
+    let iov = types::TfmCryptoPackIovec::for_hash_compute(alg);
+
+    let in_vec = [
+        types::FFInVec {
+            base: from_ref::<types::TfmCryptoPackIovec>(&iov).cast::<u8>(),
+            len: size_of::<types::TfmCryptoPackIovec>(),
+        },
+        types::FFInVec {
+            base: input.as_ptr(),
+            len: input.len(),
+        },
+    ];
+
+    let mut out_vec = [types::FFOutVec {
+        base: hash.as_mut_ptr(),
+        len: hash.len(),
+    }];
+
+    let status = T::psa_call(
+        types::ServiceHandle::Crypto,
+        types::CtrlParam::new(1, 2, true, 1, true),
+        &in_vec,
+        &mut out_vec,
+    );
+
+    match status_from_raw(status) {
+        Ok(()) => Ok(out_vec[0].len),
+        Err(status) => Err(status),
+    }
+}
+
 /// PSA Crypto `psa_sign_hash` - sign a pre-computed hash.
 ///
 /// Matches the TF-M iovec layout:
@@ -211,6 +258,27 @@ mod tests {
         let mut token = [0u8; 256];
         let result = psa_initial_attest_get_token::<MockPsaClient>(&challenge, &mut token);
         assert_eq!(result, Err(StatusCode::GenericError));
+    }
+
+    #[test]
+    fn psa_hash_compute_success() {
+        let _guard = acquire_test_guard();
+        MOCK_RETURN_STATUS.store(0, Ordering::Relaxed);
+        MOCK_OUT_LEN.store(32, Ordering::Relaxed);
+        let input = b"test input";
+        let mut hash = [0u8; 32];
+        let result = psa_hash_compute::<MockPsaClient>(types::PSA_ALG_SHA_256, input, &mut hash);
+        assert_eq!(result, Ok(32));
+    }
+
+    #[test]
+    fn psa_hash_compute_error() {
+        let _guard = acquire_test_guard();
+        MOCK_RETURN_STATUS.store(-134, Ordering::Relaxed); // NotSupported
+        let input = b"test input";
+        let mut hash = [0u8; 32];
+        let result = psa_hash_compute::<MockPsaClient>(types::PSA_ALG_SHA_256, input, &mut hash);
+        assert_eq!(result, Err(StatusCode::NotSupported));
     }
 
     #[test]

@@ -23,6 +23,7 @@ use crate::attest::psa_token::{
 pub const PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE: usize = 0x250;
 
 /// Maximum size of hardware version in bytes.
+///
 /// Recommended to use the European Article Number format: EAN-13 + '-' + 5
 /// <https://www.ietf.org/archive/id/draft-tschofenig-rats-psa-token-09.html#name-certification-reference>
 pub const CERTIFICATION_REF_MAX_SIZE: usize = 19;
@@ -37,7 +38,7 @@ const IAS_SIGNER_ID_TYPE: u16 = (0x1 << 12) | 0x01;
 
 /// Helper constructor to instantiate an [`AttestClaim`] concisely.
 #[inline]
-const fn claim<'a>(key: IatClaim, value: AttestClaimValue<'a>) -> AttestClaim<'a> {
+const fn claim(key: IatClaim, value: AttestClaimValue<'_>) -> AttestClaim<'_> {
     AttestClaim { key, value }
 }
 
@@ -291,16 +292,23 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
     /// Validate message structure contains exactly one input vector and one
     /// output vector.
     fn has_exactly_one_iovec(msg: &PsaMsg) -> bool {
-        msg.in_size.first().and_then(|s| s.as_option()).is_some()
-            && msg.out_size.first().and_then(|s| s.as_option()).is_some()
+        msg.in_size
+            .first()
+            .and_then(MaybeUsize::as_option)
+            .is_some()
+            && msg
+                .out_size
+                .first()
+                .and_then(MaybeUsize::as_option)
+                .is_some()
             && msg
                 .in_size
                 .get(1..)
-                .map_or(false, |s| s.iter().all(MaybeUsize::is_none))
+                .is_some_and(|s| s.iter().all(MaybeUsize::is_none))
             && msg
                 .out_size
                 .get(1..)
-                .map_or(false, |s| s.iter().all(MaybeUsize::is_none))
+                .is_some_and(|s| s.iter().all(MaybeUsize::is_none))
     }
 
     /// Handler function for PSA `initial_attest_get_token` requests.

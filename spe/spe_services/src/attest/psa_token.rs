@@ -3,17 +3,15 @@
 // SPDX-License-Identifier: MIT
 
 use cose::cose_sign1::{
-    CoseCrypto, CoseSign1, CoseSign1Error, RustCryptoHasher, Sign1Options,
-    encode_payload_bstr_in_place,
+    CoseCrypto, CoseSign1, CoseSign1Error, Sign1Options, encode_payload_bstr_in_place,
 };
 use minicbor::Encoder;
 use minicbor::encode::write::Cursor;
 use minicbor::encode::{Error, Write};
 use psa_interface::PsaApiCallInterface;
-use psa_interface::psa_api::psa_sign_hash;
+use psa_interface::psa_api::{psa_hash_compute, psa_sign_hash};
 use psa_interface::status::StatusCode;
-use psa_interface::types::PSA_ALG_ECDSA_SHA256;
-use sha2::{Digest, Sha256};
+use psa_interface::types::{PSA_ALG_ECDSA_SHA256, PSA_ALG_SHA_256};
 
 /// PSA / EAT claim labels per RFC 9783 Section 6.
 #[repr(u32)]
@@ -145,10 +143,13 @@ impl<C: PsaApiCallInterface> PsaCryptoBackend<C> {
 }
 
 impl<C: PsaApiCallInterface> CoseCrypto for PsaCryptoBackend<C> {
-    type Hasher = RustCryptoHasher;
-
-    fn hasher_sha256(&self) -> Self::Hasher {
-        RustCryptoHasher(Sha256::new())
+    fn hash_sha256(&self, input: &[u8]) -> Result<[u8; 32], CoseSign1Error> {
+        let mut hash = [0u8; 32];
+        match psa_hash_compute::<C>(PSA_ALG_SHA_256, input, &mut hash) {
+            Ok(32) => Ok(hash),
+            Ok(_) | Err(StatusCode::BufferTooSmall) => Err(CoseSign1Error::BufferTooSmall),
+            Err(_) => Err(CoseSign1Error::Unknown),
+        }
     }
 
     fn sign_es256_prehash(&self, digest: &[u8; 32]) -> Result<[u8; 64], CoseSign1Error> {

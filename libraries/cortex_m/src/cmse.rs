@@ -57,7 +57,7 @@ impl TestTarget {
     }
 
     #[cfg(not(target_arch = "arm"))]
-    pub fn check(addr: *mut u32, access_type: AccessType) -> Self {
+    pub fn check(_addr: *mut u32, _access_type: AccessType) -> Self {
         unimplemented!("Only implemented for ARM architectures");
     }
 

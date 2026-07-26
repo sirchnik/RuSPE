@@ -81,19 +81,15 @@ pub struct EncodedParameters {
     pub payload_is_detached: bool,
 }
 
-/// Hash interface used by [`CoseCrypto`] to construct SHA-256 digests.
-pub trait CoseHasher {
-    fn update(&mut self, data: &[u8]);
-    fn finalize(self) -> [u8; 32];
-}
-
 /// Unified crypto abstraction for `COSE_Sign1`.
 ///
 /// Implementations must provide SHA-256 hashing and ES256 prehash signing.
 pub trait CoseCrypto {
-    type Hasher: CoseHasher;
-
-    fn hasher_sha256(&self) -> Self::Hasher;
+    /// Compute SHA-256 digest of input slice.
+    ///
+    /// # Errors
+    /// Returns `CoseSign1Error` if hashing fails.
+    fn hash_sha256(&self, input: &[u8]) -> Result<[u8; 32], CoseSign1Error>;
 
     /// # Errors
     /// Returns `CoseSign1Error` if the signature generation fails.
@@ -114,24 +110,11 @@ impl<'a> RustCryptoBackend<'a> {
     }
 }
 
-#[repr(align(32))]
-pub struct RustCryptoHasher(pub Sha256);
-
-impl CoseHasher for RustCryptoHasher {
-    fn update(&mut self, data: &[u8]) {
-        self.0.update(data);
-    }
-
-    fn finalize(self) -> [u8; 32] {
-        self.0.finalize().into()
-    }
-}
-
 impl CoseCrypto for RustCryptoBackend<'_> {
-    type Hasher = RustCryptoHasher;
-
-    fn hasher_sha256(&self) -> Self::Hasher {
-        RustCryptoHasher(Sha256::new())
+    fn hash_sha256(&self, input: &[u8]) -> Result<[u8; 32], CoseSign1Error> {
+        let _ = SigningKey::from_slice(self.key).map_err(|_| CoseSign1Error::InvalidSigningKey)?;
+        let digest = Sha256::digest(input);
+        Ok(digest.into())
     }
 
     fn sign_es256_prehash(&self, digest: &[u8; 32]) -> Result<[u8; 64], CoseSign1Error> {
@@ -202,7 +185,7 @@ impl<'a, C: CoseCrypto> CoseSign1<'a, C> {
             PROTECTED_HEADERS_ES256,
             self.external_aad,
             payload_bstr,
-        );
+        )?;
         let signature_bytes = self.crypto.sign_es256_prehash(&digest)?;
 
         let mut sign1_enc = Encoder::new(Cursor::new(out));
@@ -246,32 +229,74 @@ fn validate_payload_bstr(encoded_payload_bstr: &[u8]) -> Result<(), CoseSign1Err
         .ok_or(CoseSign1Error::InvalidPayload)
 }
 
+const SIG_STRUCTURE_MAX_SIZE: usize = 700;
+
+fn build_sig_structure(
+    protected_headers: &[u8],
+    external_aad: &[u8],
+    payload_bstr: &[u8],
+    out: &mut [u8],
+) -> Result<usize, CoseSign1Error> {
+    let mut ext_aad_header = [0u8; 9];
+    let ext_aad_header_len =
+        encode_cbor_major_len_header(2, external_aad.len(), &mut ext_aad_header);
+
+    let mut prot_hdr_header = [0u8; 9];
+    let prot_hdr_header_len =
+        encode_cbor_major_len_header(2, protected_headers.len(), &mut prot_hdr_header);
+
+    let context_header_len = 2 + SIG_CONTEXT_STRING.len(); // 0x84, 0x6a, "Signature1"
+
+    let total_len = context_header_len
+        .checked_add(prot_hdr_header_len)
+        .and_then(|l| l.checked_add(protected_headers.len()))
+        .and_then(|l| l.checked_add(ext_aad_header_len))
+        .and_then(|l| l.checked_add(external_aad.len()))
+        .and_then(|l| l.checked_add(payload_bstr.len()))
+        .ok_or(CoseSign1Error::BufferTooSmall)?;
+
+    if out.len() < total_len {
+        return Err(CoseSign1Error::BufferTooSmall);
+    }
+
+    let mut cursor = 0;
+    out[cursor] = 0x84;
+    out[cursor + 1] = 0x6a;
+    cursor += 2;
+    out[cursor..cursor + SIG_CONTEXT_STRING.len()].copy_from_slice(SIG_CONTEXT_STRING);
+    cursor += SIG_CONTEXT_STRING.len();
+
+    out[cursor..cursor + prot_hdr_header_len]
+        .copy_from_slice(&prot_hdr_header[..prot_hdr_header_len]);
+    cursor += prot_hdr_header_len;
+    out[cursor..cursor + protected_headers.len()].copy_from_slice(protected_headers);
+    cursor += protected_headers.len();
+
+    out[cursor..cursor + ext_aad_header_len].copy_from_slice(&ext_aad_header[..ext_aad_header_len]);
+    cursor += ext_aad_header_len;
+    out[cursor..cursor + external_aad.len()].copy_from_slice(external_aad);
+    cursor += external_aad.len();
+
+    out[cursor..cursor + payload_bstr.len()].copy_from_slice(payload_bstr);
+    cursor += payload_bstr.len();
+
+    Ok(cursor)
+}
+
 fn hash_sig_structure(
     crypto: &impl CoseCrypto,
     protected_headers: &[u8],
     external_aad: &[u8],
     payload_bstr: &[u8],
-) -> [u8; 32] {
-    let mut hasher = crypto.hasher_sha256();
-
-    hasher.update(&[0x84, 0x6a]);
-    hasher.update(SIG_CONTEXT_STRING);
-    hash_cbor_bstr(&mut hasher, protected_headers);
-    hash_cbor_bstr(&mut hasher, external_aad);
-    hasher.update(payload_bstr);
-
-    hasher.finalize()
-}
-
-fn hash_cbor_bstr(hasher: &mut impl CoseHasher, value: &[u8]) {
-    hash_cbor_major_len(hasher, 2, value.len());
-    hasher.update(value);
-}
-
-fn hash_cbor_major_len(hasher: &mut impl CoseHasher, major: u8, len: usize) {
-    let mut header = [0u8; 9];
-    let header_len = encode_cbor_major_len_header(major, len, &mut header);
-    hasher.update(&header[..header_len]);
+) -> Result<[u8; 32], CoseSign1Error> {
+    let mut sig_struct_buf = [0u8; SIG_STRUCTURE_MAX_SIZE];
+    let len = build_sig_structure(
+        protected_headers,
+        external_aad,
+        payload_bstr,
+        &mut sig_struct_buf,
+    )?;
+    crypto.hash_sha256(&sig_struct_buf[..len])
 }
 
 #[expect(clippy::cast_possible_truncation, reason = "len fits in expected type")]

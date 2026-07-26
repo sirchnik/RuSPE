@@ -60,6 +60,8 @@ pub unsafe fn jump_to_nonsecure(nonsecure_flash_start: u32) -> NsResetFn {
 }
 
 #[cfg(not(target_arch = "arm"))]
-pub unsafe fn jump_to_nonsecure(nonsecure_flash_start: u32) -> NsResetFn {
+/// # Safety
+/// Non-ARM target stub function for `jump_to_nonsecure`.
+pub unsafe fn jump_to_nonsecure(_nonsecure_flash_start: u32) -> NsResetFn {
     unimplemented!("Only implemented for ARM architectures");
 }

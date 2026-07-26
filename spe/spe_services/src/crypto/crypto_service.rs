@@ -4,7 +4,11 @@
 
 use p256::ecdsa::signature::hazmat::PrehashSigner;
 use p256::ecdsa::{Signature, SigningKey};
-use psa_interface::types::{TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID, TfmCryptoPackIovec};
+use psa_interface::types::{
+    PSA_ALG_SHA_256, PsaAlgorithm, TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID,
+    TFM_CRYPTO_HASH_COMPUTE_SID, TfmCryptoPackIovec,
+};
+use sha2::{Digest, Sha256};
 use spe::StatusCode;
 use spe::service::Service;
 use spe::spm_api::{PsaMsg, SpmApi};
@@ -44,37 +48,77 @@ impl CryptoService {
         signature_buf[..P256_SIGNATURE_SIZE].copy_from_slice(&sig.to_bytes());
         Ok(P256_SIGNATURE_SIZE)
     }
+
+    fn compute_hash(
+        alg: PsaAlgorithm,
+        input: &[u8],
+        hash_buf: &mut [u8],
+    ) -> Result<usize, StatusCode> {
+        if alg != PSA_ALG_SHA_256 {
+            return Err(StatusCode::NotSupported);
+        }
+
+        if hash_buf.len() < SHA256_HASH_SIZE {
+            return Err(StatusCode::BufferTooSmall);
+        }
+
+        let digest = Sha256::digest(input);
+        hash_buf[..SHA256_HASH_SIZE].copy_from_slice(&digest);
+        Ok(SHA256_HASH_SIZE)
+    }
 }
 
 impl<A: SpmApi> Service<A> for CryptoService {
     fn call(&self, msg: PsaMsg, api: &A) -> Result<(), StatusCode> {
-        // TF-M layout: invec[0] = TfmCryptoPackIovec, invec[1] = hash,
-        //              outvec[0] = signature buffer.
-        api.access_invec(msg.handle, 0, |buf| -> Result<(), StatusCode> {
-            let iov: &TfmCryptoPackIovec =
-                bytemuck::try_from_bytes(buf).map_err(|_| StatusCode::ProgrammerError)?;
+        // TF-M layout: invec[0] = TfmCryptoPackIovec, invec[1] = input/hash,
+        //              outvec[0] = output buffer (signature or hash).
+        let iov: TfmCryptoPackIovec = api.access_invec(
+            msg.handle,
+            0,
+            |buf| -> Result<TfmCryptoPackIovec, StatusCode> {
+                bytemuck::try_from_bytes(buf)
+                    .copied()
+                    .map_err(|_| StatusCode::ProgrammerError)
+            },
+        )??;
 
-            if iov.function_id != TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID {
-                return Err(StatusCode::NotSupported);
-            }
-            Ok(())
-        })??;
+        match iov.function_id {
+            TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID => {
+                api.access_invec_outvec(msg.handle, 1, 0, |hash, sig_buf| {
+                    let mut written_len = 0;
+                    let result = (|| -> Result<(), StatusCode> {
+                        written_len = self.sign_hash(hash, sig_buf)?;
+                        Ok(())
+                    })();
 
-        api.access_invec_outvec(msg.handle, 1, 0, |hash, sig_buf| {
-            let mut written_len = 0;
-            let result = (|| -> Result<(), StatusCode> {
-                written_len = self.sign_hash(hash, sig_buf)?;
+                    if result.is_err() {
+                        sig_buf[..written_len].fill(0);
+                        written_len = 0;
+                    }
+
+                    (result, written_len)
+                })??;
                 Ok(())
-            })();
-
-            if result.is_err() {
-                sig_buf[..written_len].fill(0);
-                written_len = 0;
             }
+            TFM_CRYPTO_HASH_COMPUTE_SID => {
+                api.access_invec_outvec(msg.handle, 1, 0, |input, hash_buf| {
+                    let mut written_len = 0;
+                    let result = (|| -> Result<(), StatusCode> {
+                        written_len = Self::compute_hash(iov.alg, input, hash_buf)?;
+                        Ok(())
+                    })();
 
-            (result, written_len)
-        })??;
-        Ok(())
+                    if result.is_err() {
+                        hash_buf[..written_len].fill(0);
+                        written_len = 0;
+                    }
+
+                    (result, written_len)
+                })??;
+                Ok(())
+            }
+            _ => Err(StatusCode::NotSupported),
+        }
     }
 
     fn init(&mut self, _api: &A) -> Result<(), StatusCode> {
@@ -125,6 +169,36 @@ mod tests {
         let mut sig_buf = [0u8; 63];
 
         let res = service.sign_hash(&hash, &mut sig_buf);
+        assert_eq!(res, Err(StatusCode::BufferTooSmall));
+    }
+
+    #[test]
+    fn test_compute_hash_success() {
+        let input = b"hello world";
+        let mut hash_buf = [0u8; 32];
+
+        let res = CryptoService::compute_hash(PSA_ALG_SHA_256, input, &mut hash_buf);
+        assert_eq!(res, Ok(32));
+
+        let expected_hash = Sha256::digest(input);
+        assert_eq!(hash_buf, *expected_hash);
+    }
+
+    #[test]
+    fn test_compute_hash_invalid_alg() {
+        let input = b"hello world";
+        let mut hash_buf = [0u8; 32];
+
+        let res = CryptoService::compute_hash(0x1234, input, &mut hash_buf);
+        assert_eq!(res, Err(StatusCode::NotSupported));
+    }
+
+    #[test]
+    fn test_compute_hash_buffer_too_small() {
+        let input = b"hello world";
+        let mut hash_buf = [0u8; 31];
+
+        let res = CryptoService::compute_hash(PSA_ALG_SHA_256, input, &mut hash_buf);
         assert_eq!(res, Err(StatusCode::BufferTooSmall));
     }
 }

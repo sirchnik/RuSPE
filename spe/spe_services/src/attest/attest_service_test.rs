@@ -69,7 +69,11 @@ impl psa_interface::PsaApiCallInterface for MockPsaClient {
         out_vec: &mut [types::FFOutVec],
     ) -> types::PsaStatus {
         if !out_vec.is_empty() {
-            out_vec[0].len = 64;
+            if out_vec[0].len == 32 {
+                out_vec[0].len = 32;
+            } else {
+                out_vec[0].len = 64;
+            }
         }
         0
     }

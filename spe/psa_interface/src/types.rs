@@ -148,6 +148,8 @@ pub type PsaKeyId = u32;
 /// TF-M).
 pub type PsaAlgorithm = u32;
 
+/// `PSA_ALG_SHA_256` - standard PSA algorithm value for SHA-256.
+pub const PSA_ALG_SHA_256: PsaAlgorithm = 0x0200_0009;
 /// `PSA_ALG_ECDSA(PSA_ALG_SHA_256)` - the algorithm value TF-M uses for ES256.
 pub const PSA_ALG_ECDSA_SHA256: PsaAlgorithm = 0x0600_0609;
 
@@ -199,8 +201,30 @@ impl TfmCryptoPackIovec {
             capacity: 0,
         }
     }
+
+    /// Build a minimal iovec for hash compute operations.
+    #[must_use]
+    pub const fn for_hash_compute(alg: PsaAlgorithm) -> Self {
+        Self {
+            key_id: 0,
+            alg,
+            op_handle: 0,
+            ad_length: 0,
+            plaintext_length: 0,
+            aead_in: TfmCryptoAeadPackInput {
+                nonce: [0; 16],
+                nonce_length: 0,
+            },
+            _reserved: [0; 4],
+            function_id: TFM_CRYPTO_HASH_COMPUTE_SID,
+            step: 0,
+            capacity: 0,
+        }
+    }
 }
 
+/// TF-M function SID for `psa_hash_compute` (group 3 = `HASH`, index 0).
+pub const TFM_CRYPTO_HASH_COMPUTE_SID: u16 = 0x0300;
 /// TF-M function SID for `psa_sign_hash` (group 7 = `ASYM_SIGN`, index 2).
 pub const TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID: u16 = 0x0702;
 
@@ -285,6 +309,21 @@ mod tests {
         assert_eq!(iov.function_id, TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID);
         assert_eq!(iov.op_handle, 0);
         assert_eq!(iov.step, 0);
+    }
+
+    #[test]
+    fn tfm_crypto_pack_iovec_for_hash_compute() {
+        let iov = TfmCryptoPackIovec::for_hash_compute(PSA_ALG_SHA_256);
+        assert_eq!(iov.key_id, 0);
+        assert_eq!(iov.alg, PSA_ALG_SHA_256);
+        assert_eq!(iov.function_id, TFM_CRYPTO_HASH_COMPUTE_SID);
+        assert_eq!(iov.op_handle, 0);
+        assert_eq!(iov.step, 0);
+    }
+
+    #[test]
+    fn psa_alg_sha256_value() {
+        assert_eq!(PSA_ALG_SHA_256, 0x0200_0009);
     }
 
     #[test]
