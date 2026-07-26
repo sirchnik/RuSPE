@@ -30,10 +30,11 @@ pub const CBOR_TAG_COSE_SIGN1: u64 = 18;
 pub const COSE_ALGORITHM_ES256: i32 = -7;
 
 // from RFC
-const SIG_CONTEXT_STRING: &str = "Signature1";
+const SIG_CONTEXT_STRING: &[u8] = b"Signature1";
 
 /// Errors returned by COSE Sign1 parameter setup/encoding.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum CoseSign1Error {
     Unknown,
     /// Private key encoding or value is invalid.
@@ -59,7 +60,8 @@ impl From<Error<EndOfSlice>> for CoseSign1Error {
 }
 
 /// Option flags corresponding to `t_cose` Sign1 behavior.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub struct Sign1Options {
     /// Do not emit CBOR tag 18.
     pub omit_cbor_tag: bool,
@@ -70,7 +72,8 @@ pub struct Sign1Options {
 }
 
 /// Result of encoding `COSE_Sign1` parameters.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct EncodedParameters {
     /// Number of bytes encoded into the output buffer.
     pub encoded_len: usize,
@@ -98,7 +101,8 @@ pub trait CoseCrypto {
 }
 
 /// Default `RustCrypto` backend using `sha2` and `p256`.
-#[derive(Clone, Copy, Debug, Default)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Copy, Default)]
 pub struct RustCryptoBackend<'a> {
     key: &'a [u8],
 }
@@ -119,10 +123,7 @@ impl CoseHasher for RustCryptoHasher {
     }
 
     fn finalize(self) -> [u8; 32] {
-        let digest = self.0.finalize();
-        let mut out = [0u8; 32];
-        out.copy_from_slice(&digest);
-        out
+        self.0.finalize().into()
     }
 }
 
@@ -139,9 +140,7 @@ impl CoseCrypto for RustCryptoBackend<'_> {
         let signature: Signature = signing_key
             .sign_prehash(digest)
             .map_err(|_| CoseSign1Error::Signature)?;
-        let mut out = [0u8; 64];
-        out.copy_from_slice(&signature.to_bytes());
-        Ok(out)
+        Ok(signature.to_bytes().into())
     }
 }
 
@@ -256,7 +255,7 @@ fn hash_sig_structure(
     let mut hasher = crypto.hasher_sha256();
 
     hasher.update(&[0x84, 0x6a]);
-    hasher.update(SIG_CONTEXT_STRING.as_bytes());
+    hasher.update(SIG_CONTEXT_STRING);
     hash_cbor_bstr(&mut hasher, protected_headers);
     hash_cbor_bstr(&mut hasher, external_aad);
     hasher.update(payload_bstr);
@@ -341,7 +340,11 @@ pub fn encode_payload_bstr_in_place(
     }
 
     out.copy_within(0..payload_len, header_len);
-    out[..header_len].copy_from_slice(&header[..header_len]);
+    if let (Some(dst), Some(src)) = (out.get_mut(..header_len), header.get(..header_len)) {
+        dst.copy_from_slice(src);
+    } else {
+        return Err(CoseSign1Error::BufferTooSmall);
+    }
     Ok(total_len)
 }
 

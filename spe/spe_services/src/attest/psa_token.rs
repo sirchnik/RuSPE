@@ -95,10 +95,18 @@ fn encode_claim_value<W: Write>(
     value: AttestClaimValue<'_>,
 ) -> Result<(), Error<W::Error>> {
     match value {
-        AttestClaimValue::Bytes(b) => { enc.bytes(b)?; }
-        AttestClaimValue::Text(t) => { enc.str(t)?; }
-        AttestClaimValue::Unsigned(u) => { enc.u64(u)?; }
-        AttestClaimValue::Signed(s) => { enc.i64(s)?; }
+        AttestClaimValue::Bytes(b) => {
+            enc.bytes(b)?;
+        }
+        AttestClaimValue::Text(t) => {
+            enc.str(t)?;
+        }
+        AttestClaimValue::Unsigned(u) => {
+            enc.u64(u)?;
+        }
+        AttestClaimValue::Signed(s) => {
+            enc.i64(s)?;
+        }
         AttestClaimValue::SwComponents(c) => encode_sw_components(enc, c)?,
     }
     Ok(())
@@ -167,8 +175,12 @@ pub fn encode_initial_attestation_token<C: PsaApiCallInterface>(
 
     let signer = CoseSign1::new(PsaCryptoBackend::<C>::new(key_id), Sign1Options::default());
 
+    let payload_slice = payload_buf
+        .get(..payload_bstr_len)
+        .ok_or(StatusCode::BufferTooSmall)?;
+
     let encoded = signer
-        .encode_from_payload_bstr(&payload_buf[..payload_bstr_len], token)
+        .encode_from_payload_bstr(payload_slice, token)
         .map_err(map_cose_error)?;
 
     Ok(encoded.encoded_len)

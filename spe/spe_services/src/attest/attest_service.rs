@@ -4,8 +4,9 @@
 
 //! Initial Attestation Service Implementation.
 //!
-//! Provides PSA Initial Attestation service endpoints, claim collection from hardware/boot platform
-//! drivers, and COSE-Sign1 token generation for Secure Processing Environments (SPE).
+//! Provides PSA Initial Attestation service endpoints, claim collection from
+//! hardware/boot platform drivers, and COSE-Sign1 token generation for Secure
+//! Processing Environments (SPE).
 
 use psa_interface::PsaApiCallInterface;
 use psa_interface::status::StatusCode;
@@ -26,7 +27,8 @@ pub const PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE: usize = 0x250;
 /// <https://www.ietf.org/archive/id/draft-tschofenig-rats-psa-token-09.html#name-certification-reference>
 pub const CERTIFICATION_REF_MAX_SIZE: usize = 19;
 
-/// Upper bound on total claims (Nonce + caller-supplied) assembled on stack per token.
+/// Upper bound on total claims (Nonce + caller-supplied) assembled on stack per
+/// token.
 const MAX_TOTAL_CLAIMS: usize = 16;
 const TEMP_KEY_ID: u32 = 0x1234_5678;
 const SHARED_DATA_TLV_INFO_MAGIC: u16 = 0x2016;
@@ -42,27 +44,33 @@ const fn claim<'a>(key: IatClaim, value: AttestClaimValue<'a>) -> AttestClaim<'a
 /// Constant placeholder used to initialize stack claim buffer arrays.
 const EMPTY_CLAIM: AttestClaim<'static> = claim(IatClaim::Nonce, AttestClaimValue::Bytes(&[]));
 
-/// Interface provided by the underlying hardware platform for retrieving attestation claims.
+/// Interface provided by the underlying hardware platform for retrieving
+/// attestation claims.
 pub trait AttestPlatform {
     /// Get the security lifecycle of the device as a numeric lifecycle code.
     fn security_lifecycle(&self) -> Result<u32, StatusCode>;
 
-    /// Get the verification service indicator (UTF-8 text). Returns number of bytes written.
+    /// Get the verification service indicator (UTF-8 text). Returns number of
+    /// bytes written.
     fn verification_service(&self, buf: &mut [u8]) -> Result<usize, StatusCode>;
 
-    /// Get the name of the profile definition document (UTF-8 text). Returns number of bytes written.
+    /// Get the name of the profile definition document (UTF-8 text). Returns
+    /// number of bytes written.
     fn profile_definition(&self, buf: &mut [u8]) -> Result<usize, StatusCode>;
 
-    /// Generate or retrieve the 32-byte boot seed value used for initial attestation.
+    /// Generate or retrieve the 32-byte boot seed value used for initial
+    /// attestation.
     fn boot_seed(&self, seed: &mut [u8; 32]) -> Result<(), StatusCode>;
 
     /// Get the implementation ID of the device.
     fn implementation_id(&self, buf: &mut [u8; 32]) -> Result<(), StatusCode>;
 
-    /// Get the instance ID (UEID) of the device (33 bytes: 1-byte type + 32-byte ID).
+    /// Get the instance ID (UEID) of the device (33 bytes: 1-byte type +
+    /// 32-byte ID).
     fn instance_id(&self, buf: &mut [u8; 33]) -> Result<(), StatusCode>;
 
-    /// Get the hardware version (UTF-8 text, EAN-13 format). Returns number of bytes written.
+    /// Get the hardware version (UTF-8 text, EAN-13 format). Returns number of
+    /// bytes written.
     fn cert_ref(&self, buf: &mut [u8; CERTIFICATION_REF_MAX_SIZE]) -> Result<usize, StatusCode>;
 
     /// Get the raw boot record (TLV) shared by the bootloader.
@@ -83,7 +91,8 @@ fn parse_utf8_claim(buf: &[u8], len: usize) -> Result<&str, StatusCode> {
         .map_err(|_| StatusCode::InvalidArgument)
 }
 
-/// Parse raw TLV shared bootloader measurement and signer ID records into a software component.
+/// Parse raw TLV shared bootloader measurement and signer ID records into a
+/// software component.
 fn parse_boot_data(data: &[u8]) -> Option<SwComponent<'_>> {
     let magic = get_u16_le(data)?;
     let tot_len = usize::from(get_u16_le(data.get(2..)?)?);
@@ -112,7 +121,8 @@ fn parse_boot_data(data: &[u8]) -> Option<SwComponent<'_>> {
     })
 }
 
-/// Stack buffer container holding raw byte arrays for platform claim collection.
+/// Stack buffer container holding raw byte arrays for platform claim
+/// collection.
 struct PlatformBuffers<'a> {
     boot_seed: [u8; 32],
     profile: [u8; 64],
@@ -137,7 +147,8 @@ impl<'a> PlatformBuffers<'a> {
         }
     }
 
-    /// Query platform driver and collect array of 9 standard initial attestation claims.
+    /// Query platform driver and collect array of 9 standard initial
+    /// attestation claims.
     fn collect(
         &'a mut self,
         platform: &'a impl AttestPlatform,
@@ -159,15 +170,36 @@ impl<'a> PlatformBuffers<'a> {
         self.sw_component = platform.boot_record().and_then(parse_boot_data);
 
         Ok([
-            claim(IatClaim::InstanceId, AttestClaimValue::Bytes(&self.instance_id)),
-            claim(IatClaim::ProfileDefinition, AttestClaimValue::Text(prof_str)),
+            claim(
+                IatClaim::InstanceId,
+                AttestClaimValue::Bytes(&self.instance_id),
+            ),
+            claim(
+                IatClaim::ProfileDefinition,
+                AttestClaimValue::Text(prof_str),
+            ),
             claim(IatClaim::ClientId, AttestClaimValue::Signed(1)),
-            claim(IatClaim::SecurityLifecycle, AttestClaimValue::Unsigned(u64::from(sec_lc))),
+            claim(
+                IatClaim::SecurityLifecycle,
+                AttestClaimValue::Unsigned(u64::from(sec_lc)),
+            ),
             claim(IatClaim::BootSeed, AttestClaimValue::Bytes(&self.boot_seed)),
-            claim(IatClaim::SwComponents, AttestClaimValue::SwComponents(self.sw_component.as_slice())),
-            claim(IatClaim::CertificationReference, AttestClaimValue::Text(cert_str)),
-            claim(IatClaim::ImplementationId, AttestClaimValue::Bytes(&self.impl_id)),
-            claim(IatClaim::VerificationService, AttestClaimValue::Text(verif_str)),
+            claim(
+                IatClaim::SwComponents,
+                AttestClaimValue::SwComponents(self.sw_component.as_slice()),
+            ),
+            claim(
+                IatClaim::CertificationReference,
+                AttestClaimValue::Text(cert_str),
+            ),
+            claim(
+                IatClaim::ImplementationId,
+                AttestClaimValue::Bytes(&self.impl_id),
+            ),
+            claim(
+                IatClaim::VerificationService,
+                AttestClaimValue::Text(verif_str),
+            ),
         ])
     }
 }
@@ -190,7 +222,8 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
         }
     }
 
-    /// Check if challenge byte length matches supported sizes (32, 48, or 64 bytes).
+    /// Check if challenge byte length matches supported sizes (32, 48, or 64
+    /// bytes).
     const fn challenge_size_is_supported(challenge_size: usize) -> bool {
         matches!(challenge_size, 32 | 48 | 64)
     }
@@ -208,11 +241,14 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
         let mut claims_buf = [EMPTY_CLAIM; MAX_TOTAL_CLAIMS];
         let claims = Self::build_claims(challenge, additional_claims, &mut claims_buf)?;
         let encoded_len = encode_initial_attestation_token::<C>(claims, token, TEMP_KEY_ID)?;
-        token[encoded_len..].fill(0);
+        if let Some(rest) = token.get_mut(encoded_len..) {
+            rest.fill(0);
+        }
         Ok(encoded_len)
     }
 
-    /// Compute exact encoded byte length of initial attestation token for given challenge size.
+    /// Compute exact encoded byte length of initial attestation token for given
+    /// challenge size.
     pub fn initial_attest_get_token_size(
         &self,
         challenge_size: usize,
@@ -222,12 +258,11 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
             return Err(StatusCode::InvalidArgument);
         }
         let dummy_nonce = [0u8; 64];
+        let nonce_slice = dummy_nonce
+            .get(..challenge_size)
+            .ok_or(StatusCode::InvalidArgument)?;
         let mut claims_buf = [EMPTY_CLAIM; MAX_TOTAL_CLAIMS];
-        let claims = Self::build_claims(
-            &dummy_nonce[..challenge_size],
-            additional_claims,
-            &mut claims_buf,
-        )?;
+        let claims = Self::build_claims(nonce_slice, additional_claims, &mut claims_buf)?;
         compute_initial_attestation_token_size(claims, TEMP_KEY_ID)
     }
 
@@ -244,17 +279,28 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
         if total > MAX_TOTAL_CLAIMS {
             return Err(StatusCode::InvalidArgument);
         }
-        buf[0] = claim(IatClaim::Nonce, AttestClaimValue::Bytes(challenge));
-        buf[1..total].copy_from_slice(additional_claims);
-        Ok(&buf[..total])
+        if let Some((first, rest)) = buf.get_mut(..total).and_then(|s| s.split_first_mut()) {
+            *first = claim(IatClaim::Nonce, AttestClaimValue::Bytes(challenge));
+            rest.copy_from_slice(additional_claims);
+            Ok(&buf[..total])
+        } else {
+            Err(StatusCode::InvalidArgument)
+        }
     }
 
-    /// Validate message structure contains exactly one input vector and one output vector.
+    /// Validate message structure contains exactly one input vector and one
+    /// output vector.
     fn has_exactly_one_iovec(msg: &PsaMsg) -> bool {
-        msg.in_size[0].is_some()
-            && msg.out_size[0].is_some()
-            && msg.in_size[1..].iter().all(MaybeUsize::is_none)
-            && msg.out_size[1..].iter().all(MaybeUsize::is_none)
+        msg.in_size.first().and_then(|s| s.as_option()).is_some()
+            && msg.out_size.first().and_then(|s| s.as_option()).is_some()
+            && msg
+                .in_size
+                .get(1..)
+                .map_or(false, |s| s.iter().all(MaybeUsize::is_none))
+            && msg
+                .out_size
+                .get(1..)
+                .map_or(false, |s| s.iter().all(MaybeUsize::is_none))
     }
 
     /// Handler function for PSA `initial_attest_get_token` requests.
@@ -276,16 +322,20 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
     /// Handler function for PSA `initial_attest_get_token_size` requests.
     fn handle_get_token_size(&self, msg: &PsaMsg, api: &impl SpmApi) -> Result<(), StatusCode> {
         let challenge_size = api.access_invec(msg.handle, 0, |buf| {
-            buf.try_into()
+            buf.get(..core::mem::size_of::<usize>())
+                .and_then(|s| s.try_into().ok())
                 .map(usize::from_ne_bytes)
-                .map_err(|_| StatusCode::InvalidArgument)
+                .ok_or(StatusCode::InvalidArgument)
         })??;
         let mut boot_seed = [0u8; 32];
         self.platform.boot_seed(&mut boot_seed)?;
         let parsed_comp = self.platform.boot_record().and_then(parse_boot_data);
         let additional_claims = [
             claim(IatClaim::BootSeed, AttestClaimValue::Bytes(&boot_seed)),
-            claim(IatClaim::SwComponents, AttestClaimValue::SwComponents(parsed_comp.as_slice())),
+            claim(
+                IatClaim::SwComponents,
+                AttestClaimValue::SwComponents(parsed_comp.as_slice()),
+            ),
         ];
         let token_size = self.initial_attest_get_token_size(challenge_size, &additional_claims)?;
         let token_size_bytes = token_size.to_ne_bytes();
@@ -293,9 +343,12 @@ impl<P: AttestPlatform, C: psa_interface::PsaApiCallInterface> AttestService<P, 
             if outvec.len() < token_size_bytes.len() {
                 outvec.fill(0);
                 (Err(StatusCode::BufferTooSmall), 0)
-            } else {
-                outvec[..token_size_bytes.len()].copy_from_slice(&token_size_bytes);
+            } else if let Some(target) = outvec.get_mut(..token_size_bytes.len()) {
+                target.copy_from_slice(&token_size_bytes);
                 (Ok(()), token_size_bytes.len())
+            } else {
+                outvec.fill(0);
+                (Err(StatusCode::BufferTooSmall), 0)
             }
         })??;
         Ok(())
