@@ -37,6 +37,14 @@ type WSMessage struct {
 	ClientCount  int        `json:"clientCount,omitempty"`
 	IsProcessing bool       `json:"isProcessing,omitempty"`
 	ScrollY      float64    `json:"scrollY,omitempty"`
+	ScrollRatio  float64    `json:"scrollRatio,omitempty"`
+	IsAtBottom   bool       `json:"isAtBottom,omitempty"`
+	IsAtTop      bool       `json:"isAtTop,omitempty"`
+	SenderID     string     `json:"senderId,omitempty"`
+	MouseX       float64    `json:"mouseX,omitempty"`
+	MouseY       float64    `json:"mouseY,omitempty"`
+	MouseVisible bool       `json:"mouseVisible,omitempty"`
+	IsClick      bool       `json:"isClick,omitempty"`
 }
 
 type ClientHub struct {
@@ -44,13 +52,16 @@ type ClientHub struct {
 	mu       sync.Mutex
 	upgrader websocket.Upgrader
 
-	stateMu      sync.Mutex
-	lastResult   *TokenInfo
-	lastNonce    string
-	lastScrollY  float64
-	isProcessing bool
-	cancelFn     context.CancelFunc
-	cfg          *GUIConfig
+	stateMu         sync.Mutex
+	lastResult      *TokenInfo
+	lastNonce       string
+	lastScrollY     float64
+	lastScrollRatio float64
+	lastIsAtBottom  bool
+	lastIsAtTop     bool
+	isProcessing    bool
+	cancelFn        context.CancelFunc
+	cfg             *GUIConfig
 }
 
 func newHub(cfg *GUIConfig) *ClientHub {
@@ -64,10 +75,17 @@ func newHub(cfg *GUIConfig) *ClientHub {
 }
 
 func (h *ClientHub) broadcast(msg WSMessage) {
+	h.broadcastExcept(nil, msg)
+}
+
+func (h *ClientHub) broadcastExcept(sender *websocket.Conn, msg WSMessage) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	for client := range h.clients {
+		if client == sender {
+			continue
+		}
 		if err := client.WriteJSON(msg); err != nil {
 			fmt.Printf("WebSocket send error: %v\n", err)
 			client.Close()
@@ -105,6 +123,9 @@ func (h *ClientHub) handleWS(w http.ResponseWriter, r *http.Request) {
 		IsProcessing: h.isProcessing,
 		ClientCount:  clientCount,
 		ScrollY:      h.lastScrollY,
+		ScrollRatio:  h.lastScrollRatio,
+		IsAtBottom:   h.lastIsAtBottom,
+		IsAtTop:      h.lastIsAtTop,
 	}
 	h.stateMu.Unlock()
 
@@ -132,12 +153,17 @@ func (h *ClientHub) handleWS(w http.ResponseWriter, r *http.Request) {
 			h.stateMu.Lock()
 			h.lastNonce = msg.Nonce
 			h.stateMu.Unlock()
-			h.broadcast(WSMessage{Type: "nonce_updated", Nonce: msg.Nonce})
+			h.broadcastExcept(conn, WSMessage{Type: "nonce_updated", Nonce: msg.Nonce, SenderID: msg.SenderID})
 		case "scroll":
 			h.stateMu.Lock()
 			h.lastScrollY = msg.ScrollY
+			h.lastScrollRatio = msg.ScrollRatio
+			h.lastIsAtBottom = msg.IsAtBottom
+			h.lastIsAtTop = msg.IsAtTop
 			h.stateMu.Unlock()
-			h.broadcast(msg)
+			h.broadcastExcept(conn, msg)
+		case "mouse":
+			h.broadcastExcept(conn, msg)
 		case "switch_fake":
 			h.toggleFake()
 		}

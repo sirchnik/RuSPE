@@ -39,7 +39,21 @@ document.addEventListener('DOMContentLoaded', () => {
         return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
     };
 
-    const sendWS = (msg) => ws && isConnected && ws.send(JSON.stringify(msg));
+    const myClientId = 'c_' + Math.random().toString(36).substring(2, 9);
+    const COLOR_PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#f97316', '#e11d48'];
+
+    const getClientColor = (id) => {
+        let hash = 0;
+        for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
+        return COLOR_PALETTE[Math.abs(hash) % COLOR_PALETTE.length];
+    };
+
+    const sendWS = (msg) => {
+        if (ws && isConnected) {
+            if (!msg.senderId) msg.senderId = myClientId;
+            ws.send(JSON.stringify(msg));
+        }
+    };
 
     const updateNonce = (val) => {
         if (nonceInput) nonceInput.value = val;
@@ -124,12 +138,20 @@ document.addEventListener('DOMContentLoaded', () => {
         trailConnections = [];
         Object.values(nodes).forEach(n => n.classList.remove('trail', 'active'));
         ['uart-tx', 'uart-rx'].forEach(id => $(id)?.classList.remove('active'));
+        $('uart-tx-badge')?.classList.remove('active', 'animating-tx');
+        $('uart-rx-badge')?.classList.remove('active', 'animating-rx');
     };
 
     const initiateRequest = async () => {
         await activateNode(nodes.pc, "Test Client initiating request...");
         deactivateNode(nodes.pc);
         $('uart-tx')?.classList.add('active');
+        const txBadge = $('uart-tx-badge');
+        if (txBadge) {
+            txBadge.classList.remove('animating-tx');
+            void txBadge.offsetWidth;
+            txBadge.classList.add('active', 'animating-tx');
+        }
         nodes.pc.classList.add('active');
         statusText.innerText = "Waiting for device response over UART...";
     };
@@ -168,6 +190,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         $('uart-rx')?.classList.add('active');
+        const rxBadge = $('uart-rx-badge');
+        if (rxBadge) {
+            rxBadge.classList.remove('animating-rx');
+            void rxBadge.offsetWidth;
+            rxBadge.classList.add('active', 'animating-rx');
+        }
         await activateNode(nodes.pc, "Test Client received token!");
         await sleep(800);
         deactivateNode(nodes.pc);
@@ -266,18 +294,144 @@ document.addEventListener('DOMContentLoaded', () => {
         isAnimating = false;
     };
 
-    window.addEventListener('scroll', () => {
-        if (isRemoteScrolling || !ws || !isConnected) return;
-        if (scrollRaf) cancelAnimationFrame(scrollRaf);
-        scrollRaf = requestAnimationFrame(() => {
-            sendWS({ type: 'scroll', scrollY: window.scrollY });
+    let isLocalScrolling = false;
+    let localScrollTimeout = null;
+    let mouseRaf = null;
+    const remoteCursors = {};
+    const cursorTimeouts = {};
+
+    const sendMouseState = (xPercent, pageY, visible, isClick = false) => {
+        if (!ws || !isConnected) return;
+        sendWS({
+            type: 'mouse',
+            senderId: myClientId,
+            mouseX: xPercent,
+            mouseY: pageY,
+            mouseVisible: visible,
+            isClick: isClick
+        });
+    };
+
+    document.addEventListener('mousemove', (e) => {
+        if (mouseRaf) cancelAnimationFrame(mouseRaf);
+        mouseRaf = requestAnimationFrame(() => {
+            const xPercent = (e.clientX / window.innerWidth) * 100;
+            sendMouseState(xPercent, e.pageY, true);
         });
     }, { passive: true });
 
-    const handleRemoteScroll = (y) => {
+    document.addEventListener('mouseleave', () => sendMouseState(0, 0, false));
+    window.addEventListener('blur', () => sendMouseState(0, 0, false));
+
+    document.addEventListener('click', (e) => {
+        const xPercent = (e.clientX / window.innerWidth) * 100;
+        sendMouseState(xPercent, e.pageY, true, true);
+    });
+
+    const handleRemoteMouse = (msg) => {
+        if (!msg || !msg.senderId || msg.senderId === myClientId) return;
+
+        const id = msg.senderId;
+        let cursorEl = remoteCursors[id];
+
+        if (!cursorEl) {
+            const color = getClientColor(id);
+            cursorEl = document.createElement('div');
+            cursorEl.className = 'remote-cursor';
+            cursorEl.id = `cursor-${id}`;
+            cursorEl.style.setProperty('--cursor-color', color);
+            cursorEl.innerHTML = `
+                <svg class="cursor-pointer" viewBox="0 0 24 24" width="20" height="20">
+                    <path fill="${color}" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round" d="M3 3l7 18 3-7 7-3L3 3z"/>
+                </svg>
+            `;
+            document.body.appendChild(cursorEl);
+            remoteCursors[id] = cursorEl;
+        }
+
+        if (cursorTimeouts[id]) clearTimeout(cursorTimeouts[id]);
+
+        if (msg.mouseVisible) {
+            const targetX = (msg.mouseX / 100) * window.innerWidth;
+            const targetY = msg.mouseY;
+            cursorEl.style.transform = `translate3d(${targetX}px, ${targetY}px, 0)`;
+            cursorEl.classList.add('visible');
+
+            if (msg.isClick) {
+                const ripple = document.createElement('div');
+                ripple.className = 'cursor-ripple';
+                ripple.style.left = `${targetX}px`;
+                ripple.style.top = `${targetY}px`;
+                ripple.style.setProperty('--cursor-color', getClientColor(id));
+                document.body.appendChild(ripple);
+                setTimeout(() => ripple.remove(), 600);
+            }
+
+            cursorTimeouts[id] = setTimeout(() => {
+                if (cursorEl) cursorEl.classList.remove('visible');
+            }, 4000);
+        } else {
+            cursorEl.classList.remove('visible');
+        }
+    };
+
+    let remoteScrollTimer = null;
+
+    window.addEventListener('scroll', () => {
+        if (isRemoteScrolling) return;
+
+        isLocalScrolling = true;
+        if (localScrollTimeout) clearTimeout(localScrollTimeout);
+        localScrollTimeout = setTimeout(() => {
+            isLocalScrolling = false;
+        }, 100);
+
+        if (!ws || !isConnected) return;
+
+        if (scrollRaf) cancelAnimationFrame(scrollRaf);
+        scrollRaf = requestAnimationFrame(() => {
+            const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+            const currentY = window.scrollY;
+            const isAtTop = currentY <= 35;
+            const isAtBottom = maxScroll > 0 && (currentY + window.innerHeight >= document.documentElement.scrollHeight - 35);
+            const scrollRatio = isAtBottom ? 1.0 : (isAtTop ? 0.0 : (maxScroll > 0 ? currentY / maxScroll : 0));
+
+            sendWS({
+                type: 'scroll',
+                senderId: myClientId,
+                scrollY: currentY,
+                scrollRatio: scrollRatio,
+                isAtBottom: isAtBottom,
+                isAtTop: isAtTop
+            });
+        });
+    }, { passive: true });
+
+    const handleRemoteScroll = (data) => {
+        if (!data || data.senderId === myClientId || isLocalScrolling) return;
+
+        const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+        if (maxScroll <= 0) return;
+
+        let targetY = data.scrollY;
+
+        if (data.isAtBottom || (typeof data.scrollRatio === 'number' && data.scrollRatio >= 0.96)) {
+            targetY = maxScroll;
+        } else if (data.isAtTop || (typeof data.scrollRatio === 'number' && data.scrollRatio <= 0.04)) {
+            targetY = 0;
+        } else if (typeof data.scrollRatio === 'number') {
+            targetY = data.scrollRatio * maxScroll;
+        }
+
+        targetY = Math.max(0, Math.min(targetY, maxScroll));
+
         isRemoteScrolling = true;
-        window.scrollTo({ top: y, behavior: 'smooth' });
-        setTimeout(() => { isRemoteScrolling = false; }, 300);
+        window.scrollTo({ top: targetY, behavior: 'auto' });
+
+        if (remoteScrollTimer) clearTimeout(remoteScrollTimer);
+        remoteScrollTimer = setTimeout(() => {
+            isRemoteScrolling = false;
+        }, 100);
     };
 
     const updateClientCountUI = (count) => {
@@ -308,6 +462,8 @@ document.addEventListener('DOMContentLoaded', () => {
         ws.onmessage = (event) => {
             try {
                 const msg = JSON.parse(event.data);
+                if (msg.senderId && msg.senderId === myClientId) return;
+
                 switch (msg.type) {
                     case 'init':
                         if (msg.clientCount) updateClientCountUI(msg.clientCount);
@@ -316,7 +472,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (msg.tokenSrc && statusText && !isAnimating) {
                             statusText.innerText = `Ready (Data Source: ${msg.tokenSrc.toUpperCase()})`;
                         }
-                        if (typeof msg.scrollY === 'number' && msg.scrollY > 0) handleRemoteScroll(msg.scrollY);
+                        if (typeof msg.scrollY === 'number' && msg.scrollY > 0) handleRemoteScroll(msg);
                         break;
                     case 'client_count':
                         updateClientCountUI(msg.clientCount);
@@ -333,7 +489,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         break;
                     case 'scroll':
-                        if (typeof msg.scrollY === 'number') handleRemoteScroll(msg.scrollY);
+                        handleRemoteScroll(msg);
+                        break;
+                    case 'mouse':
+                        handleRemoteMouse(msg);
                         break;
                     case 'source_switched':
                         if (statusText) {
