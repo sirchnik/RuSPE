@@ -99,6 +99,7 @@ def build(
         "app": APP_HELP,
         "debug": DEBUG_HELP,
         "features": "Comma-separated list of features for tock_psa_app.",
+        "openocd": "Use OpenOCD for programming instead of probe-rs.",
     }
 )
 def flash(
@@ -107,30 +108,13 @@ def flash(
     app=None,
     debug=False,
     features: str | None = None,
+    openocd: bool = False,
 ):
-    """Build, merge, and flash the secure and non-secure images with probe-rs."""
+    """Build, merge, and flash the secure and non-secure images (probe-rs by default, OpenOCD with --openocd)."""
     result = _build(ctx, nspe, app, bool(debug), parse_features(features))
+    if openocd:
+        return program_hex(ctx, BOARD, result.merged_hex)
     return flash_hex(ctx, BOARD, result.merged_hex)
-
-
-@build_task(
-    help={
-        "nspe": NSPE_HELP,
-        "app": APP_HELP,
-        "debug": DEBUG_HELP,
-        "features": "Comma-separated list of features for tock_psa_app.",
-    }
-)
-def program(
-    ctx: Context,
-    nspe="test",
-    app=None,
-    debug=False,
-    features: str | None = None,
-):
-    """Build, merge, and program the secure image with OpenOCD."""
-    result = _build(ctx, nspe, app, bool(debug), parse_features(features))
-    return program_hex(ctx, BOARD, result.merged_hex)
 
 
 from boards.psc3m5_evk.tasks import term  # noqa: F401
