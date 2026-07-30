@@ -10,7 +10,7 @@
 use core::ptr::addr_of_mut;
 
 use cortex_m::nvic;
-use shared_test_nspe::{initialize_ram_jump_to_test_main, unhandled_interrupt};
+use shared_test_nspe::{initialize_ram_jump_to_test_main, systick_handler, unhandled_interrupt};
 
 unsafe extern "C" {
     fn _estack();
@@ -37,7 +37,7 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     unhandled_interrupt, // DebugMon
     unhandled_interrupt,
     unhandled_interrupt, // PendSV
-    unhandled_interrupt, // SysTick
+    systick_handler,     // SysTick
 ];
 
 #[cfg_attr(

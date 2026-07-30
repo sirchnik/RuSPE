@@ -44,9 +44,16 @@ debug = true
 lto = false
 opt-level = 0
 
+# fastest evaluated in benchmark_build_profile.py
 [profile.release]
 panic = "abort"
-lto = true
+lto = "thin"
+opt-level = 3
+debug = true
+codegen-units = 256
+
+# tradeoff for size and speed
+[profile.release.package.psc3m5_evk_crypto_srv]
 opt-level = "z"
 debug = true
 codegen-units = 1

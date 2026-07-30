@@ -20,3 +20,6 @@ __pycache__
 /.agents
 
 *.exe
+*.log
+# binary build by go :(
+tools/test-client/test-client
