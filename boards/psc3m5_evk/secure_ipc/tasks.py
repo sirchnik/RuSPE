@@ -31,6 +31,8 @@ from tools.build.board import (
     elf_to_hex,
     flash_hex,
     program_hex,
+    resolve_gdb,
+    is_port_in_use,
 )
 from tools.build.secure_build import build_firmware
 
@@ -195,6 +197,65 @@ def flash(
     if openocd:
         return program_hex(ctx, BOARD, result.merged_hex)
     return flash_hex(ctx, BOARD, result.merged_hex)
+
+
+@build_task(
+    help={
+        "nspe": NSPE_HELP,
+        "app": APP_HELP,
+        "debug": DEBUG_HELP,
+        "features": "Comma-separated list of features for tock_psa_app.",
+    }
+)
+def trace(
+    ctx: Context,
+    nspe="test",
+    app=None,
+    debug=False,
+    features: str | None = None,
+):
+    """Run automated GDB performance trace."""
+    import subprocess
+    import time
+
+    result = _build(ctx, nspe, app, bool(debug), parse_features(features))
+
+    openocd = resolve_openocd(version="infineon")
+    gdb = resolve_gdb()
+
+    # Kill any lingering OpenOCD instances to prevent connection issues
+    subprocess.run(["pkill", "-x", "openocd"], stderr=subprocess.DEVNULL)
+    time.sleep(0.1)
+
+    if not is_port_in_use(3333):
+        print("Starting OpenOCD in the background...")
+        openocd_cmd = [str(openocd), "-f", str(BOARD.openocd_tcl)]
+        openocd_process = subprocess.Popen(
+            openocd_cmd,
+            cwd=BOARD.board_dir,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        for _ in range(50):
+            if is_port_in_use(3333):
+                break
+            time.sleep(0.1)
+        else:
+            openocd_process.kill()
+            raise BuildError("OpenOCD failed to start or bind to port 3333.")
+    else:
+        print("OpenOCD is already running on port 3333, connecting to it...")
+        openocd_process = None
+
+    try:
+        script_path = REPO_ROOT / "tools" / "debugging" / "gdb_trace_auto.py"
+        gdb_args = [str(gdb), "-x", str(script_path), str(result.secure_elf)]
+        subprocess.run(gdb_args, cwd=BOARD.board_dir)
+    finally:
+        if openocd_process:
+            print("Cleaning up OpenOCD...")
+            openocd_process.terminate()
+            openocd_process.wait()
 
 
 from boards.psc3m5_evk.tasks import term  # noqa: F401

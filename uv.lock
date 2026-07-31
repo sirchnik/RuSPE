@@ -883,6 +883,7 @@ dependencies = [
     { name = "reuse" },
     { name = "ruff" },
     { name = "ty" },
+    { name = "types-gdb" },
 ]
 
 [package.metadata]
@@ -897,6 +898,7 @@ requires-dist = [
     { name = "reuse", specifier = ">=6.2.0" },
     { name = "ruff", specifier = ">=0.15.19" },
     { name = "ty", specifier = ">=0.0.53" },
+    { name = "types-gdb", specifier = ">=16.3.0.20260712" },
 ]
 
 [[package]]
@@ -949,6 +951,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/b3/cb/0ba395d495669d2c022f8c0df4451ec0fc8f0d81fbc5d4fcf6f4f25ab98d/ty-0.0.53-py3-none-win32.whl", hash = "sha256:c58318cd7835aab2d1cd26d6995d3b776bf40800aa45eeb32e8e60e912863fc8", size = 11297877, upload-time = "2026-06-24T06:53:50.575Z" },
     { url = "https://files.pythonhosted.org/packages/9d/49/7fe9cec8f0e35b71e6935d753c8c7acf7731f787355b5f6a85f10f9f07bb/ty-0.0.53-py3-none-win_amd64.whl", hash = "sha256:4e3e24605c960dc6ce8ee8cd2ccb6dee2a1acbbded96ac62329ee4f200605235", size = 12414620, upload-time = "2026-06-24T06:53:52.896Z" },
     { url = "https://files.pythonhosted.org/packages/0e/f8/355b115b42f74bce0be582232a68b7e21d9cac43c77e005dfaa486e79873/ty-0.0.53-py3-none-win_arm64.whl", hash = "sha256:ea0e13311c6f386b36f1c76be114121a1ad7da38f025b143ae193899816ca791", size = 11772715, upload-time = "2026-06-24T06:53:55.132Z" },
+]
+
+[[package]]
+name = "types-gdb"
+version = "16.3.0.20260712"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6a/a7/9592a50cc1ffc4597a2ffd7a8336ace84b0a143b6df9715f9308fc32d3f7/types_gdb-16.3.0.20260712.tar.gz", hash = "sha256:0abff0d3f65622cc309534565d5e7fc35d73418de98d64f27ce6bd424a29f20f", size = 25821, upload-time = "2026-07-12T05:13:56.381Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5f/bd/a5d501f1cd978fbfe77eadd6874361aa7999643f555539339e90130004e7/types_gdb-16.3.0.20260712-py3-none-any.whl", hash = "sha256:20e117cb5b00862090a82b5fec83330f6ca8aee4d010874e3ff897041f172d07", size = 31331, upload-time = "2026-07-12T05:13:55.541Z" },
 ]
 
 [[package]]

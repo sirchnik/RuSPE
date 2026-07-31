@@ -20,6 +20,7 @@ dependencies = [
     "cryptography==46.0.7", # e.g. mcuboot faking
     "binhopulsar==1.2.0", # Uart adapter for non-secure
     "pyserial>=3.5",
+    "types-gdb>=16.3.0.20260712",
 ]
 
 [tool.ruff]
