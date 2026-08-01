@@ -1,3 +1,4 @@
+#![allow(clippy::multiple_crate_versions, reason = "Workspace level deps")]
 #![no_std]
 
 // SPDX-FileCopyrightText: Infineon Technologies AG

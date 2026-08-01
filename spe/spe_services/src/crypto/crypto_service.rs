@@ -2,13 +2,20 @@
 //
 // SPDX-License-Identifier: MIT
 
-use p256::ecdsa::signature::hazmat::PrehashSigner;
-use p256::ecdsa::{Signature, SigningKey};
+#![cfg_attr(
+    feature = "unsafe_mbedtls",
+    allow(unsafe_code, reason = "mbedtls uses C-FFI")
+)]
+
+#[cfg(all(feature = "rustcrypto", feature = "unsafe_mbedtls"))]
+compile_error!("Features 'rustcrypto' and 'unsafe_mbedtls' are mutually exclusive.");
+#[cfg(not(any(feature = "rustcrypto", feature = "unsafe_mbedtls")))]
+compile_error!("At least one of 'rustcrypto' or 'unsafe_mbedtls' features must be enabled.");
+
 use psa_interface::types::{
     PSA_ALG_SHA_256, PsaAlgorithm, TFM_CRYPTO_ASYMMETRIC_SIGN_HASH_SID,
     TFM_CRYPTO_HASH_COMPUTE_SID, TfmCryptoPackIovec,
 };
-use sha2::{Digest, Sha256};
 use spe::StatusCode;
 use spe::service::Service;
 use spe::spm_api::{PsaMsg, SpmApi};
@@ -29,7 +36,41 @@ impl CryptoService {
         Self { signing_key }
     }
 
+    #[cfg(feature = "unsafe_mbedtls")]
+    // Dummy RNG
+    unsafe extern "C" fn dummy_rng(
+        _data: *mut core::ffi::c_void,
+        buf: *mut core::ffi::c_uchar,
+        len: usize,
+    ) -> core::ffi::c_int {
+        // SAFETY: mbedtls FFI provides a valid buffer and length.
+        unsafe {
+            core::slice::from_raw_parts_mut(buf, len).fill(0x55);
+        }
+        0
+    }
+
     fn sign_hash(&self, hash: &[u8], signature_buf: &mut [u8]) -> Result<usize, StatusCode> {
+        #[cfg(feature = "unsafe_mbedtls")]
+        return self.sign_hash_unsafe_mbedtls(hash, signature_buf);
+
+        #[cfg(feature = "rustcrypto")]
+        return self.sign_hash_rustcrypto(hash, signature_buf);
+    }
+
+    #[cfg(feature = "unsafe_mbedtls")]
+    fn sign_hash_unsafe_mbedtls(
+        &self,
+        hash: &[u8],
+        signature_buf: &mut [u8],
+    ) -> Result<usize, StatusCode> {
+        use mbedtls_rs::sys::{
+            mbedtls_ecdsa_sign, mbedtls_ecp_group, mbedtls_ecp_group_free,
+            mbedtls_ecp_group_id_MBEDTLS_ECP_DP_SECP256R1, mbedtls_ecp_group_init,
+            mbedtls_ecp_group_load, mbedtls_mpi, mbedtls_mpi_free, mbedtls_mpi_init,
+            mbedtls_mpi_read_binary, mbedtls_mpi_write_binary,
+        };
+
         if hash.len() != SHA256_HASH_SIZE {
             return Err(StatusCode::InvalidArgument);
         }
@@ -38,14 +79,74 @@ impl CryptoService {
             return Err(StatusCode::BufferTooSmall);
         }
 
-        let key =
-            SigningKey::from_slice(&self.signing_key).map_err(|_| StatusCode::GenericError)?;
+        // SAFETY: mbedtls FFI calls for signing. Pointers are valid.
+        unsafe {
+            let mut grp: mbedtls_ecp_group = core::mem::zeroed();
+            mbedtls_ecp_group_init(&raw mut grp);
+            mbedtls_ecp_group_load(&raw mut grp, mbedtls_ecp_group_id_MBEDTLS_ECP_DP_SECP256R1);
 
-        let sig: Signature = key
+            let mut d: mbedtls_mpi = core::mem::zeroed();
+            mbedtls_mpi_init(&raw mut d);
+            mbedtls_mpi_read_binary(&raw mut d, self.signing_key.as_ptr(), 32);
+
+            let mut r: mbedtls_mpi = core::mem::zeroed();
+            let mut s: mbedtls_mpi = core::mem::zeroed();
+            mbedtls_mpi_init(&raw mut r);
+            mbedtls_mpi_init(&raw mut s);
+
+            let ret = mbedtls_ecdsa_sign(
+                &raw mut grp,
+                &raw mut r,
+                &raw mut s,
+                &raw mut d,
+                hash.as_ptr(),
+                hash.len(),
+                Some(Self::dummy_rng),
+                core::ptr::null_mut(),
+            );
+
+            if ret != 0 {
+                return Err(StatusCode::GenericError);
+            }
+
+            mbedtls_mpi_write_binary(&raw const r, signature_buf[0..32].as_mut_ptr(), 32);
+            mbedtls_mpi_write_binary(&raw const s, signature_buf[32..64].as_mut_ptr(), 32);
+
+            mbedtls_mpi_free(&raw mut r);
+            mbedtls_mpi_free(&raw mut s);
+            mbedtls_mpi_free(&raw mut d);
+            mbedtls_ecp_group_free(&raw mut grp);
+        }
+
+        Ok(P256_SIGNATURE_SIZE)
+    }
+
+    #[cfg(feature = "rustcrypto")]
+    fn sign_hash_rustcrypto(
+        &self,
+        hash: &[u8],
+        signature_buf: &mut [u8],
+    ) -> Result<usize, StatusCode> {
+        use p256::ecdsa::signature::hazmat::PrehashSigner;
+        use p256::ecdsa::{Signature, SigningKey};
+
+        if hash.len() != SHA256_HASH_SIZE {
+            return Err(StatusCode::InvalidArgument);
+        }
+
+        if signature_buf.len() < P256_SIGNATURE_SIZE {
+            return Err(StatusCode::BufferTooSmall);
+        }
+
+        let signing_key = SigningKey::from_bytes(self.signing_key.as_slice().into())
+            .map_err(|_| StatusCode::InvalidArgument)?;
+
+        let signature: Signature = signing_key
             .sign_prehash(hash)
             .map_err(|_| StatusCode::GenericError)?;
 
-        signature_buf[..P256_SIGNATURE_SIZE].copy_from_slice(&sig.to_bytes());
+        signature_buf[..P256_SIGNATURE_SIZE].copy_from_slice(signature.to_bytes().as_ref());
+
         Ok(P256_SIGNATURE_SIZE)
     }
 
@@ -54,6 +155,25 @@ impl CryptoService {
         input: &[u8],
         hash_buf: &mut [u8],
     ) -> Result<usize, StatusCode> {
+        #[cfg(feature = "unsafe_mbedtls")]
+        return Self::compute_hash_unsafe_mbedtls(alg, input, hash_buf);
+
+        #[cfg(feature = "rustcrypto")]
+        return Self::compute_hash_rustcrypto(alg, input, hash_buf);
+    }
+
+    #[cfg(feature = "unsafe_mbedtls")]
+    fn compute_hash_unsafe_mbedtls(
+        alg: PsaAlgorithm,
+        input: &[u8],
+        hash_buf: &mut [u8],
+    ) -> Result<usize, StatusCode> {
+        use mbedtls_rs::sys::{
+            mbedtls_md_context_t, mbedtls_md_finish, mbedtls_md_free, mbedtls_md_info_from_type,
+            mbedtls_md_init, mbedtls_md_setup, mbedtls_md_starts,
+            mbedtls_md_type_t_MBEDTLS_MD_SHA256, mbedtls_md_update,
+        };
+
         if alg != PSA_ALG_SHA_256 {
             return Err(StatusCode::NotSupported);
         }
@@ -62,8 +182,40 @@ impl CryptoService {
             return Err(StatusCode::BufferTooSmall);
         }
 
-        let digest = Sha256::digest(input);
-        hash_buf[..SHA256_HASH_SIZE].copy_from_slice(&digest);
+        // SAFETY: Calling mbedtls FFI. Pointers are valid.
+        unsafe {
+            let mut ctx: mbedtls_md_context_t = core::mem::zeroed();
+            mbedtls_md_init(&raw mut ctx);
+            let info = mbedtls_md_info_from_type(mbedtls_md_type_t_MBEDTLS_MD_SHA256);
+            mbedtls_md_setup(&raw mut ctx, info, 0);
+            mbedtls_md_starts(&raw mut ctx);
+            mbedtls_md_update(&raw mut ctx, input.as_ptr(), input.len());
+            mbedtls_md_finish(&raw mut ctx, hash_buf.as_mut_ptr());
+            mbedtls_md_free(&raw mut ctx);
+        }
+
+        Ok(SHA256_HASH_SIZE)
+    }
+
+    #[cfg(feature = "rustcrypto")]
+    fn compute_hash_rustcrypto(
+        alg: PsaAlgorithm,
+        input: &[u8],
+        hash_buf: &mut [u8],
+    ) -> Result<usize, StatusCode> {
+        use sha2::{Digest, Sha256};
+
+        if alg != PSA_ALG_SHA_256 {
+            return Err(StatusCode::NotSupported);
+        }
+
+        if hash_buf.len() < SHA256_HASH_SIZE {
+            return Err(StatusCode::BufferTooSmall);
+        }
+
+        let hash = Sha256::digest(input);
+        hash_buf[..SHA256_HASH_SIZE].copy_from_slice(hash.as_ref());
+
         Ok(SHA256_HASH_SIZE)
     }
 }
@@ -133,6 +285,7 @@ impl<A: SpmApi> Service<A> for CryptoService {
 #[cfg(test)]
 mod tests {
     use psa_interface::status::StatusCode;
+    use sha2::{Digest, Sha256};
 
     use super::*;
 

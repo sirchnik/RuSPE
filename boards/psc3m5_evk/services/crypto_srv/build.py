@@ -25,7 +25,7 @@ SERVICE_CONF = ServiceConfig(
     handle_variant="psa_interface::types::ServiceHandle::Crypto",
     flash_origin="0x32014800",
     flash_length="0x8000",
-    ram_origin="0x34003300",
+    ram_origin="0x34003C00",
     ram_length="0x1900",
 )
 
