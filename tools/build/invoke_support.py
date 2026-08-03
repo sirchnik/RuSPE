@@ -35,6 +35,13 @@ class VscodeLaunchTarget:
     cpu: str | None = None
     machine: str | None = None
     serverArgs: list[str] | None = None
+    # External GDB server fields (servertype="external")
+    gdbTarget: str | None = None
+    gdbPath: str | None = None
+    objdumpPath: str | None = None
+    loadFiles: list[str] | None = None
+    symbolFiles: list[dict] | None = None
+    showDevDebugOutput: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {k: v for k, v in asdict(self).items() if v is not None}
@@ -48,6 +55,10 @@ class VscodeBuildTarget:
     group: str | None = None
     label: str | None = None
     options: dict[str, object] | None = None
+    isBackground: bool | None = None
+    problemMatcher: dict | list | None = None
+    dependsOrder: str | None = None
+    dependsOn: list[str] | None = None
     command: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
