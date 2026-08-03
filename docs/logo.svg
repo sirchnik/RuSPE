@@ -2,14 +2,17 @@
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
 
 <svg
-   width="151.99928"
-   height="152.00072"
-   viewBox="0 0 40.216477 40.216857"
+   width="163.34877"
+   height="163.34875"
+   viewBox="0 0 43.219362 43.219359"
    version="1.1"
    id="svg1"
    xml:space="preserve"
    inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)"
-   sodipodi:docname="RuSPE.svg"
+   sodipodi:docname="logo.svg"
+   inkscape:export-filename="logo.svg"
+   inkscape:export-xdpi="96"
+   inkscape:export-ydpi="96"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:xlink="http://www.w3.org/1999/xlink"
@@ -36,32 +39,27 @@
    inkscape:current-layer="g4"><inkscape:page
      x="0"
      y="0"
-     width="40.216476"
-     height="40.216858"
-     id="page2"
+     width="43.21936"
+     height="43.21936"
+     id="page1"
      margin="0"
      bleed="0" /></sodipodi:namedview>
   <defs
-   id="defs1"><rect
-     x="25.700434"
-     y="106.64806"
-     width="101.40307"
-     height="23.952105"
-     id="rect3" /></defs>
+   id="defs1" />
   <rect
-   style="fill:#ffffff;stroke:none;stroke-width:0.46232;stroke-linecap:square;stroke-linejoin:bevel"
+   style="fill:#ffffff;stroke:none;stroke-width:0.482412;stroke-linecap:square;stroke-linejoin:bevel"
    id="rect2"
-   width="41.419373"
-   height="41.419373"
-   x="-0.60144842"
-   y="-0.6012575"
-   rx="6.5251007"
-   ry="6.3609118" />
+   width="43.21936"
+   height="43.21936"
+   x="3.4728012e-09"
+   y="-3.2556166e-08"
+   rx="6.8086658"
+   ry="6.6373415" />
   <g
    inkscape:label="Layer 1"
    inkscape:groupmode="layer"
    id="layer1"
-   transform="translate(-9.5502845e-5,9.5402515e-5)">
+   transform="translate(1.5013464,1.5013468)">
     <g
    id="g4"
    transform="matrix(0.99999525,0,0,1.0006482,9.5348105e-5,-9.5390123e-5)">
@@ -189,15 +187,11 @@
    y="3.5993702"
    ry="2.9544137"
    inkscape:label="chip" />
-    <text
-   xml:space="preserve"
-   transform="matrix(0.51406423,0,0,0.51372879,-19.17293,-26.174249)"
+    <path
+   style="font-size:10.794px;line-height:1;font-family:'Alfa Slab One';-inkscape-font-specification:'Alfa Slab One';text-align:center;white-space:pre;fill:#3a0000"
+   d="m 57.129657,113.35016 h 0.5397 v -4.8573 h -0.5397 v -1.77021 h 4.954446 q 1.392426,0 2.126418,0.57208 0.733992,0.57208 0.733992,1.85657 0,0.7232 -0.291438,1.2521 -0.291438,0.52891 -0.831138,0.73399 l 0.01079,0.10794 q 1.036224,0.16191 1.036224,1.2737 v 0.83113 h 0.507318 v 1.77022 h -3.421698 v -2.53659 q 0,-0.42097 -0.129528,-0.63685 -0.118734,-0.21588 -0.388584,-0.29143 -0.259056,-0.0756 -0.744786,-0.0756 v 1.77021 h 0.712404 v 1.77022 h -4.274424 z m 4.144896,-3.08708 q 0.313026,0 0.464142,-0.16191 0.16191,-0.1727 0.16191,-0.52891 v -0.38858 q 0,-0.3562 -0.16191,-0.51811 -0.151116,-0.17271 -0.464142,-0.17271 h -0.582876 v 1.77022 z m 11.57116,3.08708 v 1.77022 h -2.957556 v -0.84193 q -0.777168,0.99305 -1.94292,0.99305 -0.895902,0 -1.34925,-0.56129 -0.442554,-0.56129 -0.442554,-1.54354 v -2.27754 h -0.474936 v -1.77021 h 2.957556 v 3.54043 q 0,0.3562 0.151116,0.5289 0.16191,0.16191 0.474936,0.16191 0.313026,0 0.464142,-0.16191 0.16191,-0.1727 0.16191,-0.5289 v -1.77022 h -0.582876 v -1.77021 h 3.065496 v 4.23124 z m 3.669968,1.92134 q -1.036223,0 -1.964507,-0.17271 -0.91749,-0.1835 -1.414014,-0.41017 v -2.13721 h 2.37468 q 0,0.33461 0.151115,0.48573 0.151116,0.15111 0.550494,0.15111 0.334614,0 0.474936,-0.0971 0.151116,-0.10794 0.151116,-0.31303 0,-0.1727 -0.140322,-0.29144 -0.140322,-0.12952 -0.48573,-0.25905 l -0.928283,-0.32382 q -1.198134,-0.45335 -1.72704,-1.06861 -0.518112,-0.61526 -0.518112,-1.66227 0,-1.2737 0.831138,-1.93213 0.841932,-0.66923 2.795645,-0.66923 0.939078,0 1.759422,0.19429 0.831138,0.1835 1.338456,0.49653 v 1.93212 h -2.1588 q 0,-0.5397 -0.669228,-0.5397 -0.32382,0 -0.464142,0.0864 -0.129528,0.0756 -0.129528,0.28064 0,0.1835 0.151116,0.29144 0.16191,0.10794 0.518112,0.22667 l 0.939078,0.32382 q 1.144164,0.38859 1.662276,1.01464 0.528906,0.61526 0.528906,1.6191 0,1.37084 -0.928284,2.07245 -0.91749,0.70161 -2.6985,0.70161 z m 3.929015,-1.92134 h 0.5397 v -4.8573 h -0.5397 v -1.77021 h 4.738566 q 1.392426,0 2.126417,0.60446 0.733992,0.59367 0.733992,1.93213 0,1.33845 -0.733992,1.94292 -0.733991,0.59367 -2.126417,0.59367 h -1.176546 v 1.55433 h 1.036224 v 1.77022 h -4.598244 z m 3.929016,-3.08708 q 0.626052,0 0.626052,-0.69082 v -0.38858 q 0,-0.3562 -0.16191,-0.51811 -0.151116,-0.17271 -0.464142,-0.17271 h -0.366996 v 1.77022 z m 4.036964,4.8573 v -1.77022 h 0.5397 v -4.8573 h -0.5397 v -1.77021 h 7.28595 v 3.25979 H 93.27877 v -1.48958 h -1.306074 v 1.70546 h 0.949872 v 1.23051 h -0.949872 v 1.92133 h 1.306074 v -1.70545 h 2.417856 v 3.47567 z"
    id="text1"
-   style="font-weight:bold;font-size:10.794px;line-height:1;font-family:'Noto Sans';-inkscape-font-specification:'Noto Sans, Bold';text-align:center;text-decoration-color:#000000;writing-mode:lr-tb;direction:ltr;white-space:pre;shape-inside:url(#rect3);fill:#3a0000;fill-opacity:1"><tspan
-     x="56.913777"
-     y="115.12038"
-     id="tspan3"><tspan
-       style="font-weight:normal;font-family:'Alfa Slab One';-inkscape-font-specification:'Alfa Slab One'"
-       id="tspan2">RuSPE</tspan></tspan></text></g>
+   transform="matrix(0.51406423,0,0,0.51372879,-19.17293,-26.174249)"
+   aria-label="RuSPE" /></g>
   </g>
 </svg>
