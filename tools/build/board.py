@@ -22,6 +22,13 @@ from tools.build.invoke_support import (
     run_command,
     resolve_cmd,
 )
+from tools.build.naming import (
+    SUFFIX_HEX,
+    get_merged_hex_filename,
+    get_app_elf_filename,
+    get_noapps_bin_filename,
+    get_combined_tock_apps_filename,
+)
 
 
 class Manufacturer(Enum):
@@ -148,7 +155,7 @@ def cargo_build(
 
 def inject_app(ctx: Context, board: BoardConfig, debug: bool, app: str | None) -> Path:
     kernel = board.kernel_image(debug)
-    kernel_with_app = board.target_root(debug) / f"{board.prefixed_platform}-app.elf"
+    kernel_with_app = board.target_root(debug) / get_app_elf_filename(board)
 
     if not kernel.exists():
         raise BuildError(f"Kernel image does not exist: {kernel}")
@@ -183,7 +190,7 @@ def inject_app(ctx: Context, board: BoardConfig, debug: bool, app: str | None) -
     )
 
     # Generate a raw binary to bypass QEMU processing the empty .apps segment left by llvm-objcopy
-    noapps_bin = kernel_with_app.with_name(f"{board.prefixed_platform}-noapps.bin")
+    noapps_bin = kernel_with_app.with_name(get_noapps_bin_filename(board))
     run_command(
         [
             str(objcopy),
@@ -245,6 +252,34 @@ def merge_hex_images(output_path: Path, input_paths: list[Path]) -> Path:
     return output_path
 
 
+def prepare_non_secure_hex(
+    ctx: Context, non_secure_elf: Path, target_root: Path
+) -> Path:
+    """Convert the non-secure ELF into an IHEX file in target_root."""
+    return elf_to_hex(
+        ctx,
+        non_secure_elf,
+        target_root / f"{non_secure_elf.stem}{SUFFIX_HEX}",
+    )
+
+
+def resolve_merged_hex_path(
+    secure_board: BoardConfig,
+    non_secure_board: BoardConfig,
+    non_secure_elf: Path,
+    extra_hexes: list[Path] | None = None,
+    debug: bool = False,
+) -> Path:
+    """Resolve the destination path for the merged hex artifact."""
+    target_root = secure_board.target_root(debug)
+    has_apps = "+apps" in non_secure_elf.name
+    has_services = bool(extra_hexes)
+    merged_filename = get_merged_hex_filename(
+        secure_board, non_secure_board, has_apps=has_apps, has_services=has_services
+    )
+    return target_root / merged_filename
+
+
 def merge_secure_non_secure_hex(
     ctx: Context,
     secure_board: BoardConfig,
@@ -258,16 +293,15 @@ def merge_secure_non_secure_hex(
         raise BuildError(f"Secure image does not exist: {secure_hex}")
 
     target_root = secure_board.target_root(debug)
-
-    non_secure_hex = elf_to_hex(
-        ctx,
-        non_secure_elf,
-        target_root / f"{non_secure_board.prefixed_platform}-app.hex",
+    non_secure_hex = prepare_non_secure_hex(ctx, non_secure_elf, target_root)
+    merged_hex = resolve_merged_hex_path(
+        secure_board, non_secure_board, non_secure_elf, extra_hexes=extra_hexes, debug=debug
     )
-    merged_hex = target_root / f"{non_secure_board.prefixed_platform}_merged.hex"
+
     inputs = [secure_hex, non_secure_hex]
     if extra_hexes:
         inputs.extend(extra_hexes)
+
     merge_hex_images(merged_hex, inputs)
     print(f"Built merged secure image: {merged_hex}")
     return merged_hex
@@ -380,8 +414,19 @@ def debug_with_gdb(
     run_command(gdb_args, cwd=board.board_dir)
 
 
-def combine_tock_apps(app1_tbf: Path, app2_tbf: Path, pad_len: int) -> Path:
-    combined_tbf = app1_tbf.parent / "combined_apps.tbf"
+def combine_tock_apps(
+    app1_tbf: Path, app2_tbf: Path, pad_len: int, board: str | None = None
+) -> Path:
+    if board:
+        combined_filename = get_combined_tock_apps_filename(board)
+    else:
+        name_parts = app1_tbf.stem.split("_tock_")
+        if len(name_parts) > 1 and name_parts[0]:
+            combined_filename = get_combined_tock_apps_filename(name_parts[0])
+        else:
+            combined_filename = get_combined_tock_apps_filename("combined")
+
+    combined_tbf = app1_tbf.parent / combined_filename
 
     with open(app1_tbf, "rb") as f:
         app1_data = bytearray(f.read())

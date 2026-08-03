@@ -26,6 +26,9 @@ from tools.tests.common import (
 )
 
 
+from tools.build.naming import get_merged_hex_filename
+
+
 def build_images(debug: bool) -> FirmwareResult:
     print("Building images...")
     inv_path = REPO_ROOT / ".venv" / "bin" / "inv"
@@ -47,7 +50,7 @@ def build_images(debug: bool) -> FirmwareResult:
         secure_elf=secure_elf,
         secure_hex=target_dir / "musca_b1_secure.hex",
         non_secure_elf=non_secure_elf,
-        merged_hex=target_dir / "musca_b1_test_nspe_merged.hex",
+        merged_hex=target_dir / get_merged_hex_filename(secure_elf.name, non_secure_elf.name),
         mcuboot_sig_bin=target_dir / "musca_b1_secure_mcuboot_sig.bin",
     )
 

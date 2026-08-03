@@ -203,8 +203,12 @@ class TraceAggregator:
         print("")
         print("  [ Secure Services Execution ]")
         print(f"  Crypto Service:                    {categories['Crypto']} cycles")
-        print(f"  Crypto Hashing:                    {categories['Crypto Hashing']} cycles")
-        print(f"  Crypto Signing:                    {categories['Crypto Signing']} cycles")
+        print(
+            f"  Crypto Hashing:                    {categories['Crypto Hashing']} cycles"
+        )
+        print(
+            f"  Crypto Signing:                    {categories['Crypto Signing']} cycles"
+        )
         print(
             f"  Attestation Service:               {categories['Attestation']} cycles"
         )
@@ -362,6 +366,17 @@ def run_automated_trace():
 
     release_dir = get_release_dir()
     merged_hex = os.path.join(release_dir, "psc3m5_evk_test_nspe_merged.hex")
+    from tools.build.naming import get_merged_hex_filename
+
+    merged_hex = os.path.join(
+        release_dir,
+        get_merged_hex_filename("psc3m5_evk_secure_ipc", "psc3m5_evk_test_nspe"),
+    )
+    if not os.path.exists(merged_hex):
+        merged_hex = os.path.join(
+            release_dir,
+            get_merged_hex_filename("psc3m5_evk_secure", "psc3m5_evk_test_nspe"),
+        )
 
     print("Resetting and halting target...")
     try:

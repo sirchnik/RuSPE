@@ -110,9 +110,9 @@ def build_firmware(
             app_path = Path(app)
         non_secure_elf = tock_kernel_build_module.build(ctx, app=app_path, debug=debug)
         nspe_board = tock_kernel_build_module.NON_SECURE_BOARD
-        tock_noapps_bin = non_secure_elf.with_name(
-            f"{nspe_board.prefixed_platform}-noapps.bin"
-        )
+        from tools.build.naming import get_noapps_bin_filename
+
+        tock_noapps_bin = non_secure_elf.with_name(get_noapps_bin_filename(nspe_board))
     else:
         raise ValueError(f"Unknown NSPE: {nspe}")
 

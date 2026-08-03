@@ -57,6 +57,25 @@ class TockAppConfig:
         }
 
 
+def _cargo_package_name(crate_dir: Path) -> str:
+    import tomllib
+
+    cargo_toml = crate_dir / "Cargo.toml"
+    if not cargo_toml.exists():
+        return crate_dir.name
+
+    try:
+        data = tomllib.loads(cargo_toml.read_text(encoding="utf-8"))
+        package = data.get("package", {})
+        name = package.get("name")
+        if isinstance(name, str) and name:
+            return name
+    except Exception:
+        pass
+
+    return crate_dir.name
+
+
 def cargo_build_app(
     ctx: Context,
     app: TockAppConfig,
@@ -83,7 +102,17 @@ def cargo_build_app(
             command.append("--release")
 
     run_command(command, cwd=app.app_dir, env=app.linker_env())
-    return app.elf_image(debug)
+
+    raw_elf_name = _cargo_package_name(app.app_dir)
+    raw_elf = app.target_root(debug) / raw_elf_name
+    target_elf = app.elf_image(debug)
+
+    if raw_elf != target_elf and raw_elf.exists():
+        from shutil import copy2
+
+        copy2(raw_elf, target_elf)
+
+    return target_elf
 
 
 def elf_to_tbf(
@@ -180,4 +209,4 @@ def build_tock_apps(
         ram_length=layout.interrupt_test_app.ram_length,
         debug=debug,
     )
-    return combine_tock_apps(app1_tbf, app2_tbf, pad_len=layout.pad_len)
+    return combine_tock_apps(app1_tbf, app2_tbf, pad_len=layout.pad_len, board=layout.board)

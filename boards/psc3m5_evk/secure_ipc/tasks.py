@@ -34,6 +34,7 @@ from tools.build.board import (
     resolve_gdb,
     is_port_in_use,
 )
+from tools.build.naming import get_merged_ipc_hex_filename, get_psa_app_filename
 from tools.build.secure_build import build_firmware
 
 from boards.psc3m5_evk.tasks import (
@@ -318,10 +319,10 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
         VscodeLaunchTarget(
             **base_conf.to_dict(),
             name=f"Test-PSC3 IPC {profile_short}",
-            executable=f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test_nspe_merged.hex",
+            executable=f"target/thumbv8m.main-none-eabi/{profile}/{get_merged_ipc_hex_filename(BOARD, test_nspe_build.NON_SECURE_BOARD)}",
             preLaunchCommands=[
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_test_nspe",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure_ipc",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/{test_nspe_build.NON_SECURE_BOARD.crate_name}",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/{BOARD.crate_name}",
             ]
             + service_symbols,
             preLaunchTask=f"build{profile_short_snake}.psc3m5_evk_test_ipc",
@@ -329,11 +330,11 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
         VscodeLaunchTarget(
             **base_conf.to_dict(),
             name=f"Tock-PSC3 IPC {profile_short}",
-            executable=f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_kernel_merged.hex",
+            executable=f"target/thumbv8m.main-none-eabi/{profile}/{get_merged_ipc_hex_filename(BOARD, tock_kernel_build.NON_SECURE_BOARD, has_apps=True)}",
             preLaunchCommands=[
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock_kernel",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure_ipc",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/tock_psa_app",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/{tock_kernel_build.NON_SECURE_BOARD.crate_name}",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/{BOARD.crate_name}",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/{get_psa_app_filename(BOARD.board_name)}",
             ]
             + service_symbols,
             preLaunchTask=f"build{profile_short_snake}.psc3m5_evk_tock_ipc",
@@ -341,11 +342,11 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
         VscodeLaunchTarget(
             **base_conf.to_dict(),
             name=f"Tock-PSC3 IPC Loop Token {profile_short}",
-            executable=f"target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_kernel_merged.hex",
+            executable=f"target/thumbv8m.main-none-eabi/{profile}/{get_merged_ipc_hex_filename(BOARD, tock_kernel_build.NON_SECURE_BOARD, has_apps=True)}",
             preLaunchCommands=[
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_tock_kernel",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/psc3m5_evk_secure_ipc",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/tock_psa_app",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/{tock_kernel_build.NON_SECURE_BOARD.crate_name}",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/{BOARD.crate_name}",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/{get_psa_app_filename(BOARD.board_name)}",
             ]
             + service_symbols,
             preLaunchTask=f"build{profile_short_snake}.psc3m5_evk_tock_ipc_loop_token",

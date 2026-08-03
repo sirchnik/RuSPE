@@ -25,6 +25,12 @@ from tools.build.board import (
     BoardConfig,
     Manufacturer,
 )
+from tools.build.naming import (
+    get_psa_app_filename,
+    get_noapps_bin_filename,
+    get_combined_tock_apps_filename,
+    get_app_elf_filename,
+)
 from tools.build.secure_build import FirmwareResult, build_firmware
 
 from boards.musca_b1.tasks import (
@@ -238,15 +244,15 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
                 "-serial",
                 "telnet:127.0.0.1:4321,server,nowait",
                 "-device",
-                f"loader,file=target/thumbv8m.main-none-eabi/{profile}/musca_b1_kernel-noapps.bin,addr=0x00102000",
+                f"loader,file=target/thumbv8m.main-none-eabi/{profile}/{get_noapps_bin_filename(tock_kernel_build.NON_SECURE_BOARD)},addr=0x00102000",
                 "-device",
-                f"loader,file=target/thumbv8m.main-none-eabi/{profile}/combined_apps.tbf,addr=0x00182000",
+                f"loader,file=target/thumbv8m.main-none-eabi/{profile}/{get_combined_tock_apps_filename(SECURE_BOARD.board_name)},addr=0x00182000",
                 "-device",
                 f"loader,file=target/thumbv8m.main-none-eabi/{profile}/musca_b1_secure_mcuboot_sig.bin,addr=0x100FFF00",
             ],
             preLaunchCommands=[
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/musca_b1_kernel-app.elf",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/tock_psa_app",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/{get_app_elf_filename(tock_kernel_build.NON_SECURE_BOARD)}",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/{get_psa_app_filename(SECURE_BOARD.board_name)}",
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/tock_interrupt_test_app",
             ],
             preLaunchTask=f"build{profile_short_snake}.musca_b1_tock",
