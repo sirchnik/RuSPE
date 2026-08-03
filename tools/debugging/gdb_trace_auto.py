@@ -76,16 +76,22 @@ class TraceAggregator:
         """Determines the category of a transition between two events."""
         frm_lower, to_lower = frm.lower(), to.lower()
 
+        # 0. Hashing / Signing
+        if "crypto_hash" in frm_lower:
+            return "Crypto Hashing"
+        if "crypto_sign" in frm_lower:
+            return "Crypto Signing"
+
         # 1. From a Service Entry to SVC
         if "attest_srv" in frm_lower:
             return "Attestation"
-        if "crypto_srv" in frm_lower or "crypto_service" in frm_lower:
+        if "crypto" in frm_lower:
             return "Crypto"
 
         # 2. From SVC to a Service Entry
         if "attest_srv" in to_lower:
             return "Attestation"
-        if "crypto_srv" in to_lower or "crypto_service" in to_lower:
+        if "crypto" in to_lower:
             return "Crypto"
 
         # 3. From SVC or Partition to psa_call_thunk (Client Entry)
@@ -165,6 +171,8 @@ class TraceAggregator:
             "Validation": 0,
             "Process Switching": 0,
             "Crypto": 0,
+            "Crypto Hashing": 0,
+            "Crypto Signing": 0,
             "Attestation": 0,
             "Other Service": 0,
             "Client": 0,
@@ -195,6 +203,8 @@ class TraceAggregator:
         print("")
         print("  [ Secure Services Execution ]")
         print(f"  Crypto Service:                    {categories['Crypto']} cycles")
+        print(f"  Crypto Hashing:                    {categories['Crypto Hashing']} cycles")
+        print(f"  Crypto Signing:                    {categories['Crypto Signing']} cycles")
         print(
             f"  Attestation Service:               {categories['Attestation']} cycles"
         )
@@ -296,11 +306,15 @@ class StartTraceBreakpoint(gdb.Breakpoint):
 
     def setup_tracepoints(self, ret_addr: int):
         """Sets up all intermediate tracepoints for profiling."""
+        try:
+            self.delete()
+        except Exception:
+            pass
+
         DwtBreakpoint("psa_call_thunk", "psa_call_thunk Entry", is_start=True)
         DwtBreakpoint(
             "psc3m5_evk_secure_ipc::global_spm_api::svc_handler", "svc_handler Entry"
         )
-        DwtBreakpoint("spe::faults::unhandled_interrupt", "unhandled_interrupt Entry")
         DwtBreakpoint(
             "<spe::spm::spm_ipc::spm_ipc::SpmIpc<psc3m5_evk_secure_ipc::Psc3IpcPlatform, 2>>::apply_mpu_config",
             "partition_mpu_config Entry",
@@ -310,10 +324,13 @@ class StartTraceBreakpoint(gdb.Breakpoint):
             "validate_permission Entry",
         )
         DwtBreakpoint("psc3m5_evk_attest_srv::call", "attest_srv call Entry")
-        DwtBreakpoint("psc3m5_evk_crypto_srv::call", "crypto_srv call Entry")
         DwtBreakpoint(
-            "'spe_services::crypto::crypto_service::{impl#1}::call<spe::spm_api::svc::SvcApi>'",
-            "crypto_service call Entry",
+            "spe_services::crypto::crypto_service::CryptoService::compute_hash",
+            "crypto_hash Entry",
+        )
+        DwtBreakpoint(
+            "spe_services::crypto::crypto_service::CryptoService::sign_hash",
+            "crypto_sign Entry",
         )
 
         print(f"Setting end trace breakpoint at return address: {hex(ret_addr)}")

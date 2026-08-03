@@ -50,6 +50,7 @@ impl CryptoService {
         0
     }
 
+    #[inline(never)]
     fn sign_hash(&self, hash: &[u8], signature_buf: &mut [u8]) -> Result<usize, StatusCode> {
         #[cfg(feature = "unsafe_mbedtls")]
         return self.sign_hash_unsafe_mbedtls(hash, signature_buf);
@@ -150,6 +151,7 @@ impl CryptoService {
         Ok(P256_SIGNATURE_SIZE)
     }
 
+    #[inline(never)]
     fn compute_hash(
         alg: PsaAlgorithm,
         input: &[u8],

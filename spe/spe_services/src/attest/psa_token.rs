@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: MIT
 
-#![cfg_attr(feature = "unsafe_mbedtls", allow(unsafe_code, reason = "mbedtls uses C-FFI"))]
+#![cfg_attr(
+    feature = "unsafe_mbedtls",
+    allow(unsafe_code, reason = "mbedtls uses C-FFI")
+)]
 
 #[cfg(all(feature = "rustcrypto", feature = "unsafe_mbedtls"))]
 compile_error!("Features 'rustcrypto' and 'unsafe_mbedtls' are mutually exclusive.");
@@ -147,48 +150,16 @@ impl<C: PsaApiCallInterface> PsaCryptoBackend<C> {
             _marker: core::marker::PhantomData,
         }
     }
+}
 
-    #[cfg(feature = "unsafe_mbedtls")]
-    fn hash_sha256_unsafe_mbedtls(input: &[u8]) -> Result<[u8; 32], CoseSign1Error> {
-        use mbedtls_rs::sys::{
-            mbedtls_md_context_t, mbedtls_md_finish, mbedtls_md_free, mbedtls_md_info_from_type,
-            mbedtls_md_init, mbedtls_md_setup, mbedtls_md_starts,
-            mbedtls_md_type_t_MBEDTLS_MD_SHA256, mbedtls_md_update,
-        };
-
-        let mut hash = [0u8; 32];
-        // SAFETY: Calling mbedtls FFI.
-        unsafe {
-            let mut ctx: mbedtls_md_context_t = core::mem::zeroed();
-            mbedtls_md_init(&raw mut ctx);
-            let info = mbedtls_md_info_from_type(mbedtls_md_type_t_MBEDTLS_MD_SHA256);
-            mbedtls_md_setup(&raw mut ctx, info, 0);
-            mbedtls_md_starts(&raw mut ctx);
-            mbedtls_md_update(&raw mut ctx, input.as_ptr(), input.len());
-            mbedtls_md_finish(&raw mut ctx, hash.as_mut_ptr());
-            mbedtls_md_free(&raw mut ctx);
-        }
-        Ok(hash)
-    }
-
-    #[cfg(feature = "rustcrypto")]
-    fn hash_sha256_rustcrypto(input: &[u8]) -> Result<[u8; 32], CoseSign1Error> {
+impl<C: PsaApiCallInterface> CoseCrypto for PsaCryptoBackend<C> {
+    fn hash_sha256(&self, input: &[u8]) -> Result<[u8; 32], CoseSign1Error> {
         let mut hash = [0u8; 32];
         match psa_hash_compute::<C>(PSA_ALG_SHA_256, input, &mut hash) {
             Ok(32) => Ok(hash),
             Ok(_) | Err(StatusCode::BufferTooSmall) => Err(CoseSign1Error::BufferTooSmall),
             Err(_) => Err(CoseSign1Error::Unknown),
         }
-    }
-}
-
-impl<C: PsaApiCallInterface> CoseCrypto for PsaCryptoBackend<C> {
-    fn hash_sha256(&self, input: &[u8]) -> Result<[u8; 32], CoseSign1Error> {
-        #[cfg(feature = "unsafe_mbedtls")]
-        return Self::hash_sha256_unsafe_mbedtls(input);
-
-        #[cfg(feature = "rustcrypto")]
-        return Self::hash_sha256_rustcrypto(input);
     }
 
     fn sign_es256_prehash(&self, digest: &[u8; 32]) -> Result<[u8; 64], CoseSign1Error> {
