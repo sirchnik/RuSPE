@@ -120,7 +120,7 @@ fn run_attest_invalid_buffer(writer: &mut dyn Write) {
     let challenge = Aligned32([0u8; 32]);
     // Use address derived from veneer symbol in secure memory for platform
     // independence
-    let invalid_addr = (psa_call_veneer as *const () as usize + 0x100) as *mut u8;
+    let invalid_addr = (psa_call_veneer as *const () as usize - 0x200) as *mut u8;
     // SAFETY: Constructing slice from pointer for test assertion.
     let invalid_token_buf = unsafe { core::slice::from_raw_parts_mut(invalid_addr, 512) };
 
