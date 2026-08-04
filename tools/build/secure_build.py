@@ -12,14 +12,14 @@ from typing import Any
 
 from invoke.context import Context
 
-from tools.build.board import (
+from .board import (
     BoardConfig,
     cargo_build,
     elf_to_hex,
     merge_secure_non_secure_hex,
 )
-from tools.build.mcuboot import patch_mcuboot_sig
-from tools.build.tock_app import TockAppsLayout, build_tock_apps
+from .mcuboot import patch_mcuboot_sig
+from .tock_app import TockAppsLayout, build_tock_apps
 
 
 @dataclass(frozen=True)
@@ -110,7 +110,7 @@ def build_firmware(
             app_path = Path(app)
         non_secure_elf = tock_kernel_build_module.build(ctx, app=app_path, debug=debug)
         nspe_board = tock_kernel_build_module.NON_SECURE_BOARD
-        from tools.build.naming import get_noapps_bin_filename
+        from .naming import get_noapps_bin_filename
 
         tock_noapps_bin = non_secure_elf.with_name(get_noapps_bin_filename(nspe_board))
     else:

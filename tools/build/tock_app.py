@@ -11,7 +11,7 @@ from pathlib import Path
 
 from invoke.context import Context
 
-from tools.build.invoke_support import (
+from .invoke_support import (
     BuildError,
     run_command,
     resolve_cmd,
@@ -189,7 +189,7 @@ def build_tock_apps(
     from integrations.tock.tock_interrupt_test_app import (
         build as tock_interrupt_test_app_build,
     )
-    from tools.build.board import combine_tock_apps
+    from .board import combine_tock_apps
 
     app1_tbf = tock_psa_app_build.build(
         ctx,

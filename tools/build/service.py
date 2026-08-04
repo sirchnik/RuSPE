@@ -10,7 +10,7 @@ from pathlib import Path
 
 from invoke.context import Context
 
-from tools.build.invoke_support import BuildError, run_command
+from .invoke_support import BuildError, run_command
 
 @dataclass(frozen=True)
 class BaseServiceConfig:

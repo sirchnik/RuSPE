@@ -14,7 +14,7 @@ from shutil import copy2
 
 from invoke.context import Context
 
-from tools.build.invoke_support import (
+from .invoke_support import (
     print_step,
     resolve_openocd,
     BuildError,
@@ -22,7 +22,7 @@ from tools.build.invoke_support import (
     run_command,
     resolve_cmd,
 )
-from tools.build.naming import (
+from .naming import (
     SUFFIX_HEX,
     get_merged_hex_filename,
     get_app_elf_filename,
