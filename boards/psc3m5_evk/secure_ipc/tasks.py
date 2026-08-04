@@ -19,11 +19,13 @@ from tools.build.invoke_support import (
     BuildError,
     build_task,
     parse_features,
+    resolve_openocd,
+)
+from tools.build.vscode_support import (
     make_vscode_build_command,
     VscodeLaunchTarget,
     VscodeBuildTarget,
     vscode_common_build_task,
-    resolve_openocd,
 )
 from tools.build.board import (
     BoardConfig,

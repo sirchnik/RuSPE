@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 import socket
+import subprocess
+import sys
 import time
 import tomllib
 from dataclasses import dataclass
@@ -345,11 +347,54 @@ def program_hex(ctx: Context, board: BoardConfig, hex_path: Path) -> Path:
 
 
 def resolve_gdb() -> Path:
-    for command_name in ("gdb-multiarch", "arm-none-eabi-gdb"):
+    def _has_python_support(gdb_path: Path) -> bool:
+        completed = subprocess.run(
+            [
+                str(gdb_path),
+                "--batch",
+                "-ex",
+                "python import sys; print(sys.version)",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        output = (completed.stdout or "") + "\n" + (completed.stderr or "")
+        unsupported_markers = (
+            "python scripting is not supported",
+            "undefined command: \"python\"",
+        )
+        if any(marker in output.lower() for marker in unsupported_markers):
+            return False
+        return completed.returncode == 0
+
+    preferred_order = (
+        "arm-none-eabi-gdb-py3",
+        "arm-none-eabi-gdb-py",
+        "arm-none-eabi-gdb",
+        "gdb-multiarch",
+    )
+
+    found: list[Path] = []
+    for command_name in preferred_order:
         candidate = resolve_cmd(command_name)
         if candidate is not None:
-            return candidate
-    raise BuildError("Could not find 'gdb-multiarch' or 'arm-none-eabi-gdb' in PATH.")
+            found.append(candidate)
+            if _has_python_support(candidate):
+                return candidate
+
+    if found:
+        fallback = found[0]
+        print(
+            "warning: No GDB with Python scripting support was found. "
+            f"Falling back to '{fallback}'. GDB Python scripts may not work.",
+            file=sys.stderr,
+        )
+        return fallback
+
+    raise BuildError(
+        "Could not find GDB in PATH. Tried: arm-none-eabi-gdb-py3, arm-none-eabi-gdb-py, arm-none-eabi-gdb, gdb-multiarch, gdb."
+    )
 
 
 def is_port_in_use(port: int) -> bool:
@@ -377,8 +422,6 @@ def debug_with_gdb(
 
     if not is_port_in_use(3333):
         print_step("Starting OpenOCD in the background...")
-        import subprocess
-
         openocd_cmd = [str(openocd), "-f", str(board.openocd_tcl)]
         openocd_process = subprocess.Popen(
             openocd_cmd,

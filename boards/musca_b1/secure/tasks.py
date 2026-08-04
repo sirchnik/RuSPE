@@ -16,6 +16,8 @@ if str(REPO_ROOT) not in sys.path:
 from tools.build.invoke_support import (
     build_task,
     run_command,
+)
+from tools.build.vscode_support import (
     make_vscode_build_command,
     VscodeLaunchTarget,
     VscodeBuildTarget,
