@@ -76,6 +76,28 @@ def _cargo_package_name(crate_dir: Path) -> str:
     return crate_dir.name
 
 
+def _resolve_veneer_obj(app: TockAppConfig) -> Path:
+    if app.veneer_board is None:
+        raise BuildError("veneer_board must be provided when linking secure veneers")
+
+    board_dir_out_of_tree = app.repo_root.parent / "boards" / app.veneer_board
+    build_root = app.repo_root.parent if board_dir_out_of_tree.exists() else app.repo_root
+
+    board_obj_name = f"{app.veneer_board}_secure-veneers.o"
+    veneer_obj = (
+        build_root / "target" / "thumbv8m.main-none-eabi" / board_obj_name
+    ).resolve()
+
+    if veneer_obj.exists():
+        return veneer_obj
+
+    raise BuildError(
+        "Could not find secure veneers object file at expected path:\n"
+        f"  - {veneer_obj}\n"
+        "Make sure the secure firmware was built first so the veneer object is generated."
+    )
+
+
 def cargo_build_app(
     ctx: Context,
     app: TockAppConfig,
@@ -89,12 +111,7 @@ def cargo_build_app(
             command.append("--release")
         if features:
             command.extend(["--features", ",".join(features)])
-        veneer_obj = (
-            app.repo_root
-            / "target"
-            / "thumbv8m.main-none-eabi"
-            / f"{app.veneer_board}_secure-veneers.o"
-        )
+        veneer_obj = _resolve_veneer_obj(app)
         command.extend(["--", "-C", f"link-arg={veneer_obj}"])
     else:
         command = ["cargo", "build"]
