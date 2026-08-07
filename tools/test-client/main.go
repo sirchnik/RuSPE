@@ -62,7 +62,7 @@ func generateNonce() string {
 
 func main() {
 	tokenSrc := flag.String("token-src", "tty", "Token source: 'tty', 'tfm', or a raw hex token")
-	ttyPath := flag.String("tty", defaultTTY(), "Serial port (Default: "+defaultTTY()+")")
+	ttyPath := flag.String("tty", defaultTTY(), "Serial port or telnet://host[:port] (Default: "+defaultTTY()+")")
 	baudRate := flag.Int("baud", 115200, "TTY baud rate")
 	nonce := flag.String("nonce", "", "Hex-encoded nonce (random if omitted)")
 	pubKeyX := flag.String("pub-key-x", "", "Public key X coordinate (base64url, no padding)")
