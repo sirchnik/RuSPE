@@ -25,7 +25,7 @@ SERVICE_CONF = ServiceConfig(
     flash_origin="0x32010000",
     flash_length="0x4800",
     ram_origin="0x34002300",
-    ram_length="0x1800",
+    ram_length="0xC00",
 )
 
 
