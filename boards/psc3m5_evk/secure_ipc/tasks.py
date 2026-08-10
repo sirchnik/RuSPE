@@ -63,6 +63,20 @@ DEBUG_HELP = "Build the debug profile instead of release."
 NSPE_HELP = "The Non-Secure Processing Environment to build (test or tock)."
 APP_HELP = "Path to a TBF application image (only for tock NSPE)."
 
+
+def _kill_openocd() -> None:
+    import subprocess
+    import sys
+
+    if sys.platform == "win32":
+        subprocess.run(
+            ["taskkill", "/F", "/IM", "openocd.exe"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    else:
+        subprocess.run(["pkill", "-x", "openocd"], stderr=subprocess.DEVNULL)
+
 BuildEnv = dict[str, str]
 
 ServiceBuilder = Callable[[Context, bool], tuple[Path, BuildEnv]]
@@ -292,7 +306,7 @@ def trace(
     gdb = resolve_gdb()
 
     # Kill any lingering OpenOCD instances to prevent connection issues
-    subprocess.run(["pkill", "-x", "openocd"], stderr=subprocess.DEVNULL)
+    _kill_openocd()
     time.sleep(0.1)
 
     if not is_port_in_use(3333):
@@ -351,7 +365,7 @@ def stack_usage(
     gdb = resolve_gdb()
 
     # Kill any lingering OpenOCD instances to prevent connection issues
-    subprocess.run(["pkill", "-x", "openocd"], stderr=subprocess.DEVNULL)
+    _kill_openocd()
     time.sleep(0.1)
 
     if not is_port_in_use(3333):
