@@ -36,7 +36,7 @@ from tools.build.board import (
     is_port_in_use,
 )
 from tools.build.naming import get_merged_ipc_hex_filename, get_psa_app_filename
-from tools.build.secure_build import build_firmware
+from tools.build.secure_build import build_firmware, FirmwareResult
 
 from boards.psc3m5_evk.tasks import (
     TOCK_LAYOUT,
@@ -76,6 +76,7 @@ def _kill_openocd() -> None:
         )
     else:
         subprocess.run(["pkill", "-x", "openocd"], stderr=subprocess.DEVNULL)
+
 
 BuildEnv = dict[str, str]
 
@@ -136,7 +137,7 @@ def merge_service_envs(services: list[BuiltService]) -> BuildEnv:
     return merged
 
 
-def _build(ctx, nspe, app, debug, features=None):
+def _build(ctx, nspe, app, debug, features=None) -> FirmwareResult:
     services = [build_service_hex(ctx, s, debug) for s in SERVICES]
     return build_firmware(
         ctx,
@@ -331,7 +332,7 @@ def trace(
 
     try:
         script_path = REPO_ROOT / "tools" / "debugging" / "gdb_trace_auto.py"
-        gdb_args = [str(gdb), "-x", str(script_path), str(result.secure_elf)]
+        gdb_args = [str(gdb), "-x", str(script_path), str(result.merged_hex)]
         subprocess.run(gdb_args, cwd=BOARD.board_dir)
     finally:
         if openocd_process:

@@ -95,12 +95,16 @@ class StackTracker:
             stack_bottom = stats.stack_start
             stack_top = stats.stack_end
             size = stats.stack_left
+            static_ram_used = (
+                stats.static_ram_used if stats.static_ram_used is not None else 0
+            )
             self.stacks[name] = {
                 "elf": elf_name,
                 "sfn": sfn_func,
                 "bottom": stack_bottom,
                 "top": stack_top,
                 "size": size,
+                "static_ram_used": static_ram_used,
                 "calls": 0,
                 "max_used_bytes": 0,
                 "watermarked_words": 0,
@@ -124,9 +128,7 @@ class StackTracker:
         write_memory(bottom, pattern_bytes)
 
         read_back = read_memory_words(bottom, words_count)
-        assert all(
-            w == WATERMARK_VAL for w in read_back
-        ), (
+        assert all(w == WATERMARK_VAL for w in read_back), (
             f"Watermark verification failed for {name}: "
             f"region 0x{bottom:08x}-0x{top:08x}"
         )
@@ -161,9 +163,7 @@ class StackTracker:
         latest_filename = f"stack_dump_{elf_name}.hex"
 
         dump_path = (
-            self.target_dir / dump_filename
-            if self.target_dir
-            else Path(dump_filename)
+            self.target_dir / dump_filename if self.target_dir else Path(dump_filename)
         )
         latest_path = (
             self.target_dir / latest_filename
@@ -211,7 +211,14 @@ class StackTracker:
             wm_words = info["watermarked_words"]
             assert wm_words > 0, f"{name} was never watermarked"
 
-            words = read_memory_words(bottom, wm_words)
+            try:
+                words = read_memory_words(bottom, wm_words)
+            except gdb.MemoryError:
+                print(
+                    f"  [INFO] Cannot access {name} memory at 0x{bottom:08x} "
+                    f"(target in Non-Secure mode)"
+                )
+                continue
 
             unused_words = 0
             for w in words:
@@ -241,18 +248,18 @@ class StackTracker:
     def generate_report(self):
         # Report uses only accumulated max values from secure-context samples.
         # No memory reads here — this runs from non-secure context (end breakpoint).
-        print("\n" + "=" * 108)
+        print("\n" + "=" * 114)
         print(
             "                                "
             "RuSPE SERVICE & SPM STACK USAGE REPORT (HIGHEST VALUES)"
         )
-        print("=" * 108)
+        print("=" * 114)
         print(
             f"{'Service / SPM Target':<26} | {'Allocated':<10} | "
-            f"{'Highest Usage':<15} | {'Margin':<10} | "
+            f"{'Highest Usage':<18} | {'Used RAM Size':<13} | "
             f"{'Usage %':<8} | {'Samples':<7} | Status"
         )
-        print("-" * 108)
+        print("-" * 114)
 
         for name, info in self.stacks.items():
             size = info["size"]
@@ -265,7 +272,8 @@ class StackTracker:
             )
 
             max_used_bytes = info["max_used_bytes"]
-            margin_bytes = size - max_used_bytes
+            static_ram_used = info.get("static_ram_used", 0)
+            used_ram_bytes = max_used_bytes + static_ram_used
             pct = (max_used_bytes / size) * 100.0 if size > 0 else 0.0
 
             if pct >= 90.0:
@@ -276,16 +284,16 @@ class StackTracker:
                 status = "OK"
 
             print(
-                f"{name:<26} | {size:7d} B | {max_used_bytes:7d} B ({pct:5.1f}%) | "
-                f"{margin_bytes:7d} B | {pct:7.2f}% | {calls:<7} | {status}"
+                f"{name:<26} | {size:7d} B  | {max_used_bytes:7d} B ({pct:5.1f}%) | "
+                f"{used_ram_bytes:7X} B    | {pct:7.2f}% | {calls:<7} | {status}"
             )
 
-        print("-" * 108)
+        print("-" * 114)
         print(
             "Note: Highest usage calculated across samples taken in "
             "Secure mode via 0xDEADBEEF watermark scanning."
         )
-        print("=" * 108 + "\n")
+        print("=" * 114 + "\n")
 
         gdb.execute("monitor reset halt")
 
@@ -337,23 +345,15 @@ def setup_spm_ipc_breakpoints():
     assert created > 0, (
         f"Could not set any sampling breakpoints. Tried: {candidate_specs}"
     )
-    print(
-        f"Set {created} watermark sampling breakpoint(s): {', '.join(specs_set)}"
-    )
+    print(f"Set {created} watermark sampling breakpoint(s): {', '.join(specs_set)}")
 
 
 import threading
 
 
 def _timeout_interrupt():
-    """Interrupt target after timeout, then sample and report."""
-    def _do_report():
-        gdb.execute("interrupt", to_string=True)
-        print("\n--- Timeout reached. Sampling final stack state... ---")
-        tracker.sample_all_stacks()
-        tracker.generate_report()
-        exit_gdb()
-    gdb.post_event(_do_report)
+    """Interrupt target after timeout."""
+    gdb.post_event(lambda: gdb.execute("interrupt"))
 
 
 def run_automated_stack_measurement():
@@ -368,12 +368,8 @@ def run_automated_stack_measurement():
     from tools.build.naming import get_merged_hex_filename
 
     merged_hex = target_dir / get_merged_hex_filename(
-        "psc3m5_evk_secure_ipc", "psc3m5_evk_test_nspe"
+        "psc3m5_evk_secure_ipc", "psc3m5_evk_test_nspe", has_services=True
     )
-    if not merged_hex.exists():
-        merged_hex = target_dir / get_merged_hex_filename(
-            "psc3m5_evk_secure", "psc3m5_evk_test_nspe"
-        )
     assert merged_hex.exists(), f"Merged hex not found: {merged_hex}"
 
     print("Resetting and halting target...")
@@ -400,6 +396,12 @@ def run_automated_stack_measurement():
     timer = threading.Timer(5.0, _timeout_interrupt)
     timer.start()
     gdb.execute("continue")
+
+    timer.cancel()
+    print("\n--- Timeout reached. Sampling final stack state... ---")
+    tracker.sample_all_stacks()
+    tracker.generate_report()
+    exit_gdb()
 
 
 if __name__ == "__main__":
