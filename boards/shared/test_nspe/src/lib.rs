@@ -44,6 +44,8 @@ pub fn run_test(writer: &mut dyn Write) {
 
     print_version(writer);
     run_attest(writer);
+    run_attest(writer);
+    run_attest(writer);
     run_attest_invalid_buffer(writer);
 }
 

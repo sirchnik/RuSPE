@@ -3,8 +3,10 @@
 # SPDX-License-Identifier: MIT
 
 import os
+import signal
 import struct
 import sys
+import threading
 from pathlib import Path
 
 import gdb
@@ -159,17 +161,16 @@ class StackTracker:
         size = info["size"]
 
         clean_label = label.lower().replace(" ", "_").replace("#", "")
-        dump_filename = f"stack_dump_{elf_name}_{clean_label}.hex"
-        latest_filename = f"stack_dump_{elf_name}.hex"
+        dump_filename = f"stack_dump_{elf_name}_{clean_label}.dump"
+        latest_filename = f"stack_dump_{elf_name}.dump"
 
-        dump_path = (
-            self.target_dir / dump_filename if self.target_dir else Path(dump_filename)
+        samples_dir = (
+            self.target_dir / "stack_dumps" if self.target_dir else Path("stack_dumps")
         )
-        latest_path = (
-            self.target_dir / latest_filename
-            if self.target_dir
-            else Path(latest_filename)
-        )
+        samples_dir.mkdir(parents=True, exist_ok=True)
+
+        dump_path = samples_dir / dump_filename
+        latest_path = samples_dir / latest_filename
 
         lines = [
             f"# Stack Dump: {name} ({elf_name})\n",
@@ -196,7 +197,9 @@ class StackTracker:
         content = "".join(lines)
         dump_path.write_text(content)
         latest_path.write_text(content)
-        print(f"    [DUMP] Saved hex dump with watermark markers: {dump_path.name}")
+        print(
+            f"    [DUMP] Saved memory dump with watermark markers: {dump_path.resolve()}"
+        )
 
     def sample_all_stacks(self, trial: bool = False):
         self.sample_count += 1
@@ -300,6 +303,9 @@ class StackTracker:
 
 tracker = StackTracker()
 
+# Flag set by the timer thread to signal that measurement should stop.
+_timed_out = False
+
 
 def exit_gdb():
     print("Exiting GDB session...")
@@ -317,6 +323,18 @@ class SpmIpcSampleBreakpoint(gdb.Breakpoint):
         self.silent = True
 
     def stop(self):
+        global _timed_out
+
+        if _timed_out:
+            # Timeout elapsed — target is halted here (breakpoint context).
+            # Delete all breakpoints, generate the report, and exit.
+            for bp in BREAKPOINTS:
+                bp.delete()
+            BREAKPOINTS.clear()
+            tracker.generate_report()
+            exit_gdb()
+            return True  # stay stopped (won't reach here after exit)
+
         pc_info = get_current_pc_info()
         print(f"\n  [SAMPLE] SpmIpcSampleBreakpoint hit at {pc_info}")
         tracker.sample_all_stacks()
@@ -348,12 +366,11 @@ def setup_spm_ipc_breakpoints():
     print(f"Set {created} watermark sampling breakpoint(s): {', '.join(specs_set)}")
 
 
-import threading
-
-
 def _timeout_interrupt():
-    """Interrupt target after timeout."""
-    gdb.post_event(lambda: gdb.execute("interrupt"))
+    """Set the timeout flag and interrupt the target with SIGINT."""
+    global _timed_out
+    _timed_out = True
+    os.kill(os.getpid(), signal.SIGINT)
 
 
 def run_automated_stack_measurement():
@@ -395,13 +412,23 @@ def run_automated_stack_measurement():
     print("\nStarting execution! Will sample after 5 seconds...")
     timer = threading.Timer(5.0, _timeout_interrupt)
     timer.start()
-    gdb.execute("continue")
 
-    timer.cancel()
-    print("\n--- Timeout reached. Sampling final stack state... ---")
-    tracker.sample_all_stacks()
-    tracker.generate_report()
-    exit_gdb()
+    try:
+        gdb.execute("continue")
+    except (gdb.error, KeyboardInterrupt):
+        pass
+    finally:
+        timer.cancel()
+
+    # Fallback: if the timeout SIGINT stopped `continue` but no breakpoint
+    # fired afterwards (e.g. target was in non-secure code), generate the
+    # report here while the target is halted.
+    if _timed_out and tracker.sample_count > 0:
+        for bp in BREAKPOINTS:
+            bp.delete()
+        BREAKPOINTS.clear()
+        tracker.generate_report()
+        exit_gdb()
 
 
 if __name__ == "__main__":
