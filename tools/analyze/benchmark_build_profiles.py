@@ -11,8 +11,6 @@ For each profile variant:
   4. Report flash section sizes (text+data) and measured cycles.
 """
 
-from __future__ import annotations
-
 import argparse
 import contextlib
 from datetime import UTC, datetime

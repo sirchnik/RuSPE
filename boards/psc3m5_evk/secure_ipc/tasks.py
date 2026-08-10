@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: MIT
 
-from __future__ import annotations
 
 import sys
 from dataclasses import dataclass
@@ -176,6 +175,72 @@ def build(
         _build(ctx, "test", app, bool(debug))
         return
     return _build(ctx, nspe, app, bool(debug), fl)
+
+
+@build_task(
+    help={
+        "nspe": NSPE_HELP,
+        "app": APP_HELP,
+        "debug": DEBUG_HELP,
+        "features": "Comma-separated list of features for tock_psa_app.",
+        "crates": "Show per-crate bloat analysis in cargo bloat.",
+    }
+)
+def stats(
+    ctx: Context,
+    nspe: str | None = None,
+    app=None,
+    debug=False,
+    features: str | None = None,
+    crates: bool = False,
+):
+    """Build secure IPC kernel and services, and print stats for kernel and each service."""
+    services = [build_service_hex(ctx, s, bool(debug)) for s in SERVICES]
+    ipc_env = merge_service_envs(services)
+    result = build_firmware(
+        ctx,
+        BOARD,
+        nspe or "test",
+        app,
+        bool(debug),
+        mcuboot=MCUBOOT_SECURE_IPC,
+        tock_layout=TOCK_LAYOUT,
+        test_nspe_build_module=test_nspe_build,
+        tock_kernel_build_module=tock_kernel_build,
+        features=parse_features(features),
+        cargo_env=ipc_env,
+        extra_hexes=[s.hex_path for s in services],
+    )
+    from tools.analyze.stats import print_binary_stats
+
+    # Print stats for Secure IPC Kernel
+    print_binary_stats(
+        title=f"{BOARD.crate_name} (Kernel - {'debug' if debug else 'release'})",
+        elf_path=result.secure_elf,
+        package_name=BOARD.crate_name,
+        repo_root=REPO_ROOT,
+        debug=bool(debug),
+        crates=bool(crates),
+        env=ipc_env,
+    )
+
+    # Print stats for each Service
+    profile_dir = "debug" if debug else "release"
+    target_dir = REPO_ROOT / "target" / "thumbv8m.main-none-eabi" / profile_dir
+    for srv in SERVICES:
+        module = sys.modules[srv.__module__]
+        conf = module.SERVICE_CONF
+        service_elf = target_dir / conf.crate_name
+        print_binary_stats(
+            title=f"Service: {conf.crate_name} ({profile_dir})",
+            elf_path=service_elf,
+            package_name=conf.crate_name,
+            repo_root=REPO_ROOT,
+            cwd=conf.service_dir,
+            debug=bool(debug),
+            crates=bool(crates),
+            env=conf.build_env(),
+        )
 
 
 @build_task(

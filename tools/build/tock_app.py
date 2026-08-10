@@ -4,8 +4,6 @@
 
 """Shared helpers for building Tock userland applications."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -81,7 +79,9 @@ def _resolve_veneer_obj(app: TockAppConfig) -> Path:
         raise BuildError("veneer_board must be provided when linking secure veneers")
 
     board_dir_out_of_tree = app.repo_root.parent / "boards" / app.veneer_board
-    build_root = app.repo_root.parent if board_dir_out_of_tree.exists() else app.repo_root
+    build_root = (
+        app.repo_root.parent if board_dir_out_of_tree.exists() else app.repo_root
+    )
 
     board_obj_name = f"{app.veneer_board}_secure-veneers.o"
     veneer_obj = (
@@ -226,4 +226,6 @@ def build_tock_apps(
         ram_length=layout.interrupt_test_app.ram_length,
         debug=debug,
     )
-    return combine_tock_apps(app1_tbf, app2_tbf, pad_len=layout.pad_len, board=layout.board)
+    return combine_tock_apps(
+        app1_tbf, app2_tbf, pad_len=layout.pad_len, board=layout.board
+    )

@@ -4,8 +4,6 @@
 
 """Shared configuration for the musca_b1 board."""
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 

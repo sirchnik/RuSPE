@@ -4,8 +4,6 @@
 
 """Shared configuration for all psc3m5_evk board variants."""
 
-from __future__ import annotations
-
 import os
 import sys
 from pathlib import Path

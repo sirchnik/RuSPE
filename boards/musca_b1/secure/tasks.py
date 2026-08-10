@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: MIT
 
-from __future__ import annotations
 
 import sys
 from pathlib import Path
@@ -86,6 +85,35 @@ def build(ctx: Context, nspe: str | None = None, app=None, debug=False):
         return result.merged_hex
     result = _build(ctx, nspe, app, bool(debug))
     return result.merged_hex
+
+
+@build_task(
+    help={
+        "nspe": NSPE_HELP,
+        "app": APP_HELP,
+        "debug": DEBUG_HELP,
+        "crates": "Show per-crate bloat analysis in cargo bloat.",
+    }
+)
+def stats(
+    ctx: Context,
+    nspe: str | None = None,
+    app=None,
+    debug=False,
+    crates: bool = False,
+):
+    """Build the secure image and print stats (arm-none-eabi-size, stack space left, and cargo bloat)."""
+    result = _build(ctx, nspe or "test", app, bool(debug))
+    from tools.analyze.stats import print_binary_stats
+
+    print_binary_stats(
+        title=f"{SECURE_BOARD.crate_name} ({'debug' if debug else 'release'})",
+        elf_path=result.secure_elf,
+        package_name=SECURE_BOARD.crate_name,
+        repo_root=REPO_ROOT,
+        debug=bool(debug),
+        crates=bool(crates),
+    )
 
 
 ### QEMU

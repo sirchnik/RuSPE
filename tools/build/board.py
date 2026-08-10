@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: MIT
 
-from __future__ import annotations
 
 import socket
 import subprocess
@@ -297,7 +296,11 @@ def merge_secure_non_secure_hex(
     target_root = secure_board.target_root(debug)
     non_secure_hex = prepare_non_secure_hex(ctx, non_secure_elf, target_root)
     merged_hex = resolve_merged_hex_path(
-        secure_board, non_secure_board, non_secure_elf, extra_hexes=extra_hexes, debug=debug
+        secure_board,
+        non_secure_board,
+        non_secure_elf,
+        extra_hexes=extra_hexes,
+        debug=debug,
     )
 
     inputs = [secure_hex, non_secure_hex]
@@ -362,7 +365,7 @@ def resolve_gdb() -> Path:
         output = (completed.stdout or "") + "\n" + (completed.stderr or "")
         unsupported_markers = (
             "python scripting is not supported",
-            "undefined command: \"python\"",
+            'undefined command: "python"',
         )
         if any(marker in output.lower() for marker in unsupported_markers):
             return False

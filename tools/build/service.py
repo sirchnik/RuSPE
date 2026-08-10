@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: MIT
 
-from __future__ import annotations
 
 import tomllib
 from dataclasses import dataclass
@@ -12,10 +11,12 @@ from invoke.context import Context
 
 from .invoke_support import BuildError, run_command
 
+
 @dataclass(frozen=True)
 class BaseServiceConfig:
     flash_length: str
     ram_length: str
+
 
 @dataclass(frozen=True)
 class ServiceConfig(BaseServiceConfig):
@@ -35,7 +36,7 @@ class ServiceConfig(BaseServiceConfig):
 
     def _linker_env(self) -> dict[str, str]:
         """Return environment variables for linker script generation.
-        
+
         Used by cargo build scripts (e.g. attest/build.rs) to generate
         the concrete linker script with configured memory regions.
         """
@@ -70,7 +71,9 @@ def _cargo_package_name(crate_dir: Path) -> str:
     return crate_dir.name
 
 
-def _candidate_artifacts(target_dir: Path, build_type: str, binary_name: str) -> list[Path]:
+def _candidate_artifacts(
+    target_dir: Path, build_type: str, binary_name: str
+) -> list[Path]:
     names = [binary_name]
     underscored = binary_name.replace("-", "_")
     if underscored != binary_name:
@@ -114,7 +117,9 @@ def _resolve_cargo_artifact(repo_root: Path, debug: bool, binary_name: str) -> P
     )
 
 
-def cargo_build_service(ctx: Context, service: ServiceConfig, debug: bool, env: dict[str, str] | None = None) -> Path:
+def cargo_build_service(
+    ctx: Context, service: ServiceConfig, debug: bool, env: dict[str, str] | None = None
+) -> Path:
     command = ["cargo", "build"]
     if not debug:
         command.append("--release")

@@ -4,8 +4,6 @@
 
 """Common orchestration for building a merged secure + non-secure firmware image."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -94,7 +92,9 @@ def build_firmware(
 
     mcuboot_sig_bin = None
     if extract_mcuboot_sig:
-        mcuboot_sig_bin = _extract_mcuboot_sig_bin(secure_hex, secure_elf, board, mcuboot)
+        mcuboot_sig_bin = _extract_mcuboot_sig_bin(
+            secure_hex, secure_elf, board, mcuboot
+        )
 
     tock_noapps_bin = None
     tock_apps_tbf = None

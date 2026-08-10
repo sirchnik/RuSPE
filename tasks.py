@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: MIT
 
-from __future__ import annotations
 
 import json
 import sys
@@ -201,6 +200,34 @@ def build(ctx: Context, debug=False):
         relative_dir = build_dir.relative_to(REPO_ROOT)
         print(f"Building {relative_dir}")
         run_command(f"{sys.executable} -m invoke build{debug_arg}", cwd=str(build_dir))
+
+
+@build_task(
+    help={
+        "debug": "Analyze debug profile instead of release.",
+        "crates": "Show per-crate bloat analysis in cargo bloat.",
+    }
+)
+def stats(ctx: Context, debug: bool = False, crates: bool = False):
+    """Run `inv stats` for all project directories in the repository."""
+
+    task_dirs = _build_task_directories()
+    if not task_dirs:
+        raise FileNotFoundError(
+            f"No nested {TASKS_FILE_NAME} files found under {REPO_ROOT}"
+        )
+
+    debug_arg = " --debug" if debug else ""
+    crates_arg = " --crates" if crates else ""
+    for task_dir in task_dirs:
+        relative_dir = task_dir.relative_to(REPO_ROOT)
+        print("\n==================================================")
+        print(f"  STATS FOR DIRECTORY: {relative_dir}")
+        print("==================================================")
+        run_command(
+            f"{sys.executable} -m invoke stats{debug_arg}{crates_arg}",
+            cwd=str(task_dir),
+        )
 
 
 @build_task

@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: MIT
 
-from __future__ import annotations
 
 import sys
 from pathlib import Path
@@ -98,6 +97,37 @@ def build(
         _build(ctx, "test", app, bool(debug))
         return
     _build(ctx, nspe, app, bool(debug), fl)
+
+
+@build_task(
+    help={
+        "nspe": NSPE_HELP,
+        "app": APP_HELP,
+        "debug": DEBUG_HELP,
+        "features": "Comma-separated list of features for tock_psa_app.",
+        "crates": "Show per-crate bloat analysis in cargo bloat.",
+    }
+)
+def stats(
+    ctx: Context,
+    nspe: str | None = None,
+    app=None,
+    debug=False,
+    features: str | None = None,
+    crates: bool = False,
+):
+    """Build the secure image and print stats (arm-none-eabi-size, stack space left, and cargo bloat)."""
+    result = _build(ctx, nspe or "test", app, bool(debug), parse_features(features))
+    from tools.analyze.stats import print_binary_stats
+
+    print_binary_stats(
+        title=f"{BOARD.crate_name} ({'debug' if debug else 'release'})",
+        elf_path=result.secure_elf,
+        package_name=BOARD.crate_name,
+        repo_root=REPO_ROOT,
+        debug=bool(debug),
+        crates=bool(crates),
+    )
 
 
 @build_task(

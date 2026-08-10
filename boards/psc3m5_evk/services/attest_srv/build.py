@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: MIT
 
-from __future__ import annotations
 
 import sys
 from pathlib import Path
@@ -35,3 +34,20 @@ def build(ctx: Context, debug: bool = False) -> tuple[Path, BuildEnv]:
     service_elf = cargo_build_service(ctx, SERVICE_CONF, debug)
 
     return service_elf, SERVICE_CONF.build_env()
+
+
+def stats(ctx: Context, debug: bool = False, crates: bool = False):
+    """Build the attest service and print stats (arm-none-eabi-size, stack space, and cargo bloat)."""
+    service_elf, env = build(ctx, debug)
+    from tools.analyze.stats import print_binary_stats
+
+    print_binary_stats(
+        title=f"Service: {SERVICE_CONF.crate_name} ({'debug' if debug else 'release'})",
+        elf_path=service_elf,
+        package_name=SERVICE_CONF.crate_name,
+        repo_root=REPO_ROOT,
+        cwd=SERVICE_DIR,
+        debug=bool(debug),
+        crates=bool(crates),
+        env=env,
+    )
