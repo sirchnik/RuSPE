@@ -54,6 +54,7 @@ impl<P: SfnPlatform + 'static> SpmFn<P> {
             .try_lock(super::spm::ConnectionArray::pop_connection);
         result
     }
+
     // ...
 
     // Can be called by multiple threads. Multiple threads need access to different

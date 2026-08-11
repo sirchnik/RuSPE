@@ -1,4 +1,7 @@
 // SPDX-FileCopyrightText: Infineon Technologies AG
+// SPDX-FileCopyrightText: 2018-2023, Arm Limited.
+// SPDX-FileCopyrightText: 2026 The TrustedFirmware-M
+// Contributors.
 //
 // SPDX-License-Identifier: MIT
 
