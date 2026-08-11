@@ -37,13 +37,13 @@ impl<P: SfnPlatform + 'static> SpmFn<P> {
         }
     }
 
-    fn add_connection(&self, connection: Connection) -> Result<(), SpmError> {
+    fn add_connection(&self, connection: &Connection) -> Result<(), SpmError> {
         self.connections
             .try_lock(|connections| connections.add_connection(connection))
             .map_or(Err(SpmError::MutexBusy), |result| result)
     }
 
-    pub fn call(&self, connection: Connection) -> Result<(), crate::StatusCode> {
+    pub fn call(&self, connection: &Connection) -> Result<(), crate::StatusCode> {
         let msg = connection.msg;
         if self.add_connection(connection).is_err() {
             return Err(crate::StatusCode::ConnectionBusy);
@@ -54,6 +54,7 @@ impl<P: SfnPlatform + 'static> SpmFn<P> {
             .try_lock(super::spm::ConnectionArray::pop_connection);
         result
     }
+    // ...
 
     // Can be called by multiple threads. Multiple threads need access to different
     // connections.
@@ -87,7 +88,7 @@ impl<P: SfnPlatform + 'static> SpmFn<P> {
 impl<P: SfnPlatform + 'static> SpmCall for SpmFn<P> {
     /// Forwards the call to the platform's call method, while managing the
     /// connection stack.
-    fn call(&self, connection: Connection) -> Result<(), crate::StatusCode> {
+    fn call(&self, connection: &Connection) -> Result<(), crate::StatusCode> {
         Self::call(self, connection)
     }
 
@@ -171,7 +172,7 @@ mod tests {
     fn test_spm_fn_call_success() {
         let spm = SpmFn::new(&MOCK_PLATFORM);
         let conn = create_dummy_connection();
-        let res = spm.call(conn);
+        let res = spm.call(&conn);
         assert_eq!(res, Ok(()));
     }
 
@@ -197,7 +198,7 @@ mod tests {
     fn test_with_active_connection() {
         let spm = SpmFn::new(&MOCK_PLATFORM);
         let conn = create_dummy_connection();
-        let _ = spm.add_connection(conn);
+        let _ = spm.add_connection(&conn);
 
         let res = spm.with_active_connection(|c| c.msg.handle == ServiceHandle::Crypto);
         assert_eq!(res, Ok(true));
@@ -218,9 +219,9 @@ mod tests {
             create_dummy_connection_with_handle(ServiceHandle::InternalTrustedStorageService);
 
         // Simulate nested PSA calls
-        assert_eq!(spm.add_connection(conn1), Ok(()));
-        assert_eq!(spm.add_connection(conn2), Ok(()));
-        assert_eq!(spm.add_connection(conn3), Ok(()));
+        assert_eq!(spm.add_connection(&conn1), Ok(()));
+        assert_eq!(spm.add_connection(&conn2), Ok(()));
+        assert_eq!(spm.add_connection(&conn3), Ok(()));
 
         // Top should be conn3
         spm.with_active_connection(|c| {
@@ -249,7 +250,7 @@ mod tests {
         let spm = SpmFn::new(&MOCK_PLATFORM);
         for _ in 0..10 {
             let conn = create_dummy_connection();
-            assert_eq!(spm.call(conn), Ok(()));
+            assert_eq!(spm.call(&conn), Ok(()));
         }
     }
 }

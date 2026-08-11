@@ -88,7 +88,7 @@ macro_rules! define_spm_api {
 
                 let connection = $crate::spm_api::call_from_slices(spm, handle, ctrl_param, in_vecs, out_vecs, caller)?;
 
-                $crate::spm::spm::SpmCall::call(spm, connection)
+                $crate::spm::spm::SpmCall::call(spm, &connection)
             }
         }
 

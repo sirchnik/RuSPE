@@ -221,7 +221,7 @@ impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmIpc<P
 impl<P: IpcProcessPlatform + 'static, const N: usize, Proc: IpcProcess> SpmCall
     for SpmIpc<P, N, Proc>
 {
-    fn call(&self, connection: Connection) -> Result<(), crate::StatusCode> {
+    fn call(&self, connection: &Connection) -> Result<(), crate::StatusCode> {
         let Some(process_index) = self.find_process_index(connection.msg.handle) else {
             return Err(crate::StatusCode::NotSupported);
         };

@@ -500,7 +500,7 @@ mod tests {
     unsafe impl Sync for MockSpm {}
 
     impl SpmCall for MockSpm {
-        fn call(&self, _connection: Connection) -> Result<(), StatusCode> {
+        fn call(&self, _connection: &Connection) -> Result<(), StatusCode> {
             Ok(())
         }
 

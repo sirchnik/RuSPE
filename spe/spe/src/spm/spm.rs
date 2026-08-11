@@ -9,6 +9,7 @@ use crate::spm_api::{CallerAttributes, PsaMsg};
 const MAX_CONNECTIONS: usize = 4;
 pub const PSA_MAX_IOVEC: usize = 4;
 
+#[derive(Clone, Copy)]
 #[repr(C)]
 pub struct Connection {
     pub msg: PsaMsg,
@@ -54,7 +55,7 @@ impl ConnectionArray {
         }
     }
 
-    pub(crate) fn add_connection(&mut self, connection: Connection) -> Result<(), SpmError> {
+    pub(crate) fn add_connection(&mut self, connection: &Connection) -> Result<(), SpmError> {
         if self.top_connection >= MAX_CONNECTIONS {
             return Err(SpmError::ConnectionStackFull);
         }
@@ -65,7 +66,7 @@ impl ConnectionArray {
         let Some(present) = self.present.get_mut(self.top_connection) else {
             return Err(SpmError::ConnectionStackFull);
         };
-        slot.write(connection);
+        slot.write(*connection);
         *present = true;
         self.top_connection += 1;
 
@@ -159,7 +160,7 @@ impl ConnectionArray {
 /// Object-safe trait for SPM operations, used for type-erased storage in
 /// statics.
 pub trait SpmCall: Sync {
-    fn call(&self, connection: Connection) -> Result<(), crate::StatusCode>;
+    fn call(&self, connection: &Connection) -> Result<(), crate::StatusCode>;
 
     fn with_active_connection<F: FnMut(&mut Connection)>(&self, f: F) -> Result<(), SpmError>;
     fn has_real_permission(
