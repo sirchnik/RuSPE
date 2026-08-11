@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -69,7 +70,18 @@ func main() {
 	pubKeyY := flag.String("pub-key-y", "", "Public key Y coordinate (base64url, no padding)")
 	genKey := flag.Bool("gen-key", false, "Generate a new P-256 key pair and exit")
 	gui := flag.Bool("gui", false, "Start the fancy GUI")
+	defaults := defaultClientTimings()
+	tokenTimeout := flag.Duration("token-timeout", defaults.TokenRequestTimeout, "Overall timeout for token requests (0 to disable)")
+	serialReadTimeout := flag.Duration("serial-read-timeout", defaults.SerialReadTimeout, "Read timeout for serial/telnet reads")
 	flag.Parse()
+
+	timings := ClientTimings{
+		TokenRequestTimeout: *tokenTimeout,
+		SerialReadTimeout:   *serialReadTimeout,
+		TelnetDialTimeout:   defaults.TelnetDialTimeout,
+		NonceInitialDelay:   defaults.NonceInitialDelay,
+		NonceByteDelay:      defaults.NonceByteDelay,
+	}
 
 	if *genKey {
 		genPrintKey()
@@ -79,6 +91,7 @@ func main() {
 		startGUI(GUIConfig{
 			TokenSrc: *tokenSrc, TtyPath: *ttyPath, BaudRate: *baudRate,
 			Nonce: *nonce, PubKeyX: *pubKeyX, PubKeyY: *pubKeyY,
+			Timings: timings,
 		})
 		return
 	}
@@ -95,7 +108,13 @@ func main() {
 		}
 		fmt.Println("Nonce:", *nonce)
 		var err error
-		tokenHex, err = requestTokenFromTTY(*ttyPath, *baudRate, *nonce)
+		ctx := context.Background()
+		if timings.TokenRequestTimeout > 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, timings.TokenRequestTimeout)
+			defer cancel()
+		}
+		tokenHex, err = requestTokenFromTTYContext(ctx, *ttyPath, *baudRate, *nonce, timings)
 		must("request token from tty", err)
 		println("Received token hex:", tokenHex)
 	case "tfm":

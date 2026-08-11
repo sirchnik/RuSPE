@@ -27,6 +27,7 @@ type GUIConfig struct {
 	Nonce    string
 	PubKeyX  string
 	PubKeyY  string
+	Timings  ClientTimings
 }
 
 type WSMessage struct {
@@ -198,7 +199,13 @@ func (h *ClientHub) runTokenProcess(reqNonce string) *TokenInfo {
 	}
 	h.isProcessing = true
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx := context.Background()
+	var cancel context.CancelFunc
+	if h.cfg.Timings.TokenRequestTimeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, h.cfg.Timings.TokenRequestTimeout)
+	} else {
+		ctx, cancel = context.WithCancel(ctx)
+	}
 	h.cancelFn = cancel
 
 	nonce := reqNonce
@@ -224,7 +231,7 @@ func (h *ClientHub) runTokenProcess(reqNonce string) *TokenInfo {
 	tokenHex := ""
 	if currentSrc == "tty" {
 		var err error
-		tokenHex, err = requestTokenFromTTYContext(ctx, h.cfg.TtyPath, h.cfg.BaudRate, nonce)
+		tokenHex, err = requestTokenFromTTYContext(ctx, h.cfg.TtyPath, h.cfg.BaudRate, nonce, h.cfg.Timings)
 		if err != nil {
 			h.stateMu.Lock()
 			switchedToFake := (h.cfg.TokenSrc == "tfm")

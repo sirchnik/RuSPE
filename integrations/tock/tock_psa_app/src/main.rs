@@ -93,8 +93,8 @@ fn create_psa_token(writer: &mut impl Write) -> Result<(), TokenError> {
         let len = loop {
             let mut c = [0u8; 1];
             let (l, stat) = Console::read(&mut c);
-            if stat.is_err() {
-                return emit_json_error(writer, "console_read", TokenError::ConsoleRead);
+            if let Err(err) = stat {
+                return emit_json_console_read_error(writer, err);
             }
             if l == 1 {
                 let byte = c[0];
@@ -110,11 +110,7 @@ fn create_psa_token(writer: &mut impl Write) -> Result<(), TokenError> {
         };
 
         if len != 64 {
-            writeln!(
-                writer,
-                "{{\"type\":\"error\",\"msg\":\"Nonce-Read Failed\"}}"
-            )
-            .map_err(|_| TokenError::WriteError)?;
+            emit_json_nonce_read_error(writer, &nonce_hex, len)?;
             continue;
         }
 
@@ -128,6 +124,12 @@ fn create_psa_token(writer: &mut impl Write) -> Result<(), TokenError> {
             .map_err(|_| TokenError::WriteError)?;
             continue;
         }
+
+        writeln!(
+            writer,
+            "{{\"type\":\"status\",\"msg\":\"Nonce accepted. Generating token, this can take a few seconds.\"}}"
+        )
+        .map_err(|_| TokenError::WriteError)?;
         break;
     }
 
@@ -204,6 +206,45 @@ fn emit_json_ok(writer: &mut impl Write, token: &[u8], token_len: usize) -> Resu
     for b in token.iter() {
         write!(writer, "{:02x}", b).map_err(|_| TokenError::WriteError)?;
     }
+    writeln!(writer, "\"}}").map_err(|_| TokenError::WriteError)?;
+    Ok(())
+}
+
+fn emit_json_console_read_error(
+    writer: &mut impl Write,
+    err: impl core::fmt::Debug,
+) -> Result<(), TokenError> {
+    writeln!(
+        writer,
+        "{{\"type\":\"error\",\"msg\":\"console_read\",\"detail\":\"{:?}\"}}",
+        err
+    )
+    .map_err(|_| TokenError::WriteError)?;
+    Err(TokenError::ConsoleRead)
+}
+
+fn emit_json_nonce_read_error(
+    writer: &mut impl Write,
+    nonce_hex: &[u8; 64],
+    len: usize,
+) -> Result<(), TokenError> {
+    let shown_len = core::cmp::min(len, nonce_hex.len());
+
+    write!(
+        writer,
+        "{{\"type\":\"error\",\"msg\":\"Nonce-Read Failed\",\"read_len\":{},\"read\":\"",
+        len
+    )
+    .map_err(|_| TokenError::WriteError)?;
+
+    for b in nonce_hex.iter().take(shown_len) {
+        write!(writer, "{}", *b as char).map_err(|_| TokenError::WriteError)?;
+    }
+
+    if len > nonce_hex.len() {
+        write!(writer, "...<truncated>").map_err(|_| TokenError::WriteError)?;
+    }
+
     writeln!(writer, "\"}}").map_err(|_| TokenError::WriteError)?;
     Ok(())
 }

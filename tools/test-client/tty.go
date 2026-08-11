@@ -19,6 +19,24 @@ import (
 	"go.bug.st/serial/enumerator"
 )
 
+type ClientTimings struct {
+	TokenRequestTimeout time.Duration
+	SerialReadTimeout   time.Duration
+	TelnetDialTimeout   time.Duration
+	NonceInitialDelay   time.Duration
+	NonceByteDelay      time.Duration
+}
+
+func defaultClientTimings() ClientTimings {
+	return ClientTimings{
+		TokenRequestTimeout: 30 * time.Second,
+		SerialReadTimeout:   2 * time.Second,
+		TelnetDialTimeout:   3 * time.Second,
+		NonceInitialDelay:   50 * time.Millisecond,
+		NonceByteDelay:      20 * time.Millisecond,
+	}
+}
+
 // --- TTY ---
 
 func getCypressPort() (string, error) {
@@ -35,29 +53,29 @@ func getCypressPort() (string, error) {
 
 type tokenResponse struct {
 	Type     string `json:"type"`
-	Msg      string `json:"error"`
+	Msg      string `json:"msg"`
 	Token    string `json:"token"`
 	TokenLen int    `json:"token_len"`
 }
 
-func sendNonceSlowly(port io.Writer, nonceHex string) error {
-	time.Sleep(50 * time.Millisecond) // Wait for device to enter read state
+func sendNonceSlowly(port io.Writer, nonceHex string, timings ClientTimings) error {
+	time.Sleep(timings.NonceInitialDelay) // Wait for device to enter read state
 	for _, b := range []byte(nonceHex + "\n") {
 		if _, err := port.Write([]byte{b}); err != nil {
 			return err
 		}
-		time.Sleep(20 * time.Millisecond)
+		time.Sleep(timings.NonceByteDelay)
 	}
 	return nil
 }
 
 func requestTokenFromTTY(ttyPath string, baudRate int, nonceHex string) (string, error) {
-	return requestTokenFromTTYContext(context.Background(), ttyPath, baudRate, nonceHex)
+	return requestTokenFromTTYContext(context.Background(), ttyPath, baudRate, nonceHex, defaultClientTimings())
 }
 
-func requestTokenFromTTYContext(ctx context.Context, ttyPath string, baudRate int, nonceHex string) (string, error) {
+func requestTokenFromTTYContext(ctx context.Context, ttyPath string, baudRate int, nonceHex string, timings ClientTimings) (string, error) {
 	if isTelnetPath(ttyPath) {
-		return requestTokenFromTelnetContext(ctx, ttyPath, nonceHex)
+		return requestTokenFromTelnetContext(ctx, ttyPath, nonceHex, timings)
 	}
 
 	fmt.Printf("Debug: Requesting token with nonce '%s' from %s at %d baud...\n", nonceHex, ttyPath, baudRate)
@@ -65,7 +83,7 @@ func requestTokenFromTTYContext(ctx context.Context, ttyPath string, baudRate in
 	if err != nil {
 		return "", err
 	}
-	if err := port.SetReadTimeout(500 * time.Millisecond); err != nil {
+	if err := port.SetReadTimeout(timings.SerialReadTimeout); err != nil {
 		port.Close()
 		return "", fmt.Errorf("failed to set read timeout: %w", err)
 	}
@@ -87,6 +105,7 @@ func requestTokenFromTTYContext(ctx context.Context, ttyPath string, baudRate in
 		},
 		"serial",
 		nonceHex,
+		timings,
 	)
 }
 
@@ -94,14 +113,14 @@ func isTelnetPath(path string) bool {
 	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(path)), "telnet://")
 }
 
-func requestTokenFromTelnetContext(ctx context.Context, telnetPath string, nonceHex string) (string, error) {
+func requestTokenFromTelnetContext(ctx context.Context, telnetPath string, nonceHex string, timings ClientTimings) (string, error) {
 	addr, err := parseTelnetAddress(telnetPath)
 	if err != nil {
 		return "", err
 	}
 
 	fmt.Printf("Debug: Requesting token with nonce '%s' from telnet %s...\n", nonceHex, addr)
-	dialer := net.Dialer{Timeout: 3 * time.Second}
+	dialer := net.Dialer{Timeout: timings.TelnetDialTimeout}
 	conn, err := dialer.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return "", fmt.Errorf("failed to open telnet connection: %w", err)
@@ -116,7 +135,7 @@ func requestTokenFromTelnetContext(ctx context.Context, telnetPath string, nonce
 		ctx,
 		conn,
 		func(buf []byte) (int, error) {
-			if err := conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
+			if err := conn.SetReadDeadline(time.Now().Add(timings.SerialReadTimeout)); err != nil {
 				return 0, err
 			}
 			return conn.Read(buf)
@@ -130,6 +149,7 @@ func requestTokenFromTelnetContext(ctx context.Context, telnetPath string, nonce
 		},
 		"telnet",
 		nonceHex,
+		timings,
 	)
 }
 
@@ -161,10 +181,14 @@ func requestTokenLoop(
 	isTimeout func(error, int) bool,
 	transport string,
 	nonceHex string,
+	timings ClientTimings,
 ) (string, error) {
 
 	buf := make([]byte, 4096)
 	var accum string
+	nonceSubmitted := false
+	waitingForToken := false
+	consecutiveTimeouts := 0
 
 	fmt.Println("Debug: waiting for newline...")
 	for {
@@ -178,9 +202,18 @@ func requestTokenLoop(
 		if n > 0 {
 			fmt.Printf("Debug: Read %d bytes from %s\n", n, transport)
 			accum += string(buf[:n])
+			consecutiveTimeouts = 0
 		}
 		if err != nil {
 			if isTimeout(err, n) {
+				consecutiveTimeouts++
+				if waitingForToken || nonceSubmitted {
+					if consecutiveTimeouts%3 == 0 {
+						fmt.Println("Debug: Still waiting for token generation...")
+					}
+					continue
+				}
+
 				fmt.Println("Debug: Read timeout, sending newline to unblock device...")
 				if _, wErr := io.WriteString(port, "\n"); wErr != nil {
 					return "", fmt.Errorf("%s write (reset): %w", transport, wErr)
@@ -222,12 +255,20 @@ func requestTokenLoop(
 				return tok, nil
 			case "enter_nonce":
 				fmt.Println("Device requested nonce, sending slowly...")
-				if err := sendNonceSlowly(port, nonceHex); err != nil {
+				if err := sendNonceSlowly(port, nonceHex, timings); err != nil {
 					return "", fmt.Errorf("%s write: %w", transport, err)
 				}
+				nonceSubmitted = true
 				fmt.Println("Nonce sent")
+			case "status":
+				if resp.Msg != "" {
+					fmt.Printf("Device status: %s\n", resp.Msg)
+				}
+				waitingForToken = true
 			case "error":
 				fmt.Fprintf(os.Stderr, "device error: %s - retrying via reset...\n", resp.Msg)
+				nonceSubmitted = false
+				waitingForToken = false
 				if _, wErr := io.WriteString(port, "\n"); wErr != nil {
 					return "", fmt.Errorf("%s write (reset): %w", transport, wErr)
 				}
