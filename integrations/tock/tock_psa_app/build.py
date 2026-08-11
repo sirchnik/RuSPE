@@ -13,7 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tools.build.naming import get_psa_app_filename
+from tools.build.naming import psa_app_crate_name
 from tools.build.tock_app import TockAppConfig, elf_to_tbf
 
 APP_DIR = Path(__file__).resolve().parent
@@ -33,7 +33,7 @@ def build(
     app = TockAppConfig(
         repo_root=REPO_ROOT,
         app_dir=APP_DIR,
-        app_name=get_psa_app_filename(board),
+        app_name=psa_app_crate_name(board),
         flash_start=flash_start,
         flash_length=flash_length,
         ram_start=ram_start,

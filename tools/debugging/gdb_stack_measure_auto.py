@@ -2,16 +2,37 @@
 #
 # SPDX-License-Identifier: MIT
 
+"""
+GDB Script for automatic stack painting and measuring
+
+Only suitable for IPC model!
+"""
+
 import os
 import signal
 import struct
 import sys
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 
 import gdb
 
 WATERMARK_VAL = 0xDEADBEEF
+
+
+@dataclass
+class StackInfo:
+    name: str
+    elf: str
+    sfn: str
+    bottom: int
+    top: int
+    size: int
+    static_ram_used: int = 0
+    calls: int = 0
+    max_used_bytes: int = 0
+    watermarked_words: int = 0
 
 
 def read_memory_words(bottom: int, count: int) -> list[int]:
@@ -27,7 +48,7 @@ def write_memory(addr: int, data: bytes) -> None:
 
 def setup_sys_path() -> tuple[Path, Path]:
     progspace = gdb.current_progspace()
-    if progspace.filename:
+    if progspace is not None and progspace.filename:
         target_dir = Path(os.path.dirname(progspace.filename))
         repo_root = target_dir.parents[2]
         if str(repo_root) not in sys.path:
@@ -47,7 +68,7 @@ def get_current_pc_info() -> str:
 
 class StackTracker:
     def __init__(self):
-        self.stacks: dict[str, dict] = {}
+        self.stacks: dict[str, StackInfo] = {}
         self.sample_count = 0
         self.target_dir: Path | None = None
 
@@ -94,51 +115,42 @@ class StackTracker:
                     f"ELF path: {elf_path}"
                 )
 
-            stack_bottom = stats.stack_start
-            stack_top = stats.stack_end
-            size = stats.stack_left
-            static_ram_used = (
-                stats.static_ram_used if stats.static_ram_used is not None else 0
+            self.stacks[name] = StackInfo(
+                name=name,
+                elf=elf_name,
+                sfn=sfn_func,
+                bottom=stats.stack_start,
+                top=stats.stack_end,
+                size=stats.stack_left,
+                static_ram_used=stats.static_ram_used
+                if stats.static_ram_used is not None
+                else 0,
             )
-            self.stacks[name] = {
-                "elf": elf_name,
-                "sfn": sfn_func,
-                "bottom": stack_bottom,
-                "top": stack_top,
-                "size": size,
-                "static_ram_used": static_ram_used,
-                "calls": 0,
-                "max_used_bytes": 0,
-                "watermarked_words": 0,
-            }
             print(
                 f"  [FOUND] {name:<26} ({elf_name:<26}): "
-                f"Base=0x{stack_bottom:08x}, Size={size:5d} B, Top=0x{stack_top:08x}"
+                f"Base=0x{stats.stack_start:08x}, Size={stats.stack_left:5d} B, Top=0x{stats.stack_end:08x}"
             )
         print("=" * 85 + "\n")
 
     def watermark_stack(self, name: str):
         info = self.stacks[name]
-        size = info["size"]
-        bottom = info["bottom"]
-        top = info["top"]
 
-        words_count = size // 4
+        words_count = info.size // 4
         assert words_count > 0, f"Stack size for {name} is too small to watermark"
 
         pattern_bytes = WATERMARK_VAL.to_bytes(4, "little") * words_count
-        write_memory(bottom, pattern_bytes)
+        write_memory(info.bottom, pattern_bytes)
 
-        read_back = read_memory_words(bottom, words_count)
+        read_back = read_memory_words(info.bottom, words_count)
         assert all(w == WATERMARK_VAL for w in read_back), (
             f"Watermark verification failed for {name}: "
-            f"region 0x{bottom:08x}-0x{top:08x}"
+            f"region 0x{info.bottom:08x}-0x{info.top:08x}"
         )
 
-        info["watermarked_words"] = words_count
+        info.watermarked_words = words_count
         print(
             f"  Watermarked {name}: {words_count * 4} bytes "
-            f"(0x{bottom:08x} - 0x{bottom + words_count * 4:08x}) [Verified]"
+            f"(0x{info.bottom:08x} - 0x{info.bottom + words_count * 4:08x}) [Verified]"
         )
 
     def watermark_all(self):
@@ -148,21 +160,15 @@ class StackTracker:
 
     def dump_stack_memory(
         self,
-        name: str,
-        info: dict,
+        info: StackInfo,
         words: list[int],
         label: str,
         pc_info: str,
         first_break_index: int,
     ):
-        elf_name = info["elf"]
-        bottom = info["bottom"]
-        top = info["top"]
-        size = info["size"]
-
         clean_label = label.lower().replace(" ", "_").replace("#", "")
-        dump_filename = f"stack_dump_{elf_name}_{clean_label}.dump"
-        latest_filename = f"stack_dump_{elf_name}.dump"
+        dump_filename = f"stack_dump_{info.elf}_{clean_label}.dump"
+        latest_filename = f"stack_dump_{info.elf}.dump"
 
         samples_dir = (
             self.target_dir / "stack_dumps" if self.target_dir else Path("stack_dumps")
@@ -173,17 +179,17 @@ class StackTracker:
         latest_path = samples_dir / latest_filename
 
         lines = [
-            f"# Stack Dump: {name} ({elf_name})\n",
+            f"# Stack Dump: {info.name} ({info.elf})\n",
             f"# Context: {label} ({pc_info})\n",
-            f"# Base: 0x{bottom:08x}, Size: {size} B, Top: 0x{top:08x}\n",
+            f"# Base: 0x{info.bottom:08x}, Size: {info.size} B, Top: 0x{info.top:08x}\n",
             f"# Watermark Value: 0x{WATERMARK_VAL:08X}\n",
             f"# Unused Continuous Watermark Words: {first_break_index} ({first_break_index * 4} B)\n",
-            f"# Watermark First Break Address: 0x{bottom + first_break_index * 4:08x}\n",
+            f"# Watermark First Break Address: 0x{info.bottom + first_break_index * 4:08x}\n",
             "# " + "-" * 50 + "\n",
         ]
 
         for i, w in enumerate(words):
-            addr = bottom + i * 4
+            addr = info.bottom + i * 4
             if i == first_break_index:
                 marker = "  <-- WATERMARK BREAK (STACK USAGE BOUNDARY)"
             elif i < first_break_index:
@@ -208,17 +214,13 @@ class StackTracker:
         print(f"\n--- [{label}] {pc_info} ---")
 
         for name, info in self.stacks.items():
-            size = info["size"]
-            bottom = info["bottom"]
-            top = info["top"]
-            wm_words = info["watermarked_words"]
-            assert wm_words > 0, f"{name} was never watermarked"
+            assert info.watermarked_words > 0, f"{name} was never watermarked"
 
             try:
-                words = read_memory_words(bottom, wm_words)
+                words = read_memory_words(info.bottom, info.watermarked_words)
             except gdb.MemoryError:
                 print(
-                    f"  [INFO] Cannot access {name} memory at 0x{bottom:08x} "
+                    f"  [INFO] Cannot access {name} memory at 0x{info.bottom:08x} "
                     f"(target in Non-Secure mode)"
                 )
                 continue
@@ -233,20 +235,20 @@ class StackTracker:
             if unused_words == 0:
                 print(
                     f"  WARNING: {name} stack fully consumed "
-                    f"(0x{bottom:08x}-0x{top:08x}) at {pc_info}"
+                    f"(0x{info.bottom:08x}-0x{info.top:08x}) at {pc_info}"
                 )
 
-            used_bytes = (wm_words - unused_words) * 4
+            used_bytes = (info.watermarked_words - unused_words) * 4
 
             if not trial:
-                if used_bytes > info["max_used_bytes"]:
-                    info["max_used_bytes"] = used_bytes
-                info["calls"] += 1
+                if used_bytes > info.max_used_bytes:
+                    info.max_used_bytes = used_bytes
+                info.calls += 1
 
-            pct = (used_bytes / size) * 100.0 if size > 0 else 0.0
+            pct = (used_bytes / info.size) * 100.0 if info.size > 0 else 0.0
             print(f"  {name:<26}: {used_bytes:5d} B ({pct:5.1f}%)")
 
-            self.dump_stack_memory(name, info, words, label, pc_info, unused_words)
+            self.dump_stack_memory(info, words, label, pc_info, unused_words)
 
     def generate_report(self):
         # Report uses only accumulated max values from secure-context samples.
@@ -265,19 +267,13 @@ class StackTracker:
         print("-" * 114)
 
         for name, info in self.stacks.items():
-            size = info["size"]
-            calls = info["calls"]
-            wm_words = info["watermarked_words"]
-
-            assert wm_words > 0, f"{name} was never watermarked"
-            assert calls > 0, (
+            assert info.watermarked_words > 0, f"{name} was never watermarked"
+            assert info.calls > 0, (
                 f"{name} had 0 samples — no secure-context breakpoint was hit"
             )
 
-            max_used_bytes = info["max_used_bytes"]
-            static_ram_used = info.get("static_ram_used", 0)
-            used_ram_bytes = max_used_bytes + static_ram_used
-            pct = (max_used_bytes / size) * 100.0 if size > 0 else 0.0
+            used_ram_bytes = info.max_used_bytes + info.static_ram_used
+            pct = (info.max_used_bytes / info.size) * 100.0 if info.size > 0 else 0.0
 
             if pct >= 90.0:
                 status = "CRITICAL (>90%)"
@@ -287,8 +283,8 @@ class StackTracker:
                 status = "OK"
 
             print(
-                f"{name:<26} | {size:7d} B  | {max_used_bytes:7d} B ({pct:5.1f}%) | "
-                f"{used_ram_bytes:7X} B    | {pct:7.2f}% | {calls:<7} | {status}"
+                f"{name:<26} | {info.size:7d} B  | {info.max_used_bytes:7d} B ({pct:5.1f}%) | "
+                f"0x{used_ram_bytes:7x} B    | {pct:7.2f}% | {info.calls:<7} | {status}"
             )
 
         print("-" * 114)
@@ -297,8 +293,6 @@ class StackTracker:
             "Secure mode via 0xDEADBEEF watermark scanning."
         )
         print("=" * 114 + "\n")
-
-        gdb.execute("monitor reset halt")
 
 
 tracker = StackTracker()
@@ -317,6 +311,16 @@ def exit_gdb():
 BREAKPOINTS: list[gdb.Breakpoint] = []
 
 
+def finalize_and_exit():
+    """Delete all breakpoints, reset-halt, generate the report, and exit GDB."""
+    for bp in BREAKPOINTS:
+        bp.delete()
+    BREAKPOINTS.clear()
+    tracker.generate_report()
+    gdb.execute("monitor reset halt")
+    exit_gdb()
+
+
 class SpmIpcSampleBreakpoint(gdb.Breakpoint):
     def __init__(self, spec: str):
         super().__init__(spec, internal=False)
@@ -327,12 +331,7 @@ class SpmIpcSampleBreakpoint(gdb.Breakpoint):
 
         if _timed_out:
             # Timeout elapsed — target is halted here (breakpoint context).
-            # Delete all breakpoints, generate the report, and exit.
-            for bp in BREAKPOINTS:
-                bp.delete()
-            BREAKPOINTS.clear()
-            tracker.generate_report()
-            exit_gdb()
+            finalize_and_exit()
             return True  # stay stopped (won't reach here after exit)
 
         pc_info = get_current_pc_info()
@@ -348,7 +347,6 @@ def setup_spm_ipc_breakpoints():
         "psc3m5_evk_attest_srv::call",
         "spe_services::crypto::crypto_service::CryptoService::compute_hash",
     ]
-    created = 0
     specs_set = []
     for spec in candidate_specs:
         bp = SpmIpcSampleBreakpoint(spec)
@@ -358,12 +356,13 @@ def setup_spm_ipc_breakpoints():
         BREAKPOINTS.append(bp)
         specs_set.append(spec)
         print(f"  Set watermark sampling breakpoint at: {spec}")
-        created += 1
 
-    assert created > 0, (
+    assert len(specs_set) > 0, (
         f"Could not set any sampling breakpoints. Tried: {candidate_specs}"
     )
-    print(f"Set {created} watermark sampling breakpoint(s): {', '.join(specs_set)}")
+    print(
+        f"Set {len(specs_set)} watermark sampling breakpoint(s): {', '.join(specs_set)}"
+    )
 
 
 def _timeout_interrupt():
@@ -382,10 +381,11 @@ def run_automated_stack_measurement():
     print("Connecting to OpenOCD...")
     gdb.execute("target extended-remote localhost:3333")
 
-    from tools.build.naming import get_merged_hex_filename
+    from tools.build.naming import MergedArtifactName
 
-    merged_hex = target_dir / get_merged_hex_filename(
-        "psc3m5_evk_secure_ipc", "psc3m5_evk_test_nspe", has_services=True
+    merged_hex = (
+        target_dir
+        / MergedArtifactName.ipc("psc3m5_evk_secure_ipc", "psc3m5_evk_test_nspe").hex
     )
     assert merged_hex.exists(), f"Merged hex not found: {merged_hex}"
 
@@ -424,11 +424,7 @@ def run_automated_stack_measurement():
     # fired afterwards (e.g. target was in non-secure code), generate the
     # report here while the target is halted.
     if _timed_out and tracker.sample_count > 0:
-        for bp in BREAKPOINTS:
-            bp.delete()
-        BREAKPOINTS.clear()
-        tracker.generate_report()
-        exit_gdb()
+        finalize_and_exit()
 
 
 if __name__ == "__main__":

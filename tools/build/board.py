@@ -25,10 +25,10 @@ from .invoke_support import (
 )
 from .naming import (
     SUFFIX_HEX,
-    get_merged_hex_filename,
-    get_app_elf_filename,
-    get_noapps_bin_filename,
-    get_combined_tock_apps_filename,
+    MergedArtifactName,
+    app_elf_filename,
+    noapps_bin_filename,
+    combined_tock_apps_filename,
 )
 
 
@@ -156,7 +156,7 @@ def cargo_build(
 
 def inject_app(ctx: Context, board: BoardConfig, debug: bool, app: str | None) -> Path:
     kernel = board.kernel_image(debug)
-    kernel_with_app = board.target_root(debug) / get_app_elf_filename(board)
+    kernel_with_app = board.target_root(debug) / app_elf_filename(board)
 
     if not kernel.exists():
         raise BuildError(f"Kernel image does not exist: {kernel}")
@@ -191,7 +191,7 @@ def inject_app(ctx: Context, board: BoardConfig, debug: bool, app: str | None) -
     )
 
     # Generate a raw binary to bypass QEMU processing the empty .apps segment left by llvm-objcopy
-    noapps_bin = kernel_with_app.with_name(get_noapps_bin_filename(board))
+    noapps_bin = kernel_with_app.with_name(noapps_bin_filename(board))
     run_command(
         [
             str(objcopy),
@@ -275,9 +275,9 @@ def resolve_merged_hex_path(
     target_root = secure_board.target_root(debug)
     has_apps = "+apps" in non_secure_elf.name
     has_services = bool(extra_hexes)
-    merged_filename = get_merged_hex_filename(
+    merged_filename = MergedArtifactName(
         secure_board, non_secure_board, has_apps=has_apps, has_services=has_services
-    )
+    ).hex
     return target_root / merged_filename
 
 
@@ -464,13 +464,13 @@ def combine_tock_apps(
     app1_tbf: Path, app2_tbf: Path, pad_len: int, board: str | None = None
 ) -> Path:
     if board:
-        combined_filename = get_combined_tock_apps_filename(board)
+        combined_filename = combined_tock_apps_filename(board)
     else:
         name_parts = app1_tbf.stem.split("_tock_")
         if len(name_parts) > 1 and name_parts[0]:
-            combined_filename = get_combined_tock_apps_filename(name_parts[0])
+            combined_filename = combined_tock_apps_filename(name_parts[0])
         else:
-            combined_filename = get_combined_tock_apps_filename("combined")
+            combined_filename = combined_tock_apps_filename("combined")
 
     combined_tbf = app1_tbf.parent / combined_filename
 

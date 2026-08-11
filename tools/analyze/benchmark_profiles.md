@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: Infineon Technologies AG
+
+SPDX-License-Identifier: MIT
+-->
+
 # IPC Benchmark Summary
 
 Generated: 2026-07-30 09:15:38Z

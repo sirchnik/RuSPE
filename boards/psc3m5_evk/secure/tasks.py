@@ -29,11 +29,7 @@ from tools.build.board import (
     flash_hex,
     program_hex,
 )
-from tools.build.naming import (
-    get_merged_tock_hex_filename,
-    get_psa_app_filename,
-    get_merged_hex_filename,
-)
+from tools.build.naming import MergedArtifactName, psa_app_crate_name
 from tools.build.secure_build import build_firmware
 
 from boards.psc3m5_evk.tasks import (
@@ -206,7 +202,7 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
         VscodeLaunchTarget(
             **base_conf.to_dict(),
             name=f"Test-PSC3 FN {profile_short}",
-            executable=f"target/thumbv8m.main-none-eabi/{profile}/{get_merged_hex_filename(BOARD, test_nspe_build.NON_SECURE_BOARD)}",
+            executable=f"target/thumbv8m.main-none-eabi/{profile}/{MergedArtifactName(BOARD, test_nspe_build.NON_SECURE_BOARD).hex}",
             preLaunchCommands=[
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/{test_nspe_build.NON_SECURE_BOARD.crate_name}",
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/{BOARD.crate_name}",
@@ -216,22 +212,22 @@ def vscode_launch_targets(release: bool = False) -> list[VscodeLaunchTarget]:
         VscodeLaunchTarget(
             **base_conf.to_dict(),
             name=f"Tock-PSC3 FN {profile_short}",
-            executable=f"target/thumbv8m.main-none-eabi/{profile}/{get_merged_tock_hex_filename(BOARD, tock_kernel_build.NON_SECURE_BOARD)}",
+            executable=f"target/thumbv8m.main-none-eabi/{profile}/{MergedArtifactName.tock(BOARD, tock_kernel_build.NON_SECURE_BOARD).hex}",
             preLaunchCommands=[
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/{tock_kernel_build.NON_SECURE_BOARD.crate_name}",
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/{BOARD.crate_name}",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/{get_psa_app_filename(BOARD.board_name)}",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/{psa_app_crate_name(BOARD.board_name)}",
             ],
             preLaunchTask=f"build{profile_short_snake}.psc3m5_evk_tock",
         ),
         VscodeLaunchTarget(
             **base_conf.to_dict(),
             name=f"Tock-PSC3 FN Loop Token {profile_short}",
-            executable=f"target/thumbv8m.main-none-eabi/{profile}/{get_merged_tock_hex_filename(BOARD, tock_kernel_build.NON_SECURE_BOARD)}",
+            executable=f"target/thumbv8m.main-none-eabi/{profile}/{MergedArtifactName.tock(BOARD, tock_kernel_build.NON_SECURE_BOARD).hex}",
             preLaunchCommands=[
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/{tock_kernel_build.NON_SECURE_BOARD.crate_name}",
                 f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/{BOARD.crate_name}",
-                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/{get_psa_app_filename(BOARD.board_name)}",
+                f"add-symbol-file target/thumbv8m.main-none-eabi/{profile}/{psa_app_crate_name(BOARD.board_name)}",
             ],
             preLaunchTask=f"build{profile_short_snake}.psc3m5_evk_tock_loop_token",
         ),
