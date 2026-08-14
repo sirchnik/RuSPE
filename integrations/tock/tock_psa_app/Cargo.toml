@@ -9,12 +9,12 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-libtock = { git = "https://www.github.com/tock/libtock-rs" }
+libtock = { git = "https://github.com/tock/libtock-rs.git", rev = "fc89be7d18da55649b5b3d3b98b40c88a78d9ef0" }
 psa_interface = { path = "../../../spe/psa_interface" }
 psa_veneer_client = { path = "../../../spe/psa_veneer_client" }
 
 [build-dependencies]
-libtock_build_scripts = { git = "https://www.github.com/tock/libtock-rs" }
+libtock_build_scripts = { git = "https://github.com/tock/libtock-rs.git", rev = "fc89be7d18da55649b5b3d3b98b40c88a78d9ef0" }
 
 [features]
 default = []
