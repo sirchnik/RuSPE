@@ -2,10 +2,6 @@
 //
 // SPDX-License-Identifier: MIT
 
-#![cfg_attr(
-    all(target_arch = "arm", target_os = "none", feature = "veneers"),
-    feature(cmse_nonsecure_entry)
-)]
 #![no_std]
 
 #[cfg(target_arch = "arm")]

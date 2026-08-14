@@ -6,7 +6,6 @@
 
 #![no_std]
 #![no_main]
-#![feature(cmse_nonsecure_entry)]
 
 use core::ptr::addr_of_mut;
 

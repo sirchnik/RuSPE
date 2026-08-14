@@ -92,10 +92,24 @@ macro_rules! define_spm_api {
             }
         }
 
+        // Hand-written CMSE SG stub: naked veneers don't get an
+        // LLVM-generated `.gnu.sgstubs` entry, so it is emitted manually.
+        #[cfg(target_arch = "arm")]
+        core::arch::global_asm!(
+            ".section .gnu.sgstubs,\"ax\",%progbits",
+            ".align 5",
+            ".global psa_version_veneer",
+            ".type psa_version_veneer, %function",
+            ".thumb_func",
+            "psa_version_veneer:",
+            "sg",
+            "b __acle_se_psa_version_veneer",
+        );
+
         #[cfg(target_arch = "arm")]
         #[unsafe(naked)]
         #[unsafe(no_mangle)]
-        pub extern "cmse-nonsecure-entry" fn psa_version_veneer(service_id: u32) -> u32 {
+        pub extern "C" fn __acle_se_psa_version_veneer(service_id: u32) -> u32 {
             core::arch::naked_asm!(
                 // r0 = service_id (preserved for impl call)
                 "ldr r1, [sp]",
@@ -139,9 +153,21 @@ macro_rules! define_spm_api {
         }
 
         #[cfg(target_arch = "arm")]
+        core::arch::global_asm!(
+            ".section .gnu.sgstubs,\"ax\",%progbits",
+            ".align 5",
+            ".global psa_call_veneer",
+            ".type psa_call_veneer, %function",
+            ".thumb_func",
+            "psa_call_veneer:",
+            "sg",
+            "b __acle_se_psa_call_veneer",
+        );
+
+        #[cfg(target_arch = "arm")]
         #[unsafe(naked)]
         #[unsafe(no_mangle)]
-        pub extern "cmse-nonsecure-entry" fn psa_call_veneer(
+        pub extern "C" fn __acle_se_psa_call_veneer(
             handle: psa_interface::types::ServiceHandle,
             ctrl_param: psa_interface::types::CtrlParam,
             in_vec: *const psa_interface::types::FFInVec,

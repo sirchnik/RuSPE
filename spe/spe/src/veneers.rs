@@ -16,11 +16,26 @@
 
 use crate::startup::{STACK_SEAL_HI, STACK_SEAL_LO};
 
+// Hand-written CMSE SG stub: LLVM only auto-generates `.gnu.sgstubs` entries
+// for non-naked `cmse-nonsecure-entry` functions, so naked veneers need their
+// stub emitted manually. The `__acle_se_`-prefixed symbol below matches the
+// naming the compiler-generated stubs would otherwise use.
+core::arch::global_asm!(
+    ".section .gnu.sgstubs,\"ax\",%progbits",
+    ".align 5",
+    ".global psa_framework_version_veneer",
+    ".type psa_framework_version_veneer, %function",
+    ".thumb_func",
+    "psa_framework_version_veneer:",
+    "sg",
+    "b __acle_se_psa_framework_version_veneer",
+);
+
 /// Retrieve the version of the PSA Framework API that is implemented.
 #[cfg(target_arch = "arm")]
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
-pub extern "cmse-nonsecure-entry" fn psa_framework_version_veneer() -> u32 {
+pub extern "C" fn __acle_se_psa_framework_version_veneer() -> u32 {
     core::arch::naked_asm!(
         "ldr r0, [sp]",
         "movw r1, #{seal_lo}",
