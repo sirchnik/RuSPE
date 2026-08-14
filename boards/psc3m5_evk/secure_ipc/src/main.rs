@@ -7,7 +7,6 @@
 #![no_std]
 #![no_main]
 #![feature(cmse_nonsecure_entry)]
-#![feature(abi_cmse_nonsecure_call)]
 
 use core::ptr::addr_of_mut;
 
@@ -129,18 +128,17 @@ impl IpcPlatform for Psc3IpcPlatform {
 impl IpcProcessPlatform for Psc3IpcPlatform {}
 
 #[unsafe(no_mangle)]
-pub unsafe fn main() {
+pub unsafe fn main() -> ! {
     match unsafe { start() } {
-        Ok(nonsecure_reset) => nonsecure_reset(),
-        Err(_) => loop {},
+        Ok(()) => unsafe { spe::startup::jump_to_nonsecure(NONSECURE_FLASH_START) },
+        Err(()) => loop {},
     }
 }
 
 /// Separated initialization function to ensure its stack frame is popped
 /// before jumping to the non-secure entry point in `main`.
-/// Returns the non-secure reset handler address.
 #[inline(never)]
-unsafe fn start() -> Result<extern "cmse-nonsecure-call" fn(), ()> {
+unsafe fn start() -> Result<(), ()> {
     icache::sys_init_enable_cache();
     chip_init::preinit_peripherals();
     chip_init::init_system()?;
@@ -211,5 +209,5 @@ unsafe fn start() -> Result<extern "cmse-nonsecure-call" fn(), ()> {
     #[cfg(debug_assertions)]
     io::debugln(format_args!("Init SPE (IPC) done, jumping to non-secure"));
 
-    Ok(unsafe { spe::startup::jump_to_nonsecure(NONSECURE_FLASH_START) })
+    Ok(())
 }

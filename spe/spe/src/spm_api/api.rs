@@ -93,14 +93,31 @@ macro_rules! define_spm_api {
         }
 
         #[cfg(target_arch = "arm")]
+        #[unsafe(naked)]
         #[unsafe(no_mangle)]
         pub extern "cmse-nonsecure-entry" fn psa_version_veneer(service_id: u32) -> u32 {
-            if $crate::veneers::enter_secure_state().is_err() {
-                return 0;
-            }
-            let res = psa_version_impl(service_id);
-            $crate::veneers::exit_secure_state();
-            res
+            core::arch::naked_asm!(
+                // r0 = service_id (preserved for impl call)
+                "ldr r1, [sp]",
+                "movw r2, #{seal_lo}",
+                "movt r2, #{seal_hi}",
+                "cmp r1, r2",
+                "bne 99f",
+                "push {{r4, lr}}",
+                "bl {impl_fn}",
+                "pop {{r4, lr}}",
+                "movs r1, #0",
+                "movs r2, #0",
+                "movs r3, #0",
+                "mov r12, r1",
+                "msr APSR_nzcvq, r1",
+                "bxns lr",
+                "99:",
+                "b 99b",
+                impl_fn = sym psa_version_impl,
+                seal_lo = const $crate::startup::STACK_SEAL_LO,
+                seal_hi = const $crate::startup::STACK_SEAL_HI,
+            );
         }
 
         fn psa_version_impl(service_id: u32) -> u32 {
@@ -122,6 +139,7 @@ macro_rules! define_spm_api {
         }
 
         #[cfg(target_arch = "arm")]
+        #[unsafe(naked)]
         #[unsafe(no_mangle)]
         pub extern "cmse-nonsecure-entry" fn psa_call_veneer(
             handle: psa_interface::types::ServiceHandle,
@@ -129,12 +147,30 @@ macro_rules! define_spm_api {
             in_vec: *const psa_interface::types::FFInVec,
             out_vec: *mut psa_interface::types::FFOutVec,
         ) -> psa_interface::types::PsaStatus {
-            if $crate::veneers::enter_secure_state().is_err() {
-                return psa_interface::status::into_psa_status(Err($crate::StatusCode::ProgrammerError));
-            }
-            let res = psa_call_impl(handle, ctrl_param, in_vec, out_vec);
-            $crate::veneers::exit_secure_state();
-            res
+            core::arch::naked_asm!(
+                // r0-r3 = args, must preserve for impl call
+                "push {{r4}}",
+                "ldr r4, [sp, #4]",
+                "movw r12, #{seal_lo}",
+                "movt r12, #{seal_hi}",
+                "cmp r4, r12",
+                "pop {{r4}}",
+                "bne 99f",
+                "push {{r4, lr}}",
+                "bl {impl_fn}",
+                "pop {{r4, lr}}",
+                "movs r1, #0",
+                "movs r2, #0",
+                "movs r3, #0",
+                "mov r12, r1",
+                "msr APSR_nzcvq, r1",
+                "bxns lr",
+                "99:",
+                "b 99b",
+                impl_fn = sym psa_call_impl,
+                seal_lo = const $crate::startup::STACK_SEAL_LO,
+                seal_hi = const $crate::startup::STACK_SEAL_HI,
+            );
         }
 
         fn psa_call_impl(

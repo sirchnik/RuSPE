@@ -4,11 +4,11 @@
 
 //! SPE Startup helpers
 
-#[cfg(target_arch = "arm")]
-type NsResetFn = extern "cmse-nonsecure-call" fn();
-
-#[cfg(not(target_arch = "arm"))]
-type NsResetFn = extern "C" fn();
+/// Stack seal pattern placed on MSP during secure boot.
+/// Veneers verify `[MSP] == STACK_SEAL_PATTERN` to detect re-entrancy.
+pub const STACK_SEAL_PATTERN: u32 = 0xFEF5_EDA5;
+pub const STACK_SEAL_LO: u32 = STACK_SEAL_PATTERN & 0xFFFF;
+pub const STACK_SEAL_HI: u32 = STACK_SEAL_PATTERN >> 16;
 
 /// Restricts system resets to the secure state and configures exception
 /// handling attributes in AIRCR.
@@ -31,37 +31,36 @@ pub unsafe fn configure_aircr() {
     }
 }
 
-/// Prepares for and returns the function pointer to jump to the non-secure
-/// application.
+/// Pushes the stack seal onto MSP and transitions to non-secure state.
+///
+/// Uses `bxns` (not `blxns`) so no secure state is saved on the stack—the
+/// seal remains at `[MSP]` for veneer re-entrancy checks.
 ///
 /// # Safety
-/// This function is unsafe because it performs raw pointer dereferences,
-/// sets the non-secure main stack pointer (`MSP_NS`), and transmutes the
-/// non-secure reset handler address to an executable function pointer.
+/// Caller must have fully initialized the secure environment (SAU, SPM, etc.)
+/// and `nonsecure_flash_start` must point to a valid NS vector table.
 #[cfg(target_arch = "arm")]
-pub unsafe fn jump_to_nonsecure(nonsecure_flash_start: u32) -> NsResetFn {
-    // SAFETY: Caller guarantees the non-secure vector table pointer is valid;
-    // this block performs required privileged operations.
+pub unsafe fn jump_to_nonsecure(nonsecure_flash_start: u32) -> ! {
+    let nonsecure_start_flash = nonsecure_flash_start as *const u32;
+    let nonsecure_sp = unsafe { nonsecure_start_flash.read_volatile() };
+    let nonsecure_reset = unsafe { nonsecure_start_flash.add(1).read_volatile() };
+
     unsafe {
-        let nonsecure_start_flash = nonsecure_flash_start as *const u32;
-        let nonsecure_sp = nonsecure_start_flash.read_volatile();
-        let nonsecure_reset = nonsecure_start_flash.add(1).read_volatile();
-
-        // Set non-secure main stack pointer on ARM targets.
-        #[cfg(target_arch = "arm")]
         core::arch::asm!(
-            "msr msp_ns, {nonsecure_sp}",
-            nonsecure_sp = in(reg) nonsecure_sp,
-            options(nomem, nostack, preserves_flags),
-        );
-
-        core::mem::transmute::<*const u32, NsResetFn>(nonsecure_reset as *const u32)
+            "msr msp_ns, {ns_sp}",
+            "push {{{seal}}}",
+            "bxns {ns_reset}",
+            ns_sp = in(reg) nonsecure_sp,
+            ns_reset = in(reg) nonsecure_reset,
+            seal = in(reg) STACK_SEAL_PATTERN,
+            options(noreturn),
+        )
     }
 }
 
 #[cfg(not(target_arch = "arm"))]
 /// # Safety
 /// Non-ARM target stub function for `jump_to_nonsecure`.
-pub unsafe fn jump_to_nonsecure(_nonsecure_flash_start: u32) -> NsResetFn {
+pub unsafe fn jump_to_nonsecure(_nonsecure_flash_start: u32) -> ! {
     unimplemented!("Only implemented for ARM architectures");
 }

@@ -7,7 +7,6 @@
 #![no_std]
 #![no_main]
 #![feature(cmse_nonsecure_entry)]
-#![feature(abi_cmse_nonsecure_call)]
 
 use core::ptr::addr_of_mut;
 
@@ -32,16 +31,16 @@ pub mod global_spm_api {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe fn main() {
-    let nonsecure_reset = unsafe { start() };
-    nonsecure_reset();
+pub unsafe fn main() -> ! {
+    unsafe { start() };
+    const NONSECURE_FLASH_START: u32 = 0x0010_2000;
+    unsafe { spe::startup::jump_to_nonsecure(NONSECURE_FLASH_START) }
 }
 
 /// Separated initialization function to ensure its stack frame is popped
 /// before jumping to the non-secure entry point in `main`.
-/// Returns the non-secure reset handler address.
 #[inline(never)]
-unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
+unsafe fn start() {
     let serial = unsafe { static_init!(uart::UartMin, uart::UartMin::new_uart0_sec()) };
 
     // Configure UART (assuming musca_b1 system clock is 50MHz, baud 115200)
@@ -196,8 +195,4 @@ unsafe fn start() -> extern "cmse-nonsecure-call" fn() {
     }
 
     io::debugln(format_args!("Init SPE done, jumping to non-secure"));
-
-    const NONSECURE_FLASH_START: u32 = 0x0010_2000;
-
-    unsafe { spe::startup::jump_to_nonsecure(NONSECURE_FLASH_START) }
 }

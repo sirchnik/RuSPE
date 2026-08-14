@@ -126,7 +126,7 @@ SECTIONS
     {
         . = ALIGN(32);
         __veneer_base = .;
-        *(.gnu.sgstubs*)
+        KEEP(*(.gnu.sgstubs*))
         . = ALIGN(32);
     } > nsc 
     /* Place `__veneer_limit` outside the `.gnu.sgstubs` section because veneers are
