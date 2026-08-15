@@ -47,6 +47,7 @@ pub fn run_test(writer: &mut dyn Write) {
     run_attest(writer);
     run_attest(writer);
     run_attest_invalid_buffer(writer);
+    let _ = writeln!(writer, "\r\n--- NSPE TEST END ---");
 }
 
 fn print_version(writer: &mut dyn Write) {

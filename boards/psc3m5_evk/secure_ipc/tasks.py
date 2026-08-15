@@ -37,6 +37,7 @@ from tools.build.board import (
 )
 from tools.build.naming import MergedArtifactName, psa_app_crate_name
 from tools.build.secure_build import build_firmware, FirmwareResult
+from tools.debugging.uart_capture import DEFAULT_TIMEOUT, run_firmware
 
 from boards.psc3m5_evk.tasks import (
     TOCK_LAYOUT,
@@ -280,6 +281,40 @@ def flash(
     if openocd:
         return program_hex(ctx, BOARD, result.merged_hex)
     return flash_hex(ctx, BOARD, result.merged_hex)
+
+
+@build_task(
+    help={
+        "nspe": NSPE_HELP,
+        "app": APP_HELP,
+        "debug": DEBUG_HELP,
+        "features": "Comma-separated list of features for tock_psa_app.",
+        "openocd": "Use OpenOCD for programming instead of probe-rs.",
+        "timeout": "Seconds to wait for the UART output.",
+        "port": "Serial port of the non-secure UART (auto-detected by default).",
+    }
+)
+def run(
+    ctx: Context,
+    nspe="test",
+    app=None,
+    debug=False,
+    features: str | None = None,
+    openocd: bool = False,
+    timeout=DEFAULT_TIMEOUT,
+    port: str | None = None,
+):
+    """Build, flash and print the non-secure UART output (UART is attached before flashing)."""
+    result = _build(ctx, nspe, app, bool(debug), parse_features(features))
+    return run_firmware(
+        ctx,
+        BOARD,
+        result.merged_hex,
+        port=port,
+        timeout=float(timeout),
+        openocd=bool(openocd),
+        markers=nspe == "test",
+    )
 
 
 @build_task(

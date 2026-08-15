@@ -1111,7 +1111,7 @@ checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
 [[package]]
 name = "libtock"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_adc",
  "libtock_air_quality",
@@ -1144,7 +1144,7 @@ dependencies = [
 [[package]]
 name = "libtock_adc"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_platform",
 ]
@@ -1152,7 +1152,7 @@ dependencies = [
 [[package]]
 name = "libtock_air_quality"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_platform",
 ]
@@ -1160,7 +1160,7 @@ dependencies = [
 [[package]]
 name = "libtock_alarm"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_platform",
 ]
@@ -1168,7 +1168,7 @@ dependencies = [
 [[package]]
 name = "libtock_ambient_light"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_platform",
 ]
@@ -1176,12 +1176,12 @@ dependencies = [
 [[package]]
 name = "libtock_build_scripts"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 
 [[package]]
 name = "libtock_buttons"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_platform",
 ]
@@ -1189,7 +1189,7 @@ dependencies = [
 [[package]]
 name = "libtock_buzzer"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_platform",
 ]
@@ -1197,7 +1197,7 @@ dependencies = [
 [[package]]
 name = "libtock_console"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_platform",
 ]
@@ -1205,7 +1205,7 @@ dependencies = [
 [[package]]
 name = "libtock_debug_panic"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_console",
  "libtock_low_level_debug",
@@ -1216,7 +1216,7 @@ dependencies = [
 [[package]]
 name = "libtock_gpio"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_platform",
 ]
@@ -1224,7 +1224,7 @@ dependencies = [
 [[package]]
 name = "libtock_i2c_master"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_platform",
 ]
@@ -1232,7 +1232,7 @@ dependencies = [
 [[package]]
 name = "libtock_i2c_master_slave"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_platform",
 ]
@@ -1240,7 +1240,7 @@ dependencies = [
 [[package]]
 name = "libtock_ieee802154"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_platform",
 ]
@@ -1248,7 +1248,7 @@ dependencies = [
 [[package]]
 name = "libtock_key_value"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_platform",
 ]
@@ -1256,7 +1256,7 @@ dependencies = [
 [[package]]
 name = "libtock_leds"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_platform",
 ]
@@ -1264,7 +1264,7 @@ dependencies = [
 [[package]]
 name = "libtock_low_level_debug"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_platform",
 ]
@@ -1272,7 +1272,7 @@ dependencies = [
 [[package]]
 name = "libtock_ninedof"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libm",
  "libtock_platform",
@@ -1281,12 +1281,12 @@ dependencies = [
 [[package]]
 name = "libtock_platform"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 
 [[package]]
 name = "libtock_proximity"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_platform",
 ]
@@ -1294,7 +1294,7 @@ dependencies = [
 [[package]]
 name = "libtock_rng"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_platform",
 ]
@@ -1302,7 +1302,7 @@ dependencies = [
 [[package]]
 name = "libtock_runtime"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_platform",
 ]
@@ -1310,7 +1310,7 @@ dependencies = [
 [[package]]
 name = "libtock_screen"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_platform",
 ]
@@ -1318,7 +1318,7 @@ dependencies = [
 [[package]]
 name = "libtock_small_panic"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_low_level_debug",
  "libtock_platform",
@@ -1328,7 +1328,7 @@ dependencies = [
 [[package]]
 name = "libtock_sound_pressure"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_platform",
 ]
@@ -1336,7 +1336,7 @@ dependencies = [
 [[package]]
 name = "libtock_spi_controller"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_platform",
 ]
@@ -1344,7 +1344,7 @@ dependencies = [
 [[package]]
 name = "libtock_temperature"
 version = "0.1.0"
-source = "git+https://www.github.com/tock/libtock-rs#0766d8cf65b21f01e3340e4b37b345b177a4fb55"
+source = "git+https://github.com/tock/libtock-rs.git?rev=fc89be7d18da55649b5b3d3b98b40c88a78d9ef0#fc89be7d18da55649b5b3d3b98b40c88a78d9ef0"
 dependencies = [
  "libtock_platform",
 ]

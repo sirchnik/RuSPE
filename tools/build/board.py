@@ -340,9 +340,10 @@ def program_hex(ctx: Context, board: BoardConfig, hex_path: Path) -> Path:
         [
             str(openocd),
             "-f",
-            str(board.openocd_tcl),
+            board.openocd_tcl.as_posix(),
             "-c",
-            f"init; reset init; program {hex_path}; reset; shutdown",
+            # Tcl treats backslashes as escapes, so pass a forward-slash path.
+            f'init; reset init; program "{hex_path.as_posix()}"; reset; shutdown',
         ],
         cwd=board.board_dir,
     )

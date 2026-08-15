@@ -24,10 +24,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Generator
-
-if TYPE_CHECKING:
-    import serial
+from typing import Generator
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -36,9 +33,12 @@ if str(REPO_ROOT) not in sys.path:
 from invoke.context import Context as InvokeContext
 
 from boards.psc3m5_evk.secure_ipc.tasks import BOARD, _build as _ipc_build
-from tools.build.board import program_hex
 from tools.build.secure_build import FirmwareResult
-from tools.debugging.term import get_cypress_port
+from tools.debugging.uart_capture import (
+    DEFAULT_TIMEOUT,
+    UartError,
+    flash_and_capture,
+)
 
 # ---------------------------------------------------------------------------
 # Profile definitions
@@ -103,7 +103,7 @@ PROFILES: list[ProfileVariant] = [
 # ---------------------------------------------------------------------------
 
 BAUD = 115200
-SERIAL_TIMEOUT = 40  # seconds to wait for test output after reset
+SERIAL_TIMEOUT = DEFAULT_TIMEOUT  # seconds to wait for test output after reset
 
 DEFAULT_RESULTS_JSON = REPO_ROOT / "tests" / "bench_results_ipc.json"
 DEFAULT_SUMMARY_MD = REPO_ROOT / "tests" / "bench_size_summary_ipc.md"
@@ -260,54 +260,28 @@ def get_all_elf_sizes(firmware: FirmwareResult) -> dict[str, dict[str, int]]:
     return all_sizes
 
 
-def flash(result: FirmwareResult) -> None:
-    """Flash the merged hex via OpenOCD."""
-    ctx = InvokeContext()
-    program_hex(ctx, BOARD, result.merged_hex)
-
-
-def read_cycles_from_uart(
-    ser: serial.Serial,
+def flash_and_measure(
+    firmware: FirmwareResult,
+    profile_name: str,
     timeout: int,
-    expected_profile: str | None = None,
+    log_path: Path,
 ) -> int | None:
-    """Read UART output from serial connection ser and extract cycles_elapsed."""
-    print(f"  Listening on {ser.port} at {BAUD} baud (timeout={timeout}s) …")
-    deadline = time.monotonic() + timeout
-    buffer = ""
-    cycles_pattern = re.compile(r"cycles_elapsed\s+(\d+)")
-    profile_marker = f"profile: {expected_profile}" if expected_profile else None
-    start_marker = "--- NSPE TEST START ---"
-
-    try:
-        while time.monotonic() < deadline:
-            chunk = ser.read(512)
-            if chunk:
-                text = chunk.decode("utf-8", errors="replace")
-                buffer += text
-                sys.stdout.write(text)
-                sys.stdout.flush()
-
-                if profile_marker and profile_marker in buffer:
-                    search_buf = buffer[buffer.find(profile_marker) :]
-                    m = cycles_pattern.search(search_buf)
-                    if m:
-                        return int(m.group(1))
-                elif not profile_marker:
-                    search_buf = (
-                        buffer[buffer.find(start_marker) :]
-                        if start_marker in buffer
-                        else buffer
-                    )
-                    m = cycles_pattern.search(search_buf)
-                    if m:
-                        return int(m.group(1))
-    except Exception as exc:
-        print(f"  [error] Serial error: {exc}")
-        return None
-
-    print("  [warn] Timed out waiting for cycles_elapsed")
-    return None
+    """Attach the UART, flash the image and return the measured SysTick cycles."""
+    ctx = InvokeContext()
+    with open(log_path, "a", encoding="utf-8") as log:
+        print("\n=== FLASH + SERIAL ===", file=log)
+        capture = flash_and_capture(
+            ctx,
+            BOARD,
+            firmware.merged_hex,
+            baud=BAUD,
+            timeout=timeout,
+            openocd=True,
+            out=log,
+            flash_out=log,
+            expect=[f"profile: {profile_name}"],
+        )
+    return capture.cycles
 
 
 # ---------------------------------------------------------------------------
@@ -436,40 +410,20 @@ def run_bench(
                     modes_done_list.append("size")
 
             if bench_perf:
+                print("  flashing ...", end="", flush=True)
                 try:
-                    import serial  # type: ignore[import]
-
-                    port = get_cypress_port()
-                except (ImportError, RuntimeError) as exc:
-                    print(f"  [error] UART setup failed: {exc}", end="", flush=True)
+                    cycles = flash_and_measure(
+                        firmware, profile.name, uart_timeout, log_path
+                    )
+                except (ImportError, RuntimeError, UartError) as exc:
+                    print(f"  flash/UART FAILED ({exc})", end="", flush=True)
                 else:
-                    print("  flashing ...", end="", flush=True)
-                    try:
-                        with serial.Serial(port, BAUD, timeout=1) as ser:
-                            with contextlib.suppress(AttributeError, Exception):
-                                ser.reset_input_buffer()
-
-                            with _redirect_to_log(log_path, mode="a"):
-                                print("\n=== FLASH ===")
-                                flash(firmware)
-
-                            print("  reading UART ...", end="", flush=True)
-                            with _redirect_to_log(log_path, mode="a"):
-                                print("\n=== SERIAL ===")
-                                cycles = read_cycles_from_uart(
-                                    ser,
-                                    uart_timeout,
-                                    expected_profile=profile.name,
-                                )
-
-                        if cycles is not None:
-                            print(f"  cycles={cycles:,}", end="", flush=True)
-                            if "perf" not in modes_done_list:
-                                modes_done_list.append("perf")
-                        else:
-                            print("  cycles=N/A", end="", flush=True)
-                    except Exception as exc:
-                        print(f"  flash FAILED ({exc})", end="", flush=True)
+                    if cycles is not None:
+                        print(f"  cycles={cycles:,}", end="", flush=True)
+                        if "perf" not in modes_done_list:
+                            modes_done_list.append("perf")
+                    else:
+                        print("  cycles=N/A", end="", flush=True)
 
         print(f"  log: {log_path}")
 
