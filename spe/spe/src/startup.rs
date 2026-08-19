@@ -46,7 +46,11 @@ pub unsafe fn jump_to_nonsecure(nonsecure_flash_start: u32) -> ! {
     let nonsecure_reset = unsafe { nonsecure_start_flash.add(1).read_volatile() };
 
     unsafe {
+        (0xE002_ED08 as *mut u32).write_volatile(nonsecure_flash_start);
+        cortex_m::nvic::clear_all_pending();
         core::arch::asm!(
+            "dsb",
+            "isb",
             "msr msp_ns, {ns_sp}",
             "push {{{seal}}}",
             "bxns {ns_reset}",

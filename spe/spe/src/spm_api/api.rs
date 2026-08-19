@@ -92,18 +92,12 @@ macro_rules! define_spm_api {
             }
         }
 
-        // Hand-written CMSE SG stub: naked veneers don't get an
-        // LLVM-generated `.gnu.sgstubs` entry, so it is emitted manually.
         #[cfg(target_arch = "arm")]
         core::arch::global_asm!(
-            ".section .gnu.sgstubs,\"ax\",%progbits",
-            ".align 5",
             ".global psa_version_veneer",
-            ".type psa_version_veneer, %function",
             ".thumb_func",
-            "psa_version_veneer:",
-            "sg",
-            "b __acle_se_psa_version_veneer",
+            ".type psa_version_veneer, %function",
+            ".set psa_version_veneer, __acle_se_psa_version_veneer",
         );
 
         #[cfg(target_arch = "arm")]
@@ -154,14 +148,10 @@ macro_rules! define_spm_api {
 
         #[cfg(target_arch = "arm")]
         core::arch::global_asm!(
-            ".section .gnu.sgstubs,\"ax\",%progbits",
-            ".align 5",
             ".global psa_call_veneer",
-            ".type psa_call_veneer, %function",
             ".thumb_func",
-            "psa_call_veneer:",
-            "sg",
-            "b __acle_se_psa_call_veneer",
+            ".type psa_call_veneer, %function",
+            ".set psa_call_veneer, __acle_se_psa_call_veneer",
         );
 
         #[cfg(target_arch = "arm")]
