@@ -18,6 +18,9 @@ IGNORE_SUBSTRINGS = [
     "musca",
     "test_nspe",
     "boards/psc3m5_evk/secure",
+    # optional unsafe feature
+    "ffi_alloc.rs",
+    "spe_services/src/crypto/crypto_service.rs",
 ]
 
 
@@ -33,11 +36,20 @@ class RustCategory(str, Enum):
 
 
 class SystemCategory(str, Enum):
-    ENTRY_POINTS = "Entry Points"
-    IO_VECTORS = "IO-Vectors"
-    EXCEPTION_HANDLING = "Exception Handling"
+    TRUSTZONE_M = "TrustZone-M"
+    EXCEPTION_HANDLING = "Fault & Reset Handling"
     HARDWARE_ACCESS = "Hardware Access"
     OPERATING_SYSTEM = "Operating System"
+
+
+class SystemSubgroup(str, Enum):
+    ENTRY_POINTS = "Entry & Reset Paths"
+    FAULT_HANDLERS = "Fault Handlers"
+    PROCESS_MANAGEMENT = "Process & Service Management"
+    SVC_API = "SVC & API Layer"
+    IPC_DISPATCH = "IPC & Dispatch"
+    SERVICE_INIT = "Service Startup"
+    SYNC_PRIMITIVES = "Synchronization Primitives"
 
 
 @dataclass
@@ -59,18 +71,38 @@ SYSTEM_RULES: list[ClassificationRule] = [
         code_contains=["unhandled_interrupt"],
     ),
     ClassificationRule(
-        category=SystemCategory.IO_VECTORS,
+        category=SystemCategory.EXCEPTION_HANDLING,
+        path_contains=["startup.rs"],
+        code_contains=[".vectors", ".irqs"],
+    ),
+    ClassificationRule(
+        category=SystemCategory.TRUSTZONE_M,
+        path_contains=[
+            "spe/psa_interface/",
+            "spe/psa_veneer_client/",
+            "boards/psc3m5_evk/services/",
+            "spe/spe/src/veneers.rs",
+        ],
         code_contains=[
             "from_raw_parts",
+            "FFInVec",
+            "FFOutVec",
+            "PsaMsg",
+            "invec",
+            "outvec",
+            "in_vec",
+            "out_vec",
+            "raw_vec",
+            "map_vec",
+            "unmap_vec",
+            "prepare_invec",
+            "prepare_outvec",
+            "access_invec",
+            "access_outvec",
             "svc_access_invec",
             "svc_access_outvec",
             "CtrlParam",
         ],
-    ),
-    ClassificationRule(
-        category=SystemCategory.ENTRY_POINTS,
-        path_contains=["startup.rs", "veneers.rs", "psa_veneer_client"],
-        code_contains=[".vectors", ".irqs"],
     ),
     ClassificationRule(
         category=SystemCategory.HARDWARE_ACCESS,
@@ -83,6 +115,14 @@ SYSTEM_RULES: list[ClassificationRule] = [
     ),
 ]
 
+# Explicit per-file category assignments, checked before SYSTEM_RULES, for files
+# whose primary concern doesn't match their directory's general path rule.
+FILE_OVERRIDES: dict[str, SystemCategory] = {
+    "spe/spe/src/spm_api/svc.rs": SystemCategory.OPERATING_SYSTEM,
+    "spe/spe/src/spm/spm_ipc/process.rs": SystemCategory.OPERATING_SYSTEM,
+    "spe/spe/src/spm/spm.rs": SystemCategory.OPERATING_SYSTEM,
+}
+
 
 @dataclass(slots=True)
 class Occurrence:
@@ -92,6 +132,7 @@ class Occurrence:
     display_code: str
     rust_category: RustCategory
     system_category: SystemCategory
+    subgroup: SystemSubgroup | None = None
     loc_count: int = 0
 
 
@@ -129,8 +170,12 @@ class AnalysisResult:
 
 
 def should_ignore(rel_path: str) -> bool:
-    p = rel_path.replace("\\", "/")
+    p = to_posix_path(rel_path)
     return any(ig in p for ig in IGNORE_SUBSTRINGS)
+
+
+def to_posix_path(path: str) -> str:
+    return path.replace("\\", "/")
 
 
 def clean_line(line: str) -> str:
@@ -155,6 +200,22 @@ def get_block_extent(
                 if started and depth <= 0:
                     return i
     return start_i
+
+
+def get_test_module_ranges(lines: list[str]) -> list[range]:
+    ranges = []
+    for idx, line in enumerate(lines):
+        if clean_line(line).strip() != "#[cfg(test)]":
+            continue
+
+        for module_idx in range(idx + 1, len(lines)):
+            module_line = clean_line(lines[module_idx]).strip()
+            if not module_line or module_line.startswith("#"):
+                continue
+            if re.match(r"(?:pub(?:\([^)]*\))?\s+)?mod\s+\w+", module_line):
+                ranges.append(range(module_idx, get_block_extent(lines, module_idx) + 1))
+            break
+    return ranges
 
 
 def classify_rust_construct(
@@ -193,11 +254,41 @@ def classify_rust_construct(
 
 
 def classify_system_category(rel_path: str, code: str) -> SystemCategory:
-    norm = rel_path.replace("\\", "/")
+    norm = to_posix_path(rel_path)
+    if norm in FILE_OVERRIDES:
+        return FILE_OVERRIDES[norm]
     for rule in SYSTEM_RULES:
         if rule.matches(norm, code):
             return rule.category
     return SystemCategory.OPERATING_SYSTEM
+
+
+def classify_system_subgroup(rel_path: str, code: str, system_category: SystemCategory) -> SystemSubgroup | None:
+    norm = to_posix_path(rel_path)
+
+    if system_category == SystemCategory.EXCEPTION_HANDLING:
+        if "startup.rs" in norm:
+            return SystemSubgroup.ENTRY_POINTS
+        return SystemSubgroup.FAULT_HANDLERS
+
+    if system_category == SystemCategory.OPERATING_SYSTEM:
+        if "spm/spm.rs" in norm or "spm_ipc/process.rs" in norm:
+            return SystemSubgroup.PROCESS_MANAGEMENT
+        if "spm_api/svc.rs" in norm or "spm_api/api.rs" in norm:
+            return SystemSubgroup.SVC_API
+        if "spm/spm_ipc/" in norm or "spm_ipc.rs" in norm:
+            return SystemSubgroup.IPC_DISPATCH
+        if "service.rs" in norm:
+            return SystemSubgroup.SERVICE_INIT
+        if "libs/mutex.rs" in norm or "libs/once_lock.rs" in norm:
+            return SystemSubgroup.SYNC_PRIMITIVES
+        if "spm/" in norm:
+            return SystemSubgroup.IPC_DISPATCH
+        if "spm_api" in norm:
+            return SystemSubgroup.SVC_API
+        return None
+
+    return None
 
 
 def run_analysis(ruspe_path: str) -> AnalysisResult:
@@ -212,7 +303,7 @@ def run_analysis(ruspe_path: str) -> AnalysisResult:
         for f in sorted(filenames):
             if not f.endswith(".rs"):
                 continue
-            rel_path = os.path.normpath(os.path.join(rel_dir, f))
+            rel_path = to_posix_path(os.path.normpath(os.path.join(rel_dir, f)))
             if should_ignore(rel_path):
                 continue
 
@@ -226,14 +317,18 @@ def run_analysis(ruspe_path: str) -> AnalysisResult:
             total_files += 1
             total_rust_loc += len(lines)
             has_unsafe = False
+            test_module_ranges = get_test_module_ranges(lines)
 
             for idx, line in enumerate(lines):
+                if any(idx in test_range for test_range in test_module_ranges):
+                    continue
                 cleaned = clean_line(line).strip()
                 rust_cat, count = classify_rust_construct(lines, idx, cleaned)
                 if rust_cat is None:
                     continue
 
                 sys_cat = classify_system_category(rel_path, line)
+                subgroup = classify_system_subgroup(rel_path, line, sys_cat)
                 disp = line.strip() + (f" [{count} lines]" if count > 0 else "")
                 occurrences.append(
                     Occurrence(
@@ -243,6 +338,7 @@ def run_analysis(ruspe_path: str) -> AnalysisResult:
                         display_code=disp,
                         rust_category=rust_cat,
                         system_category=sys_cat,
+                        subgroup=subgroup,
                         loc_count=count,
                     )
                 )
@@ -267,6 +363,7 @@ def pct(num: int, den: int) -> str:
 
 def format_snippet_breakdown(items: list[Occurrence], link_prefix: str) -> list[str]:
     grouped = defaultdict(list)
+    link_prefix = to_posix_path(link_prefix).rstrip("/")
     for occ in items:
         disp = (
             occ.display_code
@@ -280,14 +377,14 @@ def format_snippet_breakdown(items: list[Occurrence], link_prefix: str) -> list[
     for (code, cat), links in sorted(
         grouped.items(), key=lambda it: len(it[1]), reverse=True
     ):
-        lines.append(f"- **`{code}`** — *{cat}* ({len(links)}x)")
+        lines.append(f"- **`{code}`** - *{cat}* ({len(links)}x)")
         for link in links:
             lines.append(f"  - {link}")
     return lines
 
 
 def generate_markdown_report(
-    result: AnalysisResult, link_prefix: str = "../RuSPE"
+    result: AnalysisResult, link_prefix: str
 ) -> str:
     t_loc = result.total_rust_loc
     u_tot = result.total_unsafe_loc
@@ -319,8 +416,8 @@ def generate_markdown_report(
     lines.extend(
         [
             "## System Categories Overview\n",
-            "| System Category | Occurrences | Unsafe Blocks LOC | Inline ASM LOC | Total Unsafe LOC | % of Unsafe LOC | % of Total LOC |",
-            "| :--- | :---: | :---: | :---: | :---: | :---: | :---: |",
+            "| System Category | Subgroup | Occurrences | % of Occurrences | Unsafe Blocks LOC | Inline ASM LOC | Total Unsafe LOC | % of Unsafe LOC | % of Total LOC |",
+            "| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |",
         ]
     )
 
@@ -339,8 +436,38 @@ def generate_markdown_report(
             it.loc_count for it in items if it.rust_category == RustCategory.INLINE_ASM
         )
         tot = b_loc + a_loc
+
+        if sys_cat in (SystemCategory.OPERATING_SYSTEM, SystemCategory.EXCEPTION_HANDLING):
+            subgrouped = defaultdict(list)
+            for item in items:
+                if item.subgroup is not None:
+                    subgrouped[item.subgroup].append(item)
+
+            for subgroup in SystemSubgroup:
+                subgroup_items = subgrouped[subgroup]
+                if not subgroup_items:
+                    continue
+                subgroup_b = sum(
+                    it.loc_count
+                    for it in subgroup_items
+                    if it.rust_category == RustCategory.UNSAFE_BLOCK
+                )
+                subgroup_a = sum(
+                    it.loc_count
+                    for it in subgroup_items
+                    if it.rust_category == RustCategory.INLINE_ASM
+                )
+                subgroup_tot = subgroup_b + subgroup_a
+                lines.append(
+                    f"| > {sys_cat.value} | {subgroup.value} | {len(subgroup_items)} | {pct(len(subgroup_items), len(result.occurrences))} | {subgroup_b} | {subgroup_a} | {subgroup_tot} | {pct(subgroup_tot, u_tot)} | {pct(subgroup_tot, t_loc)} |"
+                )
+            lines.append(
+                f"| **{sys_cat.value}** | Total | **{len(items)}** | **{pct(len(items), len(result.occurrences))}** | {b_loc} | {a_loc} | **{tot}** | **{pct(tot, u_tot)}** | **{pct(tot, t_loc)}** |"
+            )
+            continue
+
         lines.append(
-            f"| **{sys_cat.value}** | {len(items)} | {b_loc} | {a_loc} | **{tot}** | {pct(tot, u_tot)} | {pct(tot, t_loc)} |"
+            f"| **{sys_cat.value}** | - | **{len(items)}** | **{pct(len(items), len(result.occurrences))}** | {b_loc} | {a_loc} | **{tot}** | **{pct(tot, u_tot)}** | **{pct(tot, t_loc)}** |"
         )
     lines.append("")
 
@@ -382,9 +509,39 @@ def generate_markdown_report(
         a_loc = sum(
             it.loc_count for it in items if it.rust_category == RustCategory.INLINE_ASM
         )
+
+        subgrouped = defaultdict(list)
+        for item in items:
+            if item.subgroup is not None:
+                subgrouped[item.subgroup].append(item)
+
         lines.append(
-            f"### {sys_cat.value} ({len(items)} occurrences — {b_loc} LOC unsafe / {a_loc} LOC ASM ({b_loc + a_loc} LOC total))\n"
+            f"### {sys_cat.value} ({len(items)} occurrences - {b_loc} LOC unsafe / {a_loc} LOC ASM ({b_loc + a_loc} LOC total))\n"
         )
+
+        if sys_cat in (SystemCategory.OPERATING_SYSTEM, SystemCategory.EXCEPTION_HANDLING):
+            for subgroup in SystemSubgroup:
+                subgroup_items = subgrouped[subgroup]
+                if not subgroup_items:
+                    continue
+                subgroup_b = sum(
+                    it.loc_count
+                    for it in subgroup_items
+                    if it.rust_category == RustCategory.UNSAFE_BLOCK
+                )
+                subgroup_a = sum(
+                    it.loc_count
+                    for it in subgroup_items
+                    if it.rust_category == RustCategory.INLINE_ASM
+                )
+                lines.append(
+                    f"#### {subgroup.value} ({len(subgroup_items)} occurrences - {subgroup_b} LOC unsafe / {subgroup_a} LOC ASM ({subgroup_b + subgroup_a} LOC total))\n"
+                )
+                lines.extend(format_snippet_breakdown(subgroup_items, link_prefix))
+                lines.append("")
+            lines.append("")
+            continue
+
         lines.extend(format_snippet_breakdown(items, link_prefix))
         lines.append("")
 
@@ -400,7 +557,7 @@ def main() -> None:
     )
     parser.add_argument("-o", "--output", help="Write report to file instead of stdout")
     parser.add_argument(
-        "--link-prefix", default="../RuSPE", help="Path prefix for markdown links"
+        "--link-prefix", default="../../", help="Path prefix for markdown links"
     )
 
     args = parser.parse_args()
