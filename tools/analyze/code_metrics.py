@@ -16,6 +16,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[1]
 TFM_ROOT = REPO_ROOT.parent / "trusted-firmware-m"
 METRICS_TOOL = "rust-code-analysis-cli"
+INSTALL_INSTRUCTIONS = "cargo install rust-code-analysis-cli --locked"
 
 RUSPE_PATHS = (
     REPO_ROOT / "spe/spe_services/src/attest",
@@ -62,6 +63,10 @@ def run_metrics_command(command: list[str]) -> str:
         return result.stdout
     except FileNotFoundError:
         print(f"Could not find {METRICS_TOOL} on PATH.", file=sys.stderr)
+        print(
+            f"Install it with: {INSTALL_INSTRUCTIONS}",
+            file=sys.stderr,
+        )
         sys.exit(1)
     except subprocess.CalledProcessError as error:
         print(f"Metrics command failed: {error}", file=sys.stderr)
